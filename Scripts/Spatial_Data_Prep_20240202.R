@@ -9,7 +9,7 @@ library(raster)
 library(sf)
 
 #add in the data
-sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Tri_State_Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data_20240113.csv")) %>% 
+sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data_20240113.csv")) %>% 
   dplyr::select(-X) #Remove the column that excel generated
 #View the data
 glimpse(sobs)
@@ -34,7 +34,7 @@ points <- sobs %>%
   st_set_crs(utm_12n)
 #View points
 points
-points %>% ggplot(aes(col = Route.Type)) + geom_sf()
+#points %>% ggplot(aes(col = Route.Type)) + geom_sf()
 
 #Create an object for route centers
 route_centers <- sobs %>% 
@@ -51,7 +51,7 @@ route_centers <- sobs %>%
   arrange(Route.ID)
 #View routes
 route_centers
-route_centers %>% ggplot(aes(col = Route.Type)) + geom_sf()
+#route_centers %>% ggplot(aes(col = Route.Type)) + geom_sf()
 
 #Add rasters ------------------------------------------------------------------------------
 #primary file path for rasters
@@ -64,7 +64,6 @@ anu_cvr <- raster(paste0(ras_path, "anu_cvr.tif"))
 perin_cvr <- raster(paste0(ras_path, "herb_cvr.tif"))
 shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
 shrub_hgt <- raster(paste0(ras_path, "shrub_height.tif"))
-pj_cvr <- raster(paste0(ras_path, "pj.tif"))
 burn_sev <- raster(paste0(ras_path, "Burn_Sev.tif"))
 fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
 elevation <- raster(paste0(ras_path, "elevation.tif"))
@@ -72,16 +71,6 @@ aspect <- raster(paste0(ras_path, "aspect.tif"))
 tri <- raster(paste0(ras_path, "tri.tif"))
 precip <- raster(paste0(ras_path, "precip.tif"))
 road_dist <- raster(paste0(ras_path, "road_dist.tif"))
-
-#Delete???? ----------------------------
-#Make some new rasters
-#make a topographic ruggedness index raster
-# tri <- raster::terrain(elevation, opt = "TRI", neighbors = 8)
-# plot(tri)
-# tri
-# 
-# #export tri
-# raster::writeRaster(tri, paste0(ras_path, "tri.tif"), overwrite = T)
 
 #make an object to store all of the raster summaries
 route_summaries <- route_centers %>% 
@@ -115,16 +104,6 @@ route_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                     y = route_centers,
                                     buffer = 564,
                                     fun = mean)
-#summarize pj cover
-route_summaries$PJ.Cover <- raster::extract(x = pj_cvr,
-                                                 y = route_centers,
-                                                 buffer = 564,
-                                                 fun = mean) 
-#log PJ cover
-route_summaries <- route_summaries %>% 
-  mutate(log.PJ.Cover = log(PJ.Cover)) %>% 
-  select(-PJ.Cover)
-
 #summarize burn sevarity
 route_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
                                                  y = route_centers,
@@ -222,57 +201,27 @@ route_summaries <- route_summaries %>%
                                Fire.Name == "Playground" ~ 2013,
                                Fire.Name == "Prospect" ~ 2002,
                                Fire.Name == "Rosebud" ~ 2017,
-                               Fire.Name == "Wagon Box" ~ 1999))
+                               Fire.Name == "Wagon Box" ~ 1999)) 
 #view the fire names
 print(route_summaries, n = 30)
 unique(route_summaries$Fire.Year)
-route_summaries %>% 
+route_summaries %>%
   ggplot(aes(x = Fire.Year)) +
   geom_bar()
 
-#Add number of fires
-route_summaries <- route_summaries %>%
-  mutate(Number.Of.Fires = case_when(Route.ID == 'ID-B03' ~ NA,
-                               Route.ID == 'ID-B04' ~ 1,
-                               Route.ID == 'ID-B07' ~ 1,
-                               Route.ID == 'ID-B09' ~ 1,
-                               Route.ID == 'ID-B11' ~ 1,
-                               Route.ID == 'ID-B12' ~ 1,
-                               Route.ID == 'ID-B13' ~ 1,
-                               Route.ID == 'ID-B15' ~ 1,
-                               Route.ID == 'ID-B16' ~ 1,
-                               Route.ID == 'ID-B19' ~ 1,
-                               Route.ID == 'ID-B21' ~ 1,
-                               Route.ID == 'ID-B22' ~ 1,
-                               Route.ID == 'ID-B23' ~ 1,
-                               Route.ID == 'ID-B24' ~ 1,
-                               Route.ID == 'ID-B26' ~ 1,
-                               Route.ID == 'ID-B28' ~ 1,
-                               Route.ID == 'UT-B01' ~ 1,
-                               Route.ID == 'UT-B02' ~ 1,
-                               Route.ID == 'UT-B05' ~ 1,
-                               Route.ID == 'UT-B06' ~ 1, 
-                               Route.ID == 'UT-B08' ~ 1,
-                               Route.ID == 'UT-B15' ~ 1,
-                               Route.ID == 'UT-B16' ~ 1,
-                               Route.ID == 'UT-B17' ~ 1,
-                               Route.ID == 'UT-B19' ~ 1,
-                               Route.ID == 'UT-B22' ~ 1,
-                               Route.ID == 'UT-B24' ~ 3,
-                               Route.ID == 'UT-B25' ~ 1,
-                               Route.ID == 'UT-B27' ~ 3,
-                               Route.ID == 'UT-B30' ~ 3))
+#View the data
+glimpse(route_summaries)
 
 #examine spatial data ------------------------------------------------------------------ 
 #Plot variables
 route_summaries %>% 
   mutate(Aspect = as.factor(Aspect)) %>% 
-  ggplot(aes(x = Aspect, y = Sagebrush.Cover))+ 
+  ggplot(aes(x = Aspect, y = Shrub.Cover))+ 
   geom_boxplot()
 
 #plot correlation between two specific variables
 route_summaries %>% 
-  ggplot(aes(x = Elevation, y = Sagebrush.Cover)) +
+  ggplot(aes(x = Elevation, y = Shrub.Cover)) +
   geom_point() +
   geom_smooth() +
  facet_wrap(~Route.Type)
@@ -280,13 +229,14 @@ route_summaries %>%
 #test correlation among variables
 #First numerically
 route_summaries %>%
-  dplyr::select(-Route.ID, -Route.Type, - geometry) %>% 
+  filter(Route.Type =="B" & Route.ID != "ID-B03") %>% 
+  dplyr::select(-Route.ID, -Route.Type, - geometry, -Fire.Name) %>% 
   cor()
 
 #Then graphically
 route_summaries %>%
-  mutate_at(c('Fire.Name', 'Fire.Year', 'Number.Of.Fires'), as.factor) %>% 
-  dplyr::select(-Route.ID, -Route.Type, - geometry) %>%
+  filter(Route.Type =="B" & Route.ID != "ID-B03") %>%
+  dplyr::select(-Route.ID, -Route.Type, - geometry, -Fire.Name) %>%
   pairs()
 
 #annual and perennial cover are too correlated
@@ -294,7 +244,9 @@ route_summaries %>%
 #precipitation and elevation are too correlated
 route_summaries <- route_summaries %>% 
   select(-Perennial.Cover, -Shrub.Height, -Precipitation)
+
+#View one last time
 glimpse(route_summaries)
   
 #looks good. time to export
-write.csv(route_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Tri_State_Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")
+write.csv(route_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")
