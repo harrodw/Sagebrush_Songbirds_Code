@@ -4,7 +4,9 @@
 #Start here ---------------------------------------------------------------------------------
 
 #Load packages
-library(tidyverse)
+library(dplyr)
+library(stringr)
+library(ggplot2)
 library(raster)
 library(sf)
 
@@ -72,6 +74,19 @@ tri <- raster(paste0(ras_path, "tri.tif"))
 precip <- raster(paste0(ras_path, "precip.tif"))
 road_dist <- raster(paste0(ras_path, "road_dist.tif"))
 
+#Create a Topographic ruggedness layer
+tri_4x4 <- terrain(x = elevation,
+                   opt = "TRI",
+                   neighbors = 15)
+tri_4x4 #View
+tri_5x5 <- terrain(x = elevation,
+                   opt = "TRI",
+                   neighbors = 15)
+tri_5x5 #View
+#export tri layers
+writeRaster(tri_4x4, 'C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\tri_4x4.tif')
+writeRaster(tri_5x5, 'C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\tri_5x5.tif')
+
 #make an object to store all of the raster summaries
 route_summaries <- route_centers %>% 
                    tibble()
@@ -104,11 +119,12 @@ route_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                     y = route_centers,
                                     buffer = 564,
                                     fun = mean)
+
 #summarize burn sevarity
 route_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
                                                  y = route_centers,
                                                  buffer = 564,
-                                                 fun = mean) 
+                                                 fun = modal) 
 #summarize distance to fire edge
 route_summaries$Fire.Distance <- raster::extract(x = fire_dist,
                                                  y = route_centers,
@@ -213,6 +229,7 @@ route_summaries %>%
 glimpse(route_summaries)
 
 #examine spatial data ------------------------------------------------------------------ 
+
 #Plot variables
 route_summaries %>% 
   mutate(Aspect = as.factor(Aspect)) %>% 
@@ -221,10 +238,10 @@ route_summaries %>%
 
 #plot correlation between two specific variables
 route_summaries %>% 
-  ggplot(aes(x = Elevation, y = Shrub.Cover)) +
+  ggplot(aes(x = Shrub.Height, y = Shrub.Cover)) +
   geom_point() +
-  geom_smooth() +
- facet_wrap(~Route.Type)
+  geom_smooth() 
+ # facet_wrap(~Route.Type)
 
 #test correlation among variables
 #First numerically
@@ -240,13 +257,123 @@ route_summaries %>%
   pairs()
 
 #annual and perennial cover are too correlated
-#shrub cover and srub height are too correlated
+#shrub cover and srub height are correlated but more so on reference plots than on burn plots
 #precipitation and elevation are too correlated
 route_summaries <- route_summaries %>% 
-  select(-Perennial.Cover, -Shrub.Height, -Precipitation)
+  select(-Shrub.Height, -Precipitation)
 
 #View one last time
 glimpse(route_summaries)
   
 #looks good. time to export
 write.csv(route_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")
+
+#Extract values to 125m buffers around each point -------------------------------------
+#make an object to store all of the raster summaries
+point_summaries <- points %>% 
+  tibble()
+glimpse(point_summaries)
+
+#Extract values to buffers
+#summarize Sagebrush cover
+point_summaries$Sagebrush.Cover <- raster::extract(x = sage_cvr,
+                                                   y = points,
+                                                   buffer = 125,
+                                                   fun = mean) 
+#summarize annual cover
+point_summaries$Annual.Cover <- raster::extract(x = anu_cvr,
+                                                y = points,
+                                                buffer = 125,
+                                                fun = mean)
+
+#summarize perennial cover
+point_summaries$Perennial.Cover <- raster::extract(x = perin_cvr,
+                                                   y = points,
+                                                   buffer = 125,
+                                                   fun = mean) 
+#summarize shrub cover 
+point_summaries$Shrub.Cover <- raster::extract(x = shrub_cvr,
+                                               y = points,
+                                               buffer = 125,
+                                               fun = mean)
+#summarize shrub height
+point_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
+                                                y = points,
+                                                buffer = 125,
+                                                fun = mean)
+#summarize burn sevarity
+point_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
+                                                 y = points,
+                                                 buffer = 125,
+                                                 fun = modal) 
+#summarize distance to fire edge
+point_summaries$Fire.Distance <- raster::extract(x = fire_dist,
+                                                 y = points,
+                                                 buffer = 125,
+                                                 fun = mean) 
+#define inside vs outside of fire
+point_summaries <- point_summaries %>% 
+  mutate(Fire.Distance = case_when(Route.Type == "B" ~ -Fire.Distance,
+                                   TRUE ~ Fire.Distance))
+
+#summarize elevation
+point_summaries$Elevation <- raster::extract(x = elevation,
+                                             y = points,
+                                             buffer = 125,
+                                             fun = mean) 
+#summarize topographic ruggedness index
+point_summaries$TRI <- raster::extract(x = tri,
+                                       y = points,
+                                       buffer = 125,
+                                       fun = mean)
+#summarize aspect
+point_summaries$Aspect <- raster::extract(x = aspect,
+                                          y = points,
+                                          buffer = 125,
+                                          fun = modal)
+
+#summarize road distance
+point_summaries$Road.Distance <- raster::extract(x = road_dist,
+                                                 y = points,
+                                                 buffer = 125,
+                                                 fun = mean)
+#View summaries
+glimpse(point_summaries)
+print(point_summaries, n = 60)
+
+#compare variables at the point level --------------------------------------------
+#use this if the graphing gets messed up --------------- 
+#dev.off()
+
+#Boxplots for catigorical variables
+point_summaries %>% 
+  mutate(Route.Type = as.factor(Route.Type)) %>% 
+  ggplot(aes(x = Route.Type, y = Sagebrush.Cover)) +
+  geom_boxplot()
+
+#Plot of a single variable against another
+point_summaries %>% 
+  ggplot(aes(x = Elevation, y = Sagebrush.Cover, 
+             fill = Route.Type, col = Route.Type)) +
+  geom_point() +
+  geom_smooth() 
+
+#Compare correlation among all variables
+point_summaries %>%
+  # filter(Route.Type =="B") %>% 
+  dplyr::select(-Route.ID, -Route.Type, -Full.Point.ID, -geometry) %>% 
+  cor()
+
+#plot corelation among all variables
+point_summaries %>% 
+  # filter(Route.Type =="B") %>% 
+  dplyr::select(-Route.ID, -Route.Type, -Full.Point.ID, -geometry) %>%
+  pairs()
+
+#Same as with the rout summaries, I should remove shrub height
+#and perennial cover
+point_summaries <- point_summaries %>% 
+  select(-Shrub.Height)
+
+#export the point summaries
+write.csv(point_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\point_summaries.csv")
