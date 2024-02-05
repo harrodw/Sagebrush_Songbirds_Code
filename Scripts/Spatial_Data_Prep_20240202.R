@@ -70,22 +70,33 @@ burn_sev <- raster(paste0(ras_path, "Burn_Sev.tif"))
 fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
 elevation <- raster(paste0(ras_path, "elevation.tif"))
 aspect <- raster(paste0(ras_path, "aspect.tif"))
-tri <- raster(paste0(ras_path, "tri.tif"))
+tri <- raster(paste0(ras_path, "tri_3x3.tif"))
 precip <- raster(paste0(ras_path, "precip.tif"))
 road_dist <- raster(paste0(ras_path, "road_dist.tif"))
 
 #Create a Topographic ruggedness layer
-tri_4x4 <- terrain(x = elevation,
-                   opt = "TRI",
-                   neighbors = 15)
-tri_4x4 #View
-tri_5x5 <- terrain(x = elevation,
-                   opt = "TRI",
-                   neighbors = 15)
-tri_5x5 #View
-#export tri layers
-writeRaster(tri_4x4, 'C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\tri_4x4.tif')
-writeRaster(tri_5x5, 'C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\tri_5x5.tif')
+# #I can add this back in if needed --------------------
+# tri_3x3 <- terrain(x = elevation,
+#                    opt = "TRI",
+#                    neighbors = 8)
+# tri_3x3 #View
+# tri_4x4 <- terrain(x = elevation,
+#                    opt = "TRI",
+#                    neighbors = 15)
+# tri_4x4 #View
+# tri_5x5 <- terrain(x = elevation,
+#                    opt = "TRI",
+#                    neighbors = 24)
+# tri_5x5 #View
+# 
+# #export tri layers
+# writeRaster(tri_3x3, paste0(ras_path, 'tri_3x3.tif'),overwrite = TRUE)
+#             
+# writeRaster(tri_4x4, 'C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\tri_4x4.tif',
+#             overwrite = TRUE)
+# writeRaster(tri_5x5, 'C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\tri_5x5.tif',
+#             overwrit = TRUE)
+# #Finished with tri --------------------------
 
 #make an object to store all of the raster summaries
 route_summaries <- route_centers %>% 
@@ -260,8 +271,16 @@ route_summaries %>%
 #shrub cover and srub height are correlated but more so on reference plots than on burn plots
 #precipitation and elevation are too correlated
 route_summaries <- route_summaries %>% 
-  select(-Shrub.Height, -Precipitation)
+  select(-Shrub.Height, -Precipitation, - Perennial.Cover)
 
+#Split up the x and y coords
+route_summaries <- route_summaries %>% 
+  mutate(geometry = as.character(geometry)) %>% 
+  mutate(Center.X = str_sub(geometry, start = 3, end = 8)) %>% 
+  mutate(Center.Y = str_sub(geometry, start = 11, end = 17)) %>% 
+  select(-geometry) %>% 
+  mutate_at(c('Center.X', 'Center.Y'), as.integer) 
+  
 #View one last time
 glimpse(route_summaries)
   
@@ -374,6 +393,17 @@ point_summaries %>%
 #and perennial cover
 point_summaries <- point_summaries %>% 
   select(-Shrub.Height)
+
+#Split up the x and y coords
+point_summaries <- point_summaries %>% 
+  mutate(geometry = as.character(geometry)) %>% 
+  mutate(Center.X = str_sub(geometry, start = 3, end = 8)) %>% 
+  mutate(Center.Y = str_sub(geometry, start = 11, end = 17)) %>% 
+  select(-geometry) %>% 
+  mutate_at(c('Center.X', 'Center.Y'), as.integer) 
+
+#View one last time
+glimpse(point_summaries)
 
 #export the point summaries
 write.csv(point_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\point_summaries.csv")
