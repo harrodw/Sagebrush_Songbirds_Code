@@ -155,7 +155,7 @@ plot(model1_naive )
 par(mfrow = c(1, 1))
 
 #Transform from a multiplicitive to an additive scale
-output_exp <- exp(model1_naive$)
+output_exp <- exp(model1_naive)
 class(output_exp)
 
 #More specific model ----

@@ -3,7 +3,9 @@
 
 #Load packages
 #Load Required Packages
-library(tidyverse)
+library(dplyr)
+library(stringr)
+library(ggplot2)
 library(Distance)
 
 #Load in Data
@@ -301,8 +303,8 @@ SOI_model_obs_detect<- sobs %>%
   drop_na(distance) %>% 
   ds(truncation = "10%",                           #truncate the 10% #of distances
      transect = "point",                            #point transect
-     formula = ~ Observer.ID + How.Detected,                       #plug in a lot of covariates
-     key = "hr",                                    #starting with a hazard rate detection function
+     formula = ~ Observer.ID + How.Detected,        #plug in a lot of covariates
+     key = "hr",                                    
      convert_units = conv,                          #Not converting units yet
      region_table = region_table,                   #Stratify observations by plot type
      sample_table = sample_table)
