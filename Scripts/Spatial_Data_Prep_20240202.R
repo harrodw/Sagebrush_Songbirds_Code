@@ -26,13 +26,10 @@ points <- sobs %>%
   reframe(Full.Point.ID,
           Route.ID,
           Route.Type,
-          Point.X = mean(UTM.X , na.rm = TRUE), 
-          Point.Y = mean(UTM.Y, na.rm = TRUE)) %>%
-  mutate(Point.X = floor(Point.X)) %>% 
-  mutate(Point.Y = floor(Point.Y)) %>%
-  distinct(Full.Point.ID, Route.ID, Route.Type, Point.X, Point.Y) %>% 
-  arrange(Point.X, Point.Y, Route.ID, Route.Type, Full.Point.ID) %>% 
-  st_as_sf(coords = c("Point.X", "Point.Y")) %>% 
+          UTM.X,
+          UTM.Y) %>% 
+  distinct(Full.Point.ID, Route.ID, Route.Type, UTM.X, UTM.Y) %>% 
+  st_as_sf(coords = c("UTM.X", "UTM.Y")) %>% 
   st_set_crs(utm_12n)
 #View points
 points
@@ -64,7 +61,8 @@ ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Ge
 sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
 anu_cvr <- raster(paste0(ras_path, "anu_cvr.tif"))
 perin_cvr <- raster(paste0(ras_path, "herb_cvr.tif"))
-shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
+shrub_cvr_rcmap <- raster(paste0(ras_path, "shrub_cvr.tif"))
+shrub_cvr_rap <- raster(paste0(ras_path, "shrub_cvr_rap.tif"))
 shrub_hgt <- raster(paste0(ras_path, "shrub_height.tif"))
 burn_sev <- raster(paste0(ras_path, "Burn_Sev.tif"))
 fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
@@ -120,11 +118,16 @@ route_summaries$Perennial.Cover <- raster::extract(x = perin_cvr,
                                              y = route_centers,
                                              buffer = 564,
                                              fun = mean) 
-#summarize shrub cover 
-route_summaries$Shrub.Cover <- raster::extract(x = shrub_cvr,
+#summarize shrub cover from RCMAP
+route_summaries$Shrub.Cover.RCMAP <- raster::extract(x = shrub_cvr_rcmap,
                                     y = route_centers,
                                     buffer = 564,
                                     fun = mean)
+#summarize shrub cover RAP
+route_summaries$Shrub.Cover.RAP <- raster::extract(x = shrub_cvr_rap,
+                                                     y = route_centers,
+                                                     buffer = 564,
+                                                     fun = mean)
 #summarize shrub height
 route_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                     y = route_centers,
@@ -244,15 +247,20 @@ glimpse(route_summaries)
 #Plot variables
 route_summaries %>% 
   mutate(Aspect = as.factor(Aspect)) %>% 
-  ggplot(aes(x = Aspect, y = Shrub.Cover))+ 
+  ggplot(aes(x = Aspect, y = Shrub.Cover.))+ 
   geom_boxplot()
 
 #plot correlation between two specific variables
 route_summaries %>% 
-  ggplot(aes(x = Shrub.Height, y = Shrub.Cover)) +
+  ggplot(aes(x = Shrub.Cover.RCMAP, y = Shrub.Cover.RAP)) +
   geom_point() +
   geom_smooth() 
  # facet_wrap(~Route.Type)
+
+#Histogram of a single variable
+route_summaries %>% 
+  ggplot(aes(x = Shrub.Cover.RAP, fill = Route.Type)) +
+  geom_histogram()
 
 #test correlation among variables
 #First numerically
@@ -267,18 +275,19 @@ route_summaries %>%
   dplyr::select(-Route.ID, -Route.Type, - geometry, -Fire.Name) %>%
   pairs()
 
+
 #annual and perennial cover are too correlated
 #shrub cover and srub height are correlated but more so on reference plots than on burn plots
 #precipitation and elevation are too correlated
 route_summaries <- route_summaries %>% 
-  select(-Shrub.Height, -Precipitation, - Perennial.Cover)
+  dplyr::select(-Precipitation, - Perennial.Cover)
 
 #Split up the x and y coords
 route_summaries <- route_summaries %>% 
   mutate(geometry = as.character(geometry)) %>% 
   mutate(Center.X = str_sub(geometry, start = 3, end = 8)) %>% 
   mutate(Center.Y = str_sub(geometry, start = 11, end = 17)) %>% 
-  select(-geometry) %>% 
+  dplyr::select(-geometry) %>% 
   mutate_at(c('Center.X', 'Center.Y'), as.integer) 
   
 #View one last time
@@ -377,6 +386,12 @@ point_summaries %>%
   geom_point() +
   geom_smooth() 
 
+#Histogram of a single variable
+point_summaries %>% 
+  ggplot(aes(x = Shrub.Cover, fill = Route.Type)) +
+  geom_histogram()
+
+#Compare variables all at the point level -------------------------------------
 #Compare correlation among all variables
 point_summaries %>%
   # filter(Route.Type =="B") %>% 
