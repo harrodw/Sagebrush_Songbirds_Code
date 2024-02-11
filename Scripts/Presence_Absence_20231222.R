@@ -1,11 +1,21 @@
 #Presence absence data based on my songbird surveys
 
-#Load packages
-library("tidyverse")
+#Load tidyverse
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
+
+#set path for the data
+data_path <-"C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\"
 
 #add in data
-sobs <- read.csv("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\full_cleaned_data_2023.csv")
-str(sobs)
+sobs <- read.csv(paste0(data_path, "Outputs\\sobs_data.csv")) %>% 
+  tibble() %>% 
+  select(-X)
+#... and view
+glimpse(sobs)
 
 #Start Here ---------------------------------------------------------------------------------------
 #define a species of interest
@@ -32,7 +42,7 @@ presence_absence <- possible_routes %>%
   left_join(presence, by = c("Full.Point.ID", "Visit", "Year")) %>% 
   mutate(Presence = replace_na(Presence, 0)) %>% 
   mutate(Survey.Number = paste(Year, Visit, sep = "")) %>% 
-  dplyr::select(Full.Point.ID, Survey.Number, Presence, Po) %>% 
+  dplyr::select(Full.Point.ID, Survey.Number, Presence) %>% 
   rename(Point = "Full.Point.ID") %>% 
   arrange(Point)
 str(presence_absence)
@@ -66,7 +76,9 @@ filename
 
 #export presence absence table
 write.csv(presence_absence_table, 
-          paste("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\Presence_Absence\\", filename,
+          paste(data_path,
+                "\\Outputs\\",
+                filename,
                 sep = ""))
        
 #Show how many points this species was seen at
@@ -74,4 +86,3 @@ print(paste(soi, "was seen at", count_points_observed, "points",
             "which was", round(percent_points_observed, 1), 
             "percent of all points surveyed",
             sep = " "))
-

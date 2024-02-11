@@ -11,7 +11,7 @@ library(raster)
 library(sf)
 
 #add in the data
-sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data_20240113.csv")) %>% 
+sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data.csv")) %>% 
   dplyr::select(-X) #Remove the column that excel generated
 #View the data
 glimpse(sobs)
@@ -61,8 +61,8 @@ ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Ge
 sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
 anu_cvr <- raster(paste0(ras_path, "anu_cvr.tif"))
 perin_cvr <- raster(paste0(ras_path, "herb_cvr.tif"))
-shrub_cvr_rcmap <- raster(paste0(ras_path, "shrub_cvr.tif"))
-shrub_cvr_rap <- raster(paste0(ras_path, "shrub_cvr_rap.tif"))
+shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
+# shrub_cvr_rap <- raster(paste0(ras_path, "shrub_cvr_rap.tif"))
 shrub_hgt <- raster(paste0(ras_path, "shrub_height.tif"))
 burn_sev <- raster(paste0(ras_path, "Burn_Sev.tif"))
 fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
@@ -119,15 +119,15 @@ route_summaries$Perennial.Cover <- raster::extract(x = perin_cvr,
                                              buffer = 564,
                                              fun = mean) 
 #summarize shrub cover from RCMAP
-route_summaries$Shrub.Cover.RCMAP <- raster::extract(x = shrub_cvr_rcmap,
+route_summaries$Shrub.Cover<- raster::extract(x = shrub_cvr,
                                     y = route_centers,
                                     buffer = 564,
                                     fun = mean)
-#summarize shrub cover RAP
-route_summaries$Shrub.Cover.RAP <- raster::extract(x = shrub_cvr_rap,
-                                                     y = route_centers,
-                                                     buffer = 564,
-                                                     fun = mean)
+# #summarize shrub cover RAP
+# route_summaries$Shrub.Cover.RAP <- raster::extract(x = shrub_cvr_rap,
+#                                                      y = route_centers,
+#                                                      buffer = 564,
+#                                                      fun = mean)
 #summarize shrub height
 route_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                     y = route_centers,
@@ -247,19 +247,19 @@ glimpse(route_summaries)
 #Plot variables
 route_summaries %>% 
   mutate(Aspect = as.factor(Aspect)) %>% 
-  ggplot(aes(x = Aspect, y = Shrub.Cover.))+ 
+  ggplot(aes(x = Aspect, y = Shrub.Cover))+ 
   geom_boxplot()
 
 #plot correlation between two specific variables
 route_summaries %>% 
-  ggplot(aes(x = Shrub.Cover.RCMAP, y = Shrub.Cover.RAP)) +
+  ggplot(aes(x = Elevation, y = Shrub.Cover)) +
   geom_point() +
   geom_smooth() 
  # facet_wrap(~Route.Type)
 
 #Histogram of a single variable
 route_summaries %>% 
-  ggplot(aes(x = Shrub.Cover.RAP, fill = Route.Type)) +
+  ggplot(aes(x = Shrub.Cover, fill = Route.Type)) +
   geom_histogram()
 
 #test correlation among variables
@@ -407,13 +407,13 @@ point_summaries %>%
 #Same as with the rout summaries, I should remove shrub height
 #and perennial cover
 point_summaries <- point_summaries %>% 
-  select(-Shrub.Height)
+  select(-Perennial.Cover)
 
 #Split up the x and y coords
 point_summaries <- point_summaries %>% 
   mutate(geometry = as.character(geometry)) %>% 
-  mutate(Center.X = str_sub(geometry, start = 3, end = 8)) %>% 
-  mutate(Center.Y = str_sub(geometry, start = 11, end = 17)) %>% 
+  mutate(Point.X = str_sub(geometry, start = 3, end = 8)) %>% 
+  mutate(Point.Y = str_sub(geometry, start = 11, end = 17)) %>% 
   select(-geometry) %>% 
   mutate_at(c('Center.X', 'Center.Y'), as.integer) 
 

@@ -8,11 +8,18 @@ library(stringr)
 library(tidyr)
 library(dplyr)
 
+#set working directory
+
 #Add point count data
 sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data_20240113.csv")) %>% 
         dplyr::select(-X) #Remove the column that excel generated
 #and view the data
 glimpse(sobs)
+
+sobs %>% 
+  filter(Species == 'BRSP' & Route.ID == 'ID-C28') %>% 
+  select(Species, Distance, Route.ID, Full.Point.ID, Year, Visit, Observer.ID) %>% 
+  print(n = Inf)
 
 #add covariates
 #I'm going to start with only the route level covariates
@@ -112,6 +119,7 @@ brsp_est <- read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrus
   mutate(BRSP.Estimate = as.integer(BRSP.Estimate)) #only integers so I can model using a poisson process
 #...and view
 glimpse(brsp_est)
+print(brsp_est, n = Inf)
 
 #add covariates
 covs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")) %>% 
@@ -123,29 +131,37 @@ glimpse(covs)
 brsp_est <- brsp_est %>% 
   left_join(covs, by = 'Route.ID') %>% 
   mutate(Aspect = factor(Aspect)) %>% 
-  mutate(Route.Type = factor(Route.Type, levels = c("R", "B")))
-
+  mutate(Route.Type = factor(Route.Type, levels = c("R", "B"))) %>% 
 #...and view
 glimpse(brsp_est)
 
 #Plot comparisons between BRSP estimates and some covariates ------------------
 #Scatterplot
-brsp_est %>% 
-  ggplot(aes(x = TRI, y = BRSP.Estimate)) +
+brsp_est %>%
+  filter(!Route.ID %in% c('ID-C28')) %>% 
+  ggplot(aes(x = Shrub.Cover.RCMAP, y = BRSP.Estimate, 
+             fill = Route.Type)) +
   geom_point() +
   geom_smooth()
 
+  #Boxplot for catagotical variables  
 brsp_est %>% 
   ggplot(aes(x = Route.Type , y = BRSP.Estimate)) +
   geom_boxplot()
+
+#I'm going to try removing ID-C-28 since it's such an outlier
+brsp_est <- brsp_est %>% 
+  filter(!Route.ID %in% c('ID-C28'))
+#...and view
+glimpse(brsp_est)
 
 #Now model-------------------------------------------------------
 #First a naive model ----
 model1_naive <- glm(data = brsp_est,
                       family = poisson(link = 'log'),
                       formula = BRSP.Estimate ~ Route.Type + Sagebrush.Cover +
-                        Annual.Cover + Shrub.Cover.RCMAP + Road.Distance +
-                        Elevation + TRI)
+                      Annual.Cover + Shrub.Cover.RCMAP + Road.Distance +
+                      Elevation + TRI)
 #View the model
 summary(model1_naive)
 
@@ -159,9 +175,11 @@ output_exp <- exp(model1_naive)
 class(output_exp)
 
 #More specific model ----
-model2_most_relv <- glm(data = sobs_count,
+model2_most_relv <- glm(data = brsp_est,
                         family = 'poisson',
-                        formula = SOI.Count ~ Route.Type + Shrub.Cover.RCMAP + TRI)
+                        formula = BRSP.Estimate ~ Annual.Cover + 
+                          Shrub.Cover.RCMAP + TRI +
+                          shru])
 #View the model
 summary(model2_most_relv)
 
@@ -169,3 +187,15 @@ summary(model2_most_relv)
 par(mfrow = c(2, 2))
 plot(model2_most_relv)
 par(mfrow = c(1, 1))
+
+#Transform outputs to an additive scale
+model_out <- data.frame(Variable = c('intercept', 'shrub_offset', 
+                                  'annual_offset', 'tri_offset'),
+                        Value = c(exp(2.840468), exp(0.071835),
+                                  exp(0.052171), exp(-0.103298)))
+#...and view
+model_out
+
+#Notes 02/06/2024 this model is reall bad. Both the detection function piece ----
+#and the covariate piece do not fit well and could use a lot of work.
+#this is for proof of concept 

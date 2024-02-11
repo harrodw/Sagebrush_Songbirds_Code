@@ -4,21 +4,23 @@
 #Load packages
 #Load Required Packages
 library(dplyr)
+library(tidyr)
 library(stringr)
 library(ggplot2)
 library(Distance)
+library(dsm)
+
+#Set working directory
+data_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\"
 
 #Load in Data
-sobs <- read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data_20240113.csv") %>% 
+sobs <- read.csv(paste0(data_path, "Outputs\\sobs_data.csv")) %>% 
   dplyr::select(-X) #Remove the column that excel generated
 
 #view our data
 glimpse(sobs)                      
 
-#Build and object for effort (number of surveys)
-effort <- 4
-
-#Add in an Effort Column
+#Add in an Effort Column to the count data
 sobs <- sobs %>% 
 mutate(Effort = case_when(Year == 'Y1' & Visit == 'V1' ~ 1,
                           Year == 'Y1' & Visit == 'V2' ~ 1,
@@ -45,16 +47,57 @@ sobs <- sobs %>%
   rename(all_of(dist_names))
 glimpse(sobs)
 
-# #Make Distance Continuous
+#Make Distance Continuous
 sobs <- sobs %>% 
   mutate(distance = as.numeric(distance))
 glimpse(sobs)
 
+#View and combine some of the detection level covariates -----------------------------
+#View all observer ID's
+sobs %>% 
+  distinct(Observer.ID)
+
+#Add a column for observer skill
+sobs <- sobs %>% 
+  mutate(Observer.Experience = case_when(Observer.ID %in% c("Eliza Wesemann",
+                                                       "Eoin Ohearn",
+                                                       "Austin Heitzman",
+                                                       "Anna Mumford",
+                                                       "Devin Erwin") ~ "Beginer",
+                                    Observer.ID %in% c("Thea Mills",
+                                                       "Andrew Zilka") ~ "Intermetiate",
+                                    Observer.ID %in% c("Rory Eggleston",
+                                                       "Ruger Carter",
+                                                       "Trey Mccuen",
+                                                       "Will Harrod") ~ "Experienced",
+                                    Observer.ID == "Keramie Hamby" & Year == "Y1" ~ "Beginer",
+                                    Observer.ID == "Keramie Hamby" & Year == "Y2" ~ "Intermetiate",
+                                    TRUE ~ NA))
+#View Observer Exerience
+distinct(sobs, Observer.Experience)
+glimpse(sobs)
+
+#Start Sky
+sobs %>% count(Sky.Start)
+sobs <- sobs %>% 
+  mutate(Sky.Start = case_when(Sky.Start %in% c('Cloudy',
+                                                'Drizzle',
+                                                'Fog or Smoke') ~ 'Poor',
+                               TRUE ~ Sky.Start))
+count(sobs, Sky.Start)
+
+#Start Wind
+sobs %>% count(Wind.Start)
+sobs <- sobs %>% 
+  mutate(Wind.Start = case_when(Wind.Start %in% c('8-12 mph', '13-18 mph') ~ '> 7 mph',
+                               TRUE ~ Wind.Start))
+count(sobs, Wind.Start)
+
 #Transform the covariates we need to factors
 sobs <- sobs %>%
-  mutate_at(c("Minute", "Year", "Region.Label", "Sample.Label", "Sky.Start", "Wind.Start", 
-              Temp.Start,
-              "Route.Type", "Observer.ID", "Visit", "How.Detected", "Sex", "Visual.ID"), 
+  mutate_at(c("Minute", "Year", "Sky.Start", "Wind.Start", "Route.Type", 
+              "Observer.ID", 'Observer.Experience', "Visit", "How.Detected", "Sex", 
+              "Visual.ID"), 
             factor)
 
 #Change Some Other covariates to scale
@@ -65,47 +108,48 @@ sobs <- sobs %>%
 glimpse(sobs)
 
 #Build a sample table --------------------------------------------------------
-#first step
-samples <- data.frame(Sample.Label = unique(sobs$Sample.Label)) #one row per point two sets of points for the two visits
-samples<- samples %>% 
-  mutate(Region.Label = str_remove_all(Sample.Label, "-P[01][123456789]")) # define burn or reference plots
-#View
-glimpse(samples)
 
 #Calculate effort
-effort_table <- sobs %>% 
+sample_table <- sobs %>% 
   expand(nesting(Sample.Label, Year, Visit)) %>% 
   group_by(Sample.Label) %>% 
   reframe(Sample.Label, Effort = n()) %>% 
-  distinct(Sample.Label, Effort) 
-#View 
-glimpse(effort_table)
-
-#Combine effort with sample table
-sample_table <- left_join(samples, effort_table, by = 'Sample.Label')
+  distinct(Sample.Label, Effort) %>% 
+  mutate(Region.Label = str_remove_all(Sample.Label, "-P[01][123456789]")) %>% 
+  relocate(Region.Label, Sample.Label, Effort)
 #And view
 glimpse(sample_table)
 
-#Region Table ---------------------------------------------------------------------
+#Add site level covariates
+point_covs <- read.csv(paste0(data_path, "Outputs\\point_summaries.csv")) %>% 
+  select(-X, -Route.ID) %>% 
+  rename(Sample.Label = 'Full.Point.ID')
+#...and view
+glimpse(point_covs)
+
+#Join to sample Table
+sample_table <- left_join(sample_table, point_covs, by = "Sample.Label")
+#View
+glimpse(sample_table)
+
+ #Region Table ---------------------------------------------------------------------
 #Define a storage object to look at the data for a single species of interest (SOI)
 SOI <- "BRSP"
 
 #arrange data by distance for our SOI
 soi_obs <- sobs %>%
-  filter(Species == SOI &
-           Year == 'Y2' &
-           Visit == 'V1') %>%
+  filter(Species == SOI) %>%
   arrange(distance)
+#and view
+glimpse(soi_obs)
 
 #Storage object for how many of this species we saw
-soi_count <- sobs %>%
-  filter(Species == SOI) %>% 
-  nrow()
+soi_count <- nrow(soi_obs)
 #View how many of that species we saw
 print(soi_count)
 
 #find the observations that are right at the top ten percent of distances
-SOI_trunc_dist <- (soi_obs[(0.9 * soi_count), 2])
+SOI_trunc_dist <- soi_obs$distance[(0.9 * soi_count)]
 print(SOI_trunc_dist)
 
 #Build an object for the area of a single point
@@ -155,8 +199,10 @@ sobs %>%
   filter(Species == SOI) %>% 
   count(Region.Label, Year, Visit) %>% 
   mutate(Visit.ID = paste(Year, Visit, sep = '-')) %>% 
+  select(Region.Label, Visit.ID, n) %>% 
   pivot_wider(names_from = Visit.ID, values_from = n) %>% 
-  replace(is.na(.), 0)
+  replace(is.na(.), 0) %>% 
+  print(n = 60)
 
 #Plot of the distribution of observed distances
 sobs %>%
@@ -195,7 +241,8 @@ SOI_model_obs <- sobs %>%
     key = "hr",                                    #starting with a hazard rate detection function
     convert_units = conv,                          #Not converting units yet
     region_table = region_table,                   #Stratify observations by plot type
-    sample_table = sample_table)
+    sample_table = sample_table
+    )
 
 #View the data from our basic detection model -----------------------------
 #Using the basic model, this is how many SOI are on burned verses unburned plots

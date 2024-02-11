@@ -61,10 +61,10 @@ library(sf)
 library(raster)
 
 #set working directory
-setwd("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\R_Spatial_Analysis")
+setwd("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Geoprocessing_Outputs")
 
 #Load up the my rasters
-elevation <- raster("elevation\\elevation.tif")
+elevation <- raster("elevation.tif")
 shrub_cover <- raster("shrub_cover\\shrub_cover.tif")
 
 #load in my vectors

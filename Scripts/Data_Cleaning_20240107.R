@@ -5,16 +5,22 @@
 # Last edited 01/07/2024
 
 #Load tidyverse
-# install.packages(tidyverse)
-library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(lubridate)
 
 #Start here ------------------------------------------------------------
 
+#set up a path for the data
+data_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\"
+
 #Add in observation Data
 #2022 Observation data 
-obs_22_raw <- tibble(read.csv("C:\\Users\\Will\\Documents\\USU\\SOBs\\Data\\Point_Count\\Raw\\2022\\Sobs_Observations_2022_Raw.csv"))
+obs_22_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Observations_2022_Raw.csv")))
 #2023 observation data
-obs_23_raw <- tibble(read.csv("C:\\Users\\Will\\Documents\\USU\\SOBs\\Data\\Point_Count\\Raw\\2023\\Sobs_Observations_Raw_2023.csv"))
+obs_23_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Observations_Raw_2023.csv")))
 
 #View the two datasets
 str(obs_22_raw)
@@ -47,7 +53,7 @@ obs_22_names <- c(Minute.Raw= "Minute",
 #rename and remove the columns that I don't need
 obs_22 <- obs_22_raw %>% 
   rename(all_of(obs_22_names)) %>% 
-  select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
+  dplyr::select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
          Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, 
          Direction.Raw, Within.Burn.Raw,  #additional information
          Obs.Date, Obs.Notes, #Notes
@@ -84,7 +90,7 @@ obs_23_names <- c(Minute.Raw = "Minute",
 #rename and remove the columns that I don't need
 obs_23 <- obs_23_raw %>% 
   rename(all_of(obs_23_names)) %>% 
-  select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
+  dplyr::select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
          Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, Direction.Raw, Within.Burn.Raw, #additional information
          Group.Size.Raw,
          Obs.Date, Global.ID.Obs, Global.ID.Point) %>% #join fields
@@ -660,8 +666,7 @@ obs_cleaned <- obs_cleaned %>%
   mutate(Group.Size = case_when(Species.Raw == "10_BRBB's" ~ 10, #Replace wierd observations
                                 Species.Raw == "13_HOLA's" ~ 13,
                                 TRUE ~ as.integer(Group.Size.Raw))) %>%  #default is normal values
-  mutate(Group.Size = case_when(is.na(Group.Size) ~ replace_na(1),
-                                TRUE ~ as.integer(Group.Size))) %>% 
+  mutate(Group.Size = replace_na(Group.Size, 1)) %>% 
   mutate(Group.Size = case_when(Species == "NOBI" ~ NA, #Replace NOBI obs with na's for this
                                 TRUE ~ Group.Size))
 
@@ -712,7 +717,7 @@ obs_cleaned %>%
 
 #change blank cells to NA and select useful columns ---------------------------------
 observations <- obs_cleaned %>% 
-  select(Species, Distance, Minute, How.Detected, Song.Also, #only keep useful columns
+  dplyr::select(Species, Distance, Minute, How.Detected, Song.Also, #only keep useful columns
          Direction, Song.Also, Sex, Migrant, Group.Size, Visual.ID,
          Obs.Date, Obs.Notes, Global.ID.Obs, Global.ID.Point) %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
@@ -724,9 +729,9 @@ str(observations)
 #Cleaning the Point data --------------------------------------
 #Add in point data
 #2022 point data
-points_22_raw <- tibble(read.csv("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\Point_Count\\Raw\\2022\\Sobs_Points_2022_Raw.csv"))
+points_22_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Points_2022_Raw.csv")))
 #2023 point data
-points_23_raw <- tibble(read.csv("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\Point_Count\\Raw\\2023\\Sobs_Points_Raw_2023.csv"))
+points_23_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Points_Raw_2023.csv")))
 
 #View the two datasets
 str(points_22_raw)
@@ -746,7 +751,7 @@ points_22_names <- c(Point.Time = "Start.Time.at.Point",
 #Pull out what I need from the points dataset and rename
 points_22 <- points_22_raw %>% 
   rename(all_of(points_22_names)) %>% 
-  select(Point.ID.Raw, Point.Time, Cheatgrass, Percent.Area.Burned,
+  dplyr::select(Point.ID.Raw, Point.Time, Cheatgrass, Percent.Area.Burned,
          Point.Notes, Global.ID.Point, Global.ID.Survey)
 
 #View the cleaned 2022 point data
@@ -767,7 +772,7 @@ points_23_names <- c(Point.Time = "Start.Time.at.Point",
 #Pull out what I need from the points dataset and rename
 points_23 <- points_23_raw %>% 
   rename(all_of(points_23_names)) %>% 
-  select(Point.ID.Raw, Point.Time, Cheatgrass, Percent.Area.Burned,
+  dplyr::select(Point.ID.Raw, Point.Time, Cheatgrass, Percent.Area.Burned,
          Point.Notes, Global.ID.Point, Global.ID.Survey) %>%  #make sure the point id fields match
   mutate(Point.ID.Raw = as.character(Point.ID.Raw))
   
@@ -829,7 +834,7 @@ nrow(points_cleaned)
 
 #Select on the point columns that I will need --------------------------------
 points <- points_cleaned %>% 
-  select(Point.ID, Point.Time, Cheatgrass, Percent.Area.Burned,
+  dplyr::select(Point.ID, Point.Time, Cheatgrass, Percent.Area.Burned,
          Point.Notes, Global.ID.Point, Global.ID.Survey) %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
 
@@ -840,13 +845,13 @@ str(points)
 #Clean survey data -----------------------------------------------------------
 #Add in survey data
 #2022 survey data
-surveys_22_raw <- tibble(read.csv("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\Point_Count\\Raw\\2022\\Sobs_Surveys_2022_Raw.csv"))
+surveys_22_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Surveys_2022_Raw.csv")))
 #2023 survey data
-surveys_23_raw <- tibble(read.csv("C:\\Users\\Will\\Desktop\\USU\\SOBs\\Data\\Point_Count\\Raw\\2023\\Sobs_Surveys_Raw_2023.csv"))
+surveys_23_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Surveys_Raw_2023.csv")))
 
 #View the two datasets
-str(surveys_22_raw)
-str(surveys_23_raw)
+glimpse(surveys_22_raw)
+glimpse(surveys_23_raw)
 
 #rename surveys and combine data ----------------------------------------------------
 #Rename 2022 surveys
@@ -869,7 +874,7 @@ surveys_22_names <- c(Route.ID.Raw = "Transect.ID",
 #rename and select useful columns
 surveys_22 <- surveys_22_raw %>% 
   rename(all_of(surveys_22_names)) %>% 
-  select(Route.ID.Raw, Visit.Raw, Date.Time.Raw,
+  dplyr::select(Route.ID.Raw, Visit.Raw, Date.Time.Raw,
          Observer.ID.Raw,
          Sky.Start.Raw, Sky.End.Raw, Temp.Start.Raw, 
          Temp.End.Raw, Wind.Start.Raw, Wind.End.Raw,
@@ -906,7 +911,7 @@ surveys_23_names <- c(Route.ID.Raw = "Route.ID",
 #rename and slect useful columns
 surveys_23 <- surveys_23_raw %>% 
   rename(all_of(surveys_23_names)) %>% 
-  select(Route.ID.Raw, Year.Raw, Visit.Raw, Date.Time.Raw,
+  dplyr::select(Route.ID.Raw, Year.Raw, Visit.Raw, Date.Time.Raw,
          Observer.ID.Raw, Route.Notes,
          Sky.Start.Raw, Sky.End.Raw, Temp.Start.Raw, 
          Temp.End.Raw, Wind.Start.Raw, Wind.End.Raw,
@@ -967,13 +972,13 @@ surveys_cleaned %>%
 
 #View what was lost in end temp
 surveys_cleaned %>% 
-  select(Route.ID.Raw, Temp.End.Raw, Temp.End) %>% 
+  dplyr::select(Route.ID.Raw, Temp.End.Raw, Temp.End) %>% 
   filter(! c(Temp.End.Raw %in% Temp.End))
 #idk what the h was supposed  to be so I am okay with it
 
 #View a plot of starting and ending temperatures
 surveys_cleaned %>%
-  select(Temp.Start, Temp.End) %>% 
+  dplyr::select(Temp.Start, Temp.End) %>% 
   pivot_longer(cols = c(Temp.Start, Temp.End),
     names_to = "Time") %>% 
   ggplot(aes(x = value, fill = Time)) +
@@ -1062,7 +1067,7 @@ surveys_cleaned %>%
 #Where are the NA's?
 surveys_cleaned %>% 
   filter(is.na(Year.Raw)) %>%  
-  select(Route.ID.Raw, Date, Year.Raw) %>% 
+  dplyr::select(Route.ID.Raw, Date, Year.Raw) %>% 
   arrange(Date) %>% 
   print(n = Inf)
 #All 2022's
@@ -1075,7 +1080,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View the clean year
 surveys_cleaned %>% 
-  select(Year, Date) %>% 
+  dplyr::select(Year, Date) %>% 
   print(n = Inf)
 
 #Fix route ID's -------------------------------------------------
@@ -1145,7 +1150,7 @@ surveys_cleaned %>%
 #Look at specific surveys
 surveys_cleaned %>%
   filter(Route.ID == "UT-C24") %>% #Only care about the one route
-  select(Observer.ID.Raw, Date.Time.Raw, Visit.Raw, Route.ID) # only need a few columns
+  dplyr::select(Observer.ID.Raw, Date.Time.Raw, Visit.Raw, Route.ID) # only need a few columns
 
 #One of that route's observations was labeled ID-B24
 #I know from arc that the 6/28 one is incrrectly labeled
@@ -1182,7 +1187,7 @@ nrow(surveys_cleaned)
 #Fix UT-C24
 surveys_cleaned %>%
   filter(Route.ID == "UT-C24") %>% #View UT-B24 routes
-  select(Observer.ID.Raw, Date.Time.Raw, Visit.Raw, Route.ID) # only need a few columns
+  dplyr::select(Observer.ID.Raw, Date.Time.Raw, Visit.Raw, Route.ID) # only need a few columns
 #Austin's UT-B24 survey should be UT-C24
 
 #Make sure nothing else had that start time
@@ -1205,13 +1210,13 @@ surveys_cleaned %>%
 surveys_cleaned %>% 
   filter(Route.ID == "UT-B08" | 
            Route.ID == "UT-B25") %>% 
-  select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
 
 #View the date and time of the incrrect ones
 surveys_cleaned %>% 
   filter(Date.Time.Raw == "6/10/2022 1:00:00 PM" | 
            Date.Time.Raw == "5/25/2023 11:58:00 AM") %>% 
-  select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
 
 #switch those over to the correct route
 surveys_cleaned <- surveys_cleaned %>% 
@@ -1231,12 +1236,12 @@ surveys_cleaned %>%
 surveys_cleaned %>% 
   filter(Route.ID == "UT-B08" | 
            Route.ID == "UT-C08") %>% 
-  select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
 
 #View the date and time of the incorrect one
 surveys_cleaned %>% 
   filter(Date.Time.Raw == "6/10/2022 1:43:00 PM") %>% 
-  select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
 
 #switch those over to the correct route
 surveys_cleaned <- surveys_cleaned %>% 
@@ -1254,7 +1259,7 @@ surveys_cleaned %>%
 #View the date and time of the incorrect one
 surveys_cleaned %>% 
   filter(Date.Time.Raw == "7/12/2022 1:08:00 PM") %>% 
-  select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
 #There are two with this date and time
 
 #switch one over to the correct route
@@ -1274,7 +1279,7 @@ surveys_cleaned %>%
 #View the incorrect survey
 surveys_cleaned %>% 
   filter(Date.Time.Raw == "6/12/2023 12:22:00 PM") %>% 
-  select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
 
 #switch it over to the correct route
 surveys_cleaned <- surveys_cleaned %>% 
@@ -1335,7 +1340,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #Make sure it worked
 surveys_cleaned %>% 
-  select(Route.ID, Route.Type) %>% 
+  dplyr::select(Route.ID, Route.Type) %>% 
   print(n = Inf)
 
 #Fix Visit Number ------------------------------------------------------------------------
@@ -1345,7 +1350,7 @@ surveys_cleaned %>%
 #View the V3's
 surveys_cleaned %>% 
   filter(Route.ID %in% c("UT-C24", "UT-C08")) %>% 
-  select(Route.ID, Visit.Raw, Date) %>% 
+  dplyr::select(Route.ID, Visit.Raw, Date) %>% 
   arrange(Route.ID)
 #Not sure why they're here
 
@@ -1374,7 +1379,7 @@ surveys_cleaned %>%
 #ID-B04 had 2 V2's and no V1 in Y2--
 surveys_cleaned %>% 
   filter(Route.ID == "ID-B04") %>% 
-  select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
 
 #Update the 2nd visit from Y2
 surveys_cleaned <- surveys_cleaned %>% 
@@ -1391,7 +1396,7 @@ surveys_cleaned %>%
 #ID-B11 had 2 V1's in Y2--
 surveys_cleaned %>% 
   filter(Route.ID == "ID-B11") %>% 
-  select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
 #Update the 1st visit from Y2
 surveys_cleaned <- surveys_cleaned %>% 
   mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 12:47:00 PM"
@@ -1407,7 +1412,7 @@ surveys_cleaned %>%
 #ID-B12 had 2 V1's in Y2--
 surveys_cleaned %>% 
   filter(Route.ID == "ID-B12") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #Update the 2nd visit from Y2
 surveys_cleaned <- surveys_cleaned %>% 
   mutate(Visit = case_when(Date.Time.Raw == "6/12/2023 11:50:00 AM"
@@ -1423,13 +1428,13 @@ surveys_cleaned %>%
 #ID-B19 had 2 V1's in Y1--
 surveys_cleaned %>% 
   filter(Route.ID == "ID-B19") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #Those are true V1's no need to change anything
 
 #ID-C07 had 2 V1's in Y2 --
 surveys_cleaned %>% 
   filter(Route.ID == "ID-C07") %>% 
-  select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
 #Update the 2nd visit from Y2
 surveys_cleaned <- surveys_cleaned %>% 
   mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 12:44:00 PM"
@@ -1445,7 +1450,7 @@ surveys_cleaned %>%
 #ID-C09 had 3 V2's in Y2 --
 surveys_cleaned %>% 
   filter(Route.ID == "ID-C09") %>% 
-  select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
 #Update the 1st visit from Y2
 #The other is a real second V2
 surveys_cleaned <- surveys_cleaned %>% 
@@ -1462,7 +1467,7 @@ surveys_cleaned %>%
 #ID-C11 had 2 V1's in Y2 --
 surveys_cleaned %>% 
   filter(Route.ID == "ID-C11") %>% 
-  select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
 #Update the 2nd visit from Y2
 surveys_cleaned <- surveys_cleaned %>% 
   mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 12:38:00 PM"
@@ -1478,13 +1483,13 @@ surveys_cleaned %>%
 #UT-B15 had 2 V2's in Y1 --
 surveys_cleaned %>% 
   filter(Route.ID == "UT-B15") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #There were two V2's so no need to change anything
 
 #UT-B16 had 2 V2's in Y2 --
 surveys_cleaned %>% 
   filter(Route.ID == "UT-B16") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #The extra Y1 visit is a real extra visit
 #Update the first visit from Y2
 surveys_cleaned <- surveys_cleaned %>% 
@@ -1501,13 +1506,13 @@ surveys_cleaned %>%
 #UT-B30 had 2 V2's in Y1 --
 surveys_cleaned %>% 
   filter(Route.ID == "UT-B30") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #The extra Y2 visit is a real extra visit
 
 #UT-C19 had 3 V1's in Y2 --
 surveys_cleaned %>% 
   filter(Route.ID == "UT-C19") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #There were two V2's in Y2 but they were both labeled V1
 surveys_cleaned <- surveys_cleaned %>% 
   mutate(Visit = case_when(Date.Time.Raw %in% c("6/6/2023 11:42:00 AM", 
@@ -1524,7 +1529,7 @@ surveys_cleaned %>%
 #UT-C30 had 2 V1's in Y2 --
 surveys_cleaned %>% 
   filter(Route.ID == "UT-C30") %>% 
-  select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
 #Switch the second visit in Y2 to V2
 surveys_cleaned <- surveys_cleaned %>% 
   mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 11:30:00 AM"
@@ -1557,7 +1562,7 @@ surveys_cleaned %>%
 #Pull out only the columns that I will need
 names(surveys_cleaned)
 surveys <- surveys_cleaned %>% 
-  select(Route.ID, Route.Type, Year, Visit, Date, Ord.Date, Observer.ID, 
+  dplyr::select(Route.ID, Route.Type, Year, Visit, Date, Ord.Date, Observer.ID, 
          Temp.Start, Temp.End, Sky.Start, Sky.End, Wind.Start, Wind.End,
          Route.Notes, Global.ID.Survey) %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
@@ -1611,7 +1616,7 @@ visit_count <- sobs %>%
   summarise(Observations = n()) %>% 
   ungroup() %>% 
   mutate(Full.Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  select(Full.Point.ID, Route.ID, Full.Visit.ID, Observations) %>% 
+  dplyr::select(Full.Point.ID, Route.ID, Full.Visit.ID, Observations) %>% 
   pivot_wider(names_from = Full.Visit.ID,
               values_from = Observations)
 
@@ -1634,7 +1639,7 @@ sobs %>% count(Notes)
 #I will probably end up tweaking which of these are included
 names(sobs)
 sobs <- sobs %>% 
-  select(Species, Distance, Minute, Direction, How.Detected, Song.Also, Group.Size,
+  dplyr::select(Species, Distance, Minute, Direction, How.Detected, Song.Also, Group.Size,
          Sex, Visual.ID, Route.ID, Route.Type, Full.Point.ID, Year, Visit,  
          Date, Ord.Date, Point.Time, Point.ID, Observer.ID, 
          Temp.Start, Sky.Start, Wind.Start, Temp.End, Sky.End, Wind.End,
@@ -1671,12 +1676,63 @@ sobs %>%
 #View the dataset to make sure everything looks good
 str(sobs)
 
+#Many of the counts do not have NOBI for minutes where no birds were detected
+#Add in NOBI Observations ---------------------------------------------------
+#View some example NOBI observations
+sobs %>% 
+  filter(Species == "NOBI") %>% 
+  glimpse()
+
+#make an object of all NOBI observations
+nobi <- sobs %>% 
+  expand(nesting(Route.ID, Route.Type, Full.Point.ID, Observer.ID, #Nested variables at the 
+                 Year, Visit, Date),                               #point or route level
+         Minute) %>% #The only non nested variable
+  mutate(Species = "NOBI")
+#View
+glimpse(nobi)
+
+#Join the two and delete duplicates
+sobs_nobi <- sobs %>%  
+  bind_rows(nobi) %>% 
+  mutate(Sort = case_when(Species == "NOBI" ~ 2,
+                          TRUE ~ 1)) %>% 
+  arrange(Date, Full.Point.ID, Minute, Sort) %>% 
+  mutate(Remove = NA) %>% 
+  filter(!is.na(Minute))
+
+#Viw the combined results and compare to the original
+glimpse(sobs_nobi)
+print(sobs_nobi, n = 400)
+
+#For loop to remove duplicates and NOBI's on rows that 
+for(i in 2:nrow(sobs_nobi)) {
+  sobs_nobi$Remove[1] <- F #Down't remove the first row
+  sobs_nobi$Remove[i] <- ifelse(sobs_nobi$Species[i] == "NOBI" &
+                                  sobs_nobi$Minute[i] == sobs_nobi$Minute[i - 1],
+                                T, F)
+}
+
+#And view
+glimpse(sobs_nobi)
+sobs_nobi %>% 
+  dplyr::select(Full.Point.ID, Species, Distance, Minute, Remove, Sort, Date) %>% 
+  print(n = 200)
+
+#remove the tagged rows
+sobs <- sobs_nobi %>% 
+  filter(Remove == F) %>% 
+  dplyr::select(- Remove, - Sort)  
+
+#View one last time
+glimpse(sobs)
+print(sobs, n = 200L)
+
 #Add in point coordinates --------------------------------------------
 #Convert coordinates to numeric
 
 #read in point corrdinates
-point_cords <- tibble(read.csv("C:\\Users\\Will\\Desktop\\USU\\SOBs\\R Projects\\Tri_State_Sagebrush_Songbirds\\Data\\Inputs\\Point_Cords_Raw.csv",
-                               dec = "."))
+point_cords <- tibble(read.csv(paste0(data_path, "Inputs\\Point_Cords_Raw.csv")))
 #View point ID's
 point_cords %>% 
   distinct(Point_ID)
@@ -1706,7 +1762,7 @@ point_cords %>% distinct(Point.ID)
 
 #Replace "_" with "-" in route name
 point_cords <- point_cords %>% 
-mutate(Route.ID = str_replace_all(RouteName, "_", "-")) %>% 
+  mutate(Route.ID = str_replace_all(RouteName, "_", "-")) %>% 
   arrange(Route.ID)
 
 #View the cleaned Routes and how many points they have
@@ -1721,7 +1777,7 @@ point_cords <- point_cords %>%
                                 collapse = NULL)) %>% 
   rename(UTM.X = "UTM_X", UTM.Y = "UTM_Y",
          Geo.X = "Geo_X", Geo.Y = "Geo_Y") %>% 
-  select(Full.Point.ID, Point.ID, Route.ID, UTM.X, UTM.Y, Geo.X, Geo.Y) 
+  dplyr::select(Full.Point.ID, Point.ID, Route.ID, UTM.X, UTM.Y, Geo.X, Geo.Y) 
 
 #View point coordinates  
 str(point_cords) 
@@ -1736,11 +1792,11 @@ point_cords <- point_cords %>%
                                 TRUE ~ NA))
 
 #export these updated point coordinates
-write.csv(point_cords, "C:\\Users\\Will\\Desktop\\USU\\SOBs\\R Projects\\Tri_State_Sagebrush_Songbirds\\Data\\Outputs\\clean_point_coords.csv")
+write.csv(point_cords, paste0(data_path, "Outputs\\clean_point_coords.csv"))
 
 #Remove route type
 point_cords <- point_cords %>% 
-  select(-Route.Type, -Point.ID)
+  dplyr::select(-Route.Type, -Point.ID)
 
 #Compare the points present in each dataset
 str(point_cords) 
@@ -1760,7 +1816,7 @@ full_join(surveys_tbl, coords_tbl, by = "Route.ID") %>%
 
 #Select only the columns that I will need 
 point_cords <- point_cords %>% 
-  select(Full.Point.ID, UTM.X, UTM.Y, Geo.X, Geo.Y)
+  dplyr::select(Full.Point.ID, UTM.X, UTM.Y, Geo.X, Geo.Y)
 
 #Join coordinates to point count data
 sobs <- sobs %>% 
@@ -1800,13 +1856,13 @@ sobs <- sobs %>%
 #View the data after the calculation
 str(sobs)
 sobs %>% 
-  select(Full.Point.ID, Time.lbr, Loc.SunR, MAS) %>% 
+  dplyr::select(Full.Point.ID, Time.lbr, Loc.SunR, MAS) %>% 
   head(n = 6)
 
 #view the NA's for MAS
 sobs %>% 
   filter(is.na(MAS)) %>% 
-  select(Species, Full.Point.ID, Time.lbr, Loc.SunR, MAS)
+  dplyr::select(Species, Full.Point.ID, Time.lbr, Loc.SunR, MAS)
 #there are none
 
 #histagram of minutes after start 
@@ -1816,19 +1872,19 @@ sobs %>%
 
 #view the points that are more than 5.5 hours after sunrise
 sobs %>% 
-  select(Full.Point.ID, Date, Point.Time, Time.lbr, Loc.SunR, MAS) %>% 
+  dplyr::select(Full.Point.ID, Date, Point.Time, Time.lbr, Loc.SunR, MAS) %>% 
   filter(MAS > 330) %>% 
-  print(n = Inf)
+  print(n = 50)
 
 #View the points that were more than 30 minutes before sunrise'
 sobs %>% 
-  select(Full.Point.ID, Observer.ID, Visit, Date, Time.lbr, Loc.SunR, MAS) %>% 
+  dplyr::select(Full.Point.ID, Observer.ID, Visit, Date, Time.lbr, Loc.SunR, MAS) %>% 
   filter(MAS < 0) %>% 
-  print(n = Inf)
+  print(n = 50)
 
 #Remove excess columns and reorder everything
 sobs <- sobs %>% 
-   select(Species, Distance, Minute, How.Detected, 
+   dplyr::select(Species, Distance, Minute, How.Detected, 
           Song.Also, Group.Size, Sex, Visual.ID,
           Route.ID, Route.Type, Full.Point.ID, Observer.ID,
           Year, Visit, Date, Ord.Date,
@@ -1839,61 +1895,8 @@ sobs <- sobs %>%
   arrange(by = Date)
 glimpse(sobs)
 
-#Many of the counts do not have NOBI for minutes where no birds were detected
-#Add in NOBI Observations ---------------------------------------------------
-#View some example NOBI observations
-sobs %>% 
-  filter(Species == "NOBI") %>% 
-  glimpse()
-
-#make an object of all NOBI observations
-nobi <- sobs %>% 
-  expand(nesting(Route.ID, Route.Type, Full.Point.ID, Observer.ID, #Nested variables at the 
-                 Year, Visit, Date),                               #point or route level
-         Minute) %>% #The only non nested variable
-  mutate(Species = "NOBI")
-#View
-glimpse(nobi)
-
-
-#Join the two and delete duplicates
-sobs_nobi <- sobs %>%  
-  bind_rows(nobi) %>% 
-  mutate(Sort = case_when(Species == "NOBI" ~ 2,
-                          TRUE ~ 1)) %>% 
-  arrange(Date, Full.Point.ID, Minute, Sort) %>% 
-  mutate(Remove = NA) %>% 
-  filter(!is.na(Minute))
-
-#Viw the combined results and compare to the original
-glimpse(sobs_nobi)
-print(sobs_nobi, n = 400)
-
-#For loop to remove duplicates and NOBI's on rows that 
-for(i in 2:nrow(sobs_nobi)) {
-  sobs_no_nobi[1] <- F
-  sobs_nobi$Remove[i] <- ifelse(sobs_nobi$Species[i] == "NOBI" &
-                                sobs_nobi$Minute[i] == sobs_nobi$Minute[i - 1],
-                                T, F)
-}
-
-#And view
-glimpse(sobs_nobi)
-sobs_nobi %>% 
-  select(Full.Point.ID, Species, Distance, Minute, Remove, Sort, Date) %>% 
-  print(n = 200)
-
-#remove the tagged rows
-sobs <- sobs_nobi %>% 
-  filter(Remove == F) %>% 
-  select(- Remove, - Sort)  
-
-#View one last time
-glimpse(sobs)
-print(sobs, n = 200L)
-
 #Save the cleaned data as a csv
-write.csv(sobs, "C:\\Users\\Will\\Desktop\\USU\\SOBs\\R Projects\\Tri_State_Sagebrush_Songbirds\\Data\\Outputs\\sobs_data.csv")
+write.csv(sobs, paste0(data_path, "Outputs\\sobs_data.csv"))
 
 # Notes and next steps ------------------------
 #I might need to link external temp data
