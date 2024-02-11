@@ -508,10 +508,10 @@ obs_cleaned %>%
   count(Distance.Raw, Distance)
 
 #plot distances
-obs_cleaned %>% 
-  ggplot(aes(x = Distance)) +
-  geom_histogram(col = "black", fill = "gray") +
-  theme_bw()
+# obs_cleaned %>% 
+#   ggplot(aes(x = Distance)) +
+#   geom_histogram(col = "black", fill = "gray") +
+#   theme_bw()
 
 #View the data
 str(obs_cleaned)
@@ -977,12 +977,12 @@ surveys_cleaned %>%
 #idk what the h was supposed  to be so I am okay with it
 
 #View a plot of starting and ending temperatures
-surveys_cleaned %>%
-  dplyr::select(Temp.Start, Temp.End) %>% 
-  pivot_longer(cols = c(Temp.Start, Temp.End),
-    names_to = "Time") %>% 
-  ggplot(aes(x = value, fill = Time)) +
-  geom_histogram()
+# surveys_cleaned %>%
+#   dplyr::select(Temp.Start, Temp.End) %>% 
+#   pivot_longer(cols = c(Temp.Start, Temp.End),
+#     names_to = "Time") %>% 
+#   ggplot(aes(x = value, fill = Time)) +
+#   geom_histogram()
 #a lot of these values look really high
 #people probably recorded them in F not C
 
@@ -1686,7 +1686,8 @@ sobs %>%
 #make an object of all NOBI observations
 nobi <- sobs %>% 
   expand(nesting(Route.ID, Route.Type, Full.Point.ID, Observer.ID, #Nested variables at the 
-                 Year, Visit, Date),                               #point or route level
+                 Year, Visit, Date, Ord.Date, Temp.Start, Wind.Start,
+                 Sky.Start, Temp.End, Wind.End, Sky.End, Notes),  #point or route level
          Minute) %>% #The only non nested variable
   mutate(Species = "NOBI")
 #View
@@ -1716,7 +1717,9 @@ for(i in 2:nrow(sobs_nobi)) {
 #And view
 glimpse(sobs_nobi)
 sobs_nobi %>% 
-  dplyr::select(Full.Point.ID, Species, Distance, Minute, Remove, Sort, Date) %>% 
+  dplyr::select(Full.Point.ID, Species, Distance, Minute, Remove, Sort, Date,
+                Ord.Date, Temp.Start, Wind.Start, Sky.Start, 
+                Temp.End, Wind.End, Sky.End, Notes) %>% 
   print(n = 200)
 
 #remove the tagged rows
@@ -1724,9 +1727,8 @@ sobs <- sobs_nobi %>%
   filter(Remove == F) %>% 
   dplyr::select(- Remove, - Sort)  
 
-#View one last time
+#view
 glimpse(sobs)
-print(sobs, n = 200L)
 
 #Add in point coordinates --------------------------------------------
 #Convert coordinates to numeric
@@ -1866,9 +1868,9 @@ sobs %>%
 #there are none
 
 #histagram of minutes after start 
-sobs %>% 
-  ggplot(aes(x = MAS)) +
-  geom_histogram()
+# sobs %>% 
+#   ggplot(aes(x = MAS)) +
+#   geom_histogram()
 
 #view the points that are more than 5.5 hours after sunrise
 sobs %>% 
@@ -1894,6 +1896,11 @@ sobs <- sobs %>%
           Notes, UTM.X, UTM.Y, Geo.X, Geo.Y) %>% 
   arrange(by = Date)
 glimpse(sobs)
+
+#Last check ----------------------------------------------------------
+#View one last time
+glimpse(sobs)
+print(sobs, n = 200)
 
 #Save the cleaned data as a csv
 write.csv(sobs, paste0(data_path, "Outputs\\sobs_data.csv"))
