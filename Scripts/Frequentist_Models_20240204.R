@@ -11,11 +11,12 @@ library(dplyr)
 #set working directory
 
 #Add point count data
-sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data_20240113.csv")) %>% 
+sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data.csv")) %>% 
         dplyr::select(-X) #Remove the column that excel generated
 #and view the data
 glimpse(sobs)
 
+#View a single route
 sobs %>% 
   filter(Species == 'BRSP' & Route.ID == 'ID-C28') %>% 
   select(Species, Distance, Route.ID, Full.Point.ID, Year, Visit, Observer.ID) %>% 
