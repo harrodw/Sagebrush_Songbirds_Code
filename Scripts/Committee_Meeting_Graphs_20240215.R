@@ -60,8 +60,19 @@ count_cols <- c("darkorange3", "deepskyblue1", "red3", "dodgerblue3")
 
 #Average number of observations between burned and unburned plots 
 sobs_count %>% 
+  mutate(Route.Type = case_when(Route.ID %in% c("UT-B24", "UT-B25") ~ "B",
+                                Route.ID %in% c("ID-B03") ~ "R",
+                                TRUE ~ Route.Type)) %>% 
   mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
                                 Route.Type == "R" ~ "Reference")) %>% 
+  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
+                             Species == "SATH" ~ "Sage Thrasher",
+                             Species == "SABS" ~ "Sagebrush Sparrow",
+                             Species == "GTTO" ~ "Green-Tailed Towhee",
+                             Species == "VESP" ~ "Vesper Sparrow",
+                             Species == "WEME" ~ "Western Meadowlark",
+                             Species == "HOLA" ~ "Horned Lark",
+                             Species == "GRFL" ~ "Gray Flycatcher")) %>% 
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
                           Year == "Y2" ~ "Year 2")) %>% 
   mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
@@ -76,6 +87,7 @@ sobs_count %>%
         axis.ticks.x = element_blank(),
         axis.title.y = element_text(),
         legend.position = c(0.85, 0.19)) +
+  ylim(0, 75) +
   facet_wrap(~Species)
 
 #Total number of observations between burned and unburned plots 
@@ -100,16 +112,29 @@ sobs_count %>%
 
 #Species counts and shrub cover
 sobs_count %>% 
+  mutate(Shrub.Cover = log(Shrub.Cover)) %>%
   ggplot(aes(x = Shrub.Cover, y = Count)) +
   geom_point(col = "cadetblue4", size = 1) +
   geom_smooth(col = "dodgerblue3") +
-  labs(x = "Percent Shrub Cover",
+  labs(x = "Log Percent Shrub Cover",
+       y = "Number of Observations") +
+  theme_bw()+
+  facet_wrap(~Species) 
+
+#Species counts and sagebrush cover
+sobs_count %>% 
+  # mutate(Sagebrush.Cover = log(Sagebrush.Cover)) %>% 
+  ggplot(aes(x =  Sagebrush.Cover, y = Count)) +
+  geom_point(col = "cadetblue4", size = 1) +
+  geom_smooth(col = "dodgerblue3") +
+  labs(x = "Percent Sagebrush Cover",
        y = "Number of Observations") +
   theme_bw()+
   facet_wrap(~Species) 
 
 #Species counts and ruggedness
 sobs_count %>% 
+  # mutate(TRI = log(TRI)) %>% 
   ggplot(aes(x = TRI, y = Count)) +
   geom_point(col = "cadetblue4", size = 1) +
   geom_smooth(col = "dodgerblue3") +
@@ -122,6 +147,7 @@ sobs_count %>%
 sobs_count %>% 
   filter(Route.Type == "B" & Route.ID != "ID-B03") %>% 
   mutate(Years.Since.Fire = 2023 - Fire.Year) %>% 
+  # mutate(Years.Since.Fire = log(Years.Since.Fire)) %>% 
   ggplot(aes(x = Years.Since.Fire, y = Count)) +
   geom_point(col = "cadetblue4", size = 1) +
   geom_smooth(col = "dodgerblue3") +
