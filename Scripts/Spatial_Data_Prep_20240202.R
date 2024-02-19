@@ -62,7 +62,8 @@ sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
 anu_cvr <- raster(paste0(ras_path, "anu_cvr.tif"))
 perin_cvr <- raster(paste0(ras_path, "herb_cvr.tif"))
 shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
-# shrub_cvr_rap <- raster(paste0(ras_path, "shrub_cvr_rap.tif"))
+# tree_cvr <- raster(paste0(ras_path, "tree_cvr.tif"))
+bg_cvr <- raster(paste0(ras_path, "bg_cvr.tif"))
 shrub_hgt <- raster(paste0(ras_path, "shrub_height.tif"))
 burn_sev <- raster(paste0(ras_path, "Burn_Sev.tif"))
 fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
@@ -123,11 +124,16 @@ route_summaries$Shrub.Cover<- raster::extract(x = shrub_cvr,
                                     y = route_centers,
                                     buffer = 564,
                                     fun = mean)
-# #summarize shrub cover RAP
-# route_summaries$Shrub.Cover.RAP <- raster::extract(x = shrub_cvr_rap,
-#                                                      y = route_centers,
-#                                                      buffer = 564,
-#                                                      fun = mean)
+#summarize tree cover
+# route_summaries$Tree.Cover <- raster::extract(x = tree_cvr,
+#                                               y = route_centers,
+#                                               buffer = 564,
+#                                               fun = mean)
+#summarize bare gound cover
+route_summaries$Bare.Ground.Cover <- raster::extract(x = bg_cvr,
+                                                     y = route_centers,
+                                                     buffer = 564,
+                                                     fun = mean)
 #summarize shrub height
 route_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                     y = route_centers,
@@ -326,6 +332,16 @@ point_summaries$Shrub.Cover <- raster::extract(x = shrub_cvr,
                                                y = points,
                                                buffer = 125,
                                                fun = mean)
+# #summarize tree cover
+# point_summaries$Tree.Cover <- raster::extract(x = tree_cvr,
+#                                                y = points,
+#                                                buffer = 125,
+#                                                fun = mean)
+#summarize bare gound cover
+point_summaries$Bare.Ground.Cover <- raster::extract(x = bg_cvr,
+                                               y = points,
+                                               buffer = 125,
+                                               fun = mean)
 #summarize shrub height
 point_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                                 y = points,
@@ -520,6 +536,11 @@ point_covs <- point_summaries %>%
   select(-c(Route.ID, Route.Type, Point.X, Point.Y))
 #...and view
 glimpse(point_covs)
+
+#View again
+point_covs %>% 
+  select(-Fire.Name, -Full.Point.ID) %>% 
+  cor()
 
 #Join
 sobs_covs <- left_join(sobs, point_covs, by = "Full.Point.ID")
