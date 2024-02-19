@@ -181,8 +181,7 @@ print(route_summaries, n = 60)
 #add fire information ----------------------------------------------------------
 #add fire names based on the route
 route_summaries <- route_summaries %>% 
-  mutate(Fire.Name = case_when(Route.ID == 'ID-B03' ~ NA,
-                               Route.ID == 'ID-B04' ~ 'Burnt',
+  mutate(Fire.Name = case_when(Route.ID == 'ID-B04' ~ 'Burnt',
                                Route.ID == 'ID-B07' ~ 'Jim Sage',
                                Route.ID == 'ID-B09' ~ 'Devine Canyon',
                                Route.ID == 'ID-B11' ~ 'Jim Sage',
@@ -210,7 +209,9 @@ route_summaries <- route_summaries %>%
                                Route.ID == 'UT-B24' ~ 'Goose Creek',
                                Route.ID == 'UT-B25' ~ 'Wagon Box',
                                Route.ID == 'UT-B27' ~ 'Dairy Valley',
-                               Route.ID == 'UT-B30' ~ 'Dairy Valley'))
+                               Route.ID == 'UT-B30' ~ 'Dairy Valley',
+                               Route.ID == "UT-C24" ~ "Dry Mountain",
+                               Route.ID == "UT-C25" ~ "Dry Mountain"))
 #view the fire names
 glimpse(route_summaries)
 unique(route_summaries$Fire.Name)
@@ -225,6 +226,7 @@ route_summaries <- route_summaries %>%
                                Fire.Name == "Dairy Valley" ~ 2009,
                                Fire.Name == "Deer Hallow" ~ 2012,
                                Fire.Name == "Devine Canyon" ~ 2000,
+                               Fire.Name == "Dry Mountain" ~ 1999,
                                Fire.Name == "Emery" ~ 2010,
                                Fire.Name == "Goose Creek" ~ 2018,
                                Fire.Name == "Jim Sage" ~ 2007,
@@ -369,6 +371,98 @@ point_summaries$Road.Distance <- raster::extract(x = road_dist,
 glimpse(point_summaries)
 print(point_summaries, n = 60)
 
+#define the "refernce" points that actually burned
+burn_points_99 <- c("UT-C24-P02",
+                    "UT-C24-P03",
+                    "UT-C24-P04",
+                    "UT-C24-P06",
+                    "UT-C24-P07",
+                    "UT-C24-P08",
+                    "UT-C24-P11",
+                    "UT-C24-P12",
+                    "UT-C24-P15",
+                    "UT-C24-P16",
+                    "UT-C25-P01",
+                    "UT-C25-P02",
+                    "UT-C25-P03",
+                    "UT-C25-P04",
+                    "UT-C25-P05",
+                    "UT-C25-P06",
+                    "UT-C25-P07",
+                    "UT-C25-P08",
+                    "UT-C25-P09",
+                    "UT-C25-P11",
+                    "UT-C25-P12",
+                    "UT-C25-P13",
+                    "UT-C25-P14",
+                    "UT-C30-P05",
+                    "UT-C30-P13")
+
+#Add in fire name
+#add fire names based on the route
+point_summaries <- point_summaries %>% 
+  mutate(Fire.Name = case_when(Route.ID == 'ID-B04' ~ 'Burnt',
+                               Route.ID == 'ID-B07' ~ 'Jim Sage',
+                               Route.ID == 'ID-B09' ~ 'Devine Canyon',
+                               Route.ID == 'ID-B11' ~ 'Jim Sage',
+                               Route.ID == 'ID-B12' ~ 'Emery',
+                               Route.ID == 'ID-B13' ~ 'Badger',
+                               Route.ID == 'ID-B15' ~ 'Emery',
+                               Route.ID == 'ID-B16' ~ 'Cave Canyon',
+                               Route.ID == 'ID-B19' ~ 'Cave Canyon',
+                               Route.ID == 'ID-B21' ~ 'Black Pine 2',
+                               Route.ID == 'ID-B22' ~ 'Burnt',
+                               Route.ID == 'ID-B23' ~ 'Deer Hallow',
+                               Route.ID == 'ID-B24' ~ 'Burnt',
+                               Route.ID == 'ID-B26' ~ 'Cave Canyon',
+                               Route.ID == 'ID-B28' ~ 'City of Rocks',
+                               Route.ID == 'UT-B01' ~ 'Rosebud',
+                               Route.ID == 'UT-B02' ~ 'Playground',
+                               Route.ID == 'UT-B05' ~ 'Goose Creek',
+                               Route.ID == 'UT-B06' ~ 'Goose Creek', 
+                               Route.ID == 'UT-B08' ~ 'Goose Creek',
+                               Route.ID == 'UT-B15' ~ 'Wagon Box',
+                               Route.ID == 'UT-B16' ~ 'Wagon Box',
+                               Route.ID == 'UT-B17' ~ 'Prospect',
+                               Route.ID == 'UT-B19' ~ 'City of Rocks',
+                               Route.ID == 'UT-B22' ~ 'Goose Creek',
+                               Route.ID == 'UT-B24' ~ 'Goose Creek',
+                               Route.ID == 'UT-B25' ~ 'Wagon Box',
+                               Full.Point.ID %in% burn_points_99 ~ "Dry Mountain")) 
+
+  
+#view the fire names
+glimpse(point_summaries)
+unique(point_summaries$Fire.Name)
+
+#Add fire year
+point_summaries <- point_summaries %>%  
+  mutate(Fire.Year = case_when(Fire.Name == "Badger" ~ 2020,
+                               Fire.Name == "Black Pine 2" ~ 2007,
+                               Fire.Name == "Burnt" ~ 2006,
+                               Fire.Name == "Cave Canyon" ~ 2012,
+                               Fire.Name == "City of Rocks" ~ 2000,
+                               Fire.Name == "Dairy Valley" ~ 2009,
+                               Fire.Name == "Deer Hallow" ~ 2012,
+                               Fire.Name == "Devine Canyon" ~ 2000,
+                               Fire.Name == "Dry Mountain" ~ 1999,
+                               Fire.Name == "Emery" ~ 2010,
+                               Fire.Name == "Goose Creek" ~ 2018,
+                               Fire.Name == "Jim Sage" ~ 2007,
+                               Fire.Name == "Playground" ~ 2013,
+                               Fire.Name == "Prospect" ~ 2002,
+                               Fire.Name == "Rosebud" ~ 2017,
+                               Fire.Name == "Wagon Box" ~ 1999)) 
+#view the fire names
+print(route_summaries, n = 30)
+unique(point_summaries$Fire.Year)
+point_summaries %>%
+  ggplot(aes(x = Fire.Year)) +
+  geom_bar()
+
+#View the data
+glimpse(point_summaries)
+
 #compare variables at the point level --------------------------------------------
 #use this if the graphing gets messed up --------------- 
 #dev.off()
@@ -395,19 +489,16 @@ point_summaries %>%
 #Compare correlation among all variables
 point_summaries %>%
   # filter(Route.Type =="B") %>% 
-  dplyr::select(-Route.ID, -Route.Type, -Full.Point.ID, -geometry) %>% 
+  dplyr::select(-Route.ID, -Route.Type, -Full.Point.ID, 
+                -geometry, -Fire.Name) %>% 
   cor()
 
 #plot corelation among all variables
 point_summaries %>% 
   # filter(Route.Type =="B") %>% 
-  dplyr::select(-Route.ID, -Route.Type, -Full.Point.ID, -geometry) %>%
+  dplyr::select(-Route.ID, -Route.Type, -Full.Point.ID, 
+                -geometry, -Fire.Name) %>%
   pairs()
-
-#Same as with the rout summaries, I should remove shrub height
-#and perennial cover
-point_summaries <- point_summaries %>% 
-  select(-Perennial.Cover)
 
 #Split up the x and y coords
 point_summaries <- point_summaries %>% 
@@ -415,10 +506,25 @@ point_summaries <- point_summaries %>%
   mutate(Point.X = str_sub(geometry, start = 3, end = 8)) %>% 
   mutate(Point.Y = str_sub(geometry, start = 11, end = 17)) %>% 
   select(-geometry) %>% 
-  mutate_at(c('Center.X', 'Center.Y'), as.integer) 
+  mutate_at(c('Point.X', 'Point.Y'), as.integer) 
 
 #View one last time
 glimpse(point_summaries)
 
 #export the point summaries
 write.csv(point_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\point_summaries.csv")
+
+#Join point covs to the sob points --------------------------------------------
+#remove the variables that I no longer need
+point_covs <- point_summaries %>% 
+  select(-c(Route.ID, Route.Type, Point.X, Point.Y))
+#...and view
+glimpse(point_covs)
+
+#Join
+sobs_covs <- left_join(sobs, point_covs, by = "Full.Point.ID")
+#...and view
+glimpse(sobs_covs)
+
+#Export this dataset
+write.csv(sobs_covs, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_count_covs.csv")

@@ -27,7 +27,7 @@ glimpse(covs)
 #Transform into a table with each species observations by visit ----------------------------
 #define relevant species
 important_species <- c("BRSP", "SATH", "SABS", "GTTO",
-                       "WEME", "HOLA", "VESP", "GRFL")
+                       "WEME", "HOLA", "VESP", "LASP", "GRFL")
 
 #make a table of important species sightings by visit
 sobs_count_0inf <- sobs %>% 
@@ -72,7 +72,8 @@ sobs_count %>%
                              Species == "VESP" ~ "Vesper Sparrow",
                              Species == "WEME" ~ "Western Meadowlark",
                              Species == "HOLA" ~ "Horned Lark",
-                             Species == "GRFL" ~ "Gray Flycatcher")) %>% 
+                             Species == "GRFL" ~ "Gray Flycatcher",
+                             Species == "LASP" ~ "Lark Sparrow")) %>% 
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
                           Year == "Y2" ~ "Year 2")) %>% 
   mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
@@ -85,17 +86,28 @@ sobs_count %>%
   theme(axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
-        axis.title.y = element_text(),
-        legend.position = c(0.85, 0.19)) +
+        axis.title.y = element_text()) +
   ylim(0, 75) +
   facet_wrap(~Species)
 
 #Total number of observations between burned and unburned plots 
 sobs_count %>% 
+  mutate(Route.Type = case_when(Route.ID %in% c("UT-B24", "UT-B25") ~ "B",
+                                Route.ID %in% c("ID-B03") ~ "R",
+                                TRUE ~ Route.Type)) %>% 
   mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
                                 Route.Type == "R" ~ "Reference")) %>% 
+  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
+                             Species == "SATH" ~ "Sage Thrasher",
+                             Species == "SABS" ~ "Sagebrush Sparrow",
+                             Species == "GTTO" ~ "Green-Tailed Towhee",
+                             Species == "VESP" ~ "Vesper Sparrow",
+                             Species == "WEME" ~ "Western Meadowlark",
+                             Species == "HOLA" ~ "Horned Lark",
+                             Species == "GRFL" ~ "Gray Flycatcher",
+                             Species == "LASP" ~ "Lark Sparrow")) %>% 
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
-                          Year == "Y2" ~ "Year 2")) %>% 
+                          Year == "Y2" ~ "Year 2")) %>%
   mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
   ggplot(aes(x = Year.Type, y = Count, fill = Year.Type)) +
   geom_col() +
@@ -106,8 +118,7 @@ sobs_count %>%
   theme(axis.title.x = element_blank(),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
-        axis.title.y = element_text(),
-        legend.position = c(0.85, 0.19)) +
+        axis.title.y = element_text()) +
   facet_wrap(~Species)
 
 #Species counts and shrub cover
@@ -167,3 +178,13 @@ sobs_count %>%
        y = "Number of Observations") +
   theme_bw()+
   facet_wrap(~Species) 
+
+#compare two species to each other
+sobs_count %>% 
+  group_by(Route.ID, Species) %>% 
+  reframe(Route.ID, Species, Mean.Count = mean(Count)) %>% 
+  distinct(Route.ID, Species, Mean.Count) %>% 
+  pivot_wider(names_from = Species, values_from = Mean.Count) %>% 
+  ggplot(aes(x = WEME, y = SATH)) +
+  geom_point() +
+  geom_smooth()
