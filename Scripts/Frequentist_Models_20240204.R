@@ -8,72 +8,76 @@ library(stringr)
 library(tidyr)
 library(dplyr)
 
-#set working directory
+#Remove objects
+rm(list = ls())
 
 #Add point count data
-sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data.csv")) %>% 
+sobs <- tibble(read.csv("Data\\Outputs\\sobs_count_covs.csv")) %>% 
         dplyr::select(-X) #Remove the column that excel generated
 #and view the data
 glimpse(sobs)
 
-#View a single route
-sobs %>% 
-  filter(Species == 'BRSP' & Route.ID == 'ID-C28') %>% 
-  select(Species, Distance, Route.ID, Full.Point.ID, Year, Visit, Observer.ID) %>% 
-  print(n = Inf)
-
-#add covariates
-#I'm going to start with only the route level covariates
-covs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")) %>% 
-  dplyr::select(-X)
-#View covariates
-glimpse(covs)
-
 #Select a species of interest (SOI)
-soi <- "BRSP"
+soi <- "WEME"
 
 #Make a table of all possible route and visit combinations
-possible_routes <- sobs %>% 
-  expand(nesting(Route.ID, Year, Visit))
+possible_points <- sobs %>% 
+  expand(nesting(Full.Point.ID, Year, Visit, Shrub.Cover, Shrub.Height,
+                 Sagebrush.Cover, Annual.Cover, Fire.Distance, Aspect,
+                 Bare.Ground.Cover, Burn.Sevarity, TRI, Elevation,
+                 Road.Distance))
 #View possib;e routes
-glimpse(possible_routes)
+glimpse(possible_points)
 
 #Make a table of how many of the species of interest were observed on each route
 count_0inf <- sobs %>% 
   filter(Species == soi) %>%
-  group_by(Route.ID, Year, Visit) %>% 
-  reframe(Route.ID, Year, Visit, SOI.Count = n()) %>% 
-  ungroup() %>% 
-  distinct(Route.ID, Year, Visit, SOI.Count)
+  group_by(Full.Point.ID, Year, Visit) %>% 
+  reframe(Full.Point.ID, Year, Visit, SOI.Count = n()) %>% 
+  distinct()
 #Vieew soi count
 glimpse(count_0inf)
 
 #Join the two so I have the zero counts
-sobs_count <- left_join(possible_routes, count_0inf, 
-          by = c('Route.ID', 'Year', 'Visit')) %>% 
+sobs_count <- left_join(possible_points, count_0inf, 
+          by = c('Full.Point.ID', 'Year', 'Visit')) %>% 
   mutate(SOI.Count = case_when(is.na(SOI.Count) ~ 0,
                                TRUE ~ SOI.Count)) 
 
 #View the full count
 glimpse(sobs_count)
 
-#Combine with covariates 
-sobs_count <- sobs_count %>% 
-  left_join(covs, by = 'Route.ID') 
-
-#Transform some columns to factors 
-sobs_count <- sobs_count %>% 
-  mutate_at(c('Route.Type', 'Aspect', 'Fire.Name'), as.factor)
-  
 #View the counts with covariates
 glimpse(sobs_count)
 print(sobs_count, n = 240)
 hist(sobs_count$SOI.Count)
 
+#test model to unserstand how a Bayesian framework can be used to model my data -----
+#Make an object of how many ponts we had
+#define the number 
+points <- seq(from = 1, to = length(unique(sobs_count$Full.Point.ID)), by = 1)
+
+#define storage objects
+P_ak <- 0.8
+P_dk <- 0.25
+lambda <- 8
+n_k <- rep(NA, length(points))
+
+#simulate the process of coubnting birds from some population
+for(i in 1:length(points)){
+  N_k <- rneg(n = 1, lambda = lambda)
+  n_k[i] <- rbinom(n = 1, size = N_k, p = P_ak * P_dk)
+}
+#compare this to what I actually saw
+par(mfrow =c(1, 2))
+hist(n_k)
+hist(sobs_count$SOI.Count)
+par(mfrow=c(1,1))
+
 #Plot comparisons between SOI count and some covariates ------------------
 #Scatterplot
 sobs_count %>% 
-  ggplot(aes(x =Shrub.Cover.RAP, y = SOI.Count)) +
+  ggplot(aes(x = Bare.Ground.Cover, y = SOI.Count)) +
   geom_point() +
   geom_smooth()
 
@@ -197,6 +201,6 @@ model_out <- data.frame(Variable = c('intercept', 'shrub_offset',
 #...and view
 model_out
 
-#Notes 02/06/2024 this model is reall bad. Both the detection function piece ----
+#Notes 02/06/2024 this model is really bad. Both the detection function piece ----
 #and the covariate piece do not fit well and could use a lot of work.
 #this is for proof of concept 

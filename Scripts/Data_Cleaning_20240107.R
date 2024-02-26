@@ -13,14 +13,11 @@ library(lubridate)
 
 #Start here ------------------------------------------------------------
 
-#set up a path for the data
-data_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\"
-
 #Add in observation Data
 #2022 Observation data 
-obs_22_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Observations_2022_Raw.csv")))
+obs_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_2022_Raw.csv"))
 #2023 observation data
-obs_23_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Observations_Raw_2023.csv")))
+obs_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_Raw_2023.csv"))
 
 #View the two datasets
 str(obs_22_raw)
@@ -121,342 +118,193 @@ obs_cleaned %>%
 
 #View specific observations
 obs_cleaned %>% 
-  filter(Species.Raw == "LEFL")  #Change this based on which one I want to look at
+  filter(Species.Raw == "")  #Change this based on which one I want to look at
 
+#Capitalize Species Code
+obs_cleaned  <- obs_cleaned %>% 
+  mutate(Species = str_to_upper(Species.Raw)) %>% 
+  mutate(Species = str_remove_all(Species, "_")) %>% #remove "_, "
+  mutate(Species = str_remove_all(Species, " "))
+
+#...and view
+obs_cleaned %>% 
+  count(Species) %>% 
+  print(n = Inf)
   
 #Mutate incorrect species codes to corrected ones  
 obs_cleaned <- obs_cleaned %>% 
   mutate(Species = case_when(
-    Species.Raw %in% c("Vesp", 
-                   "VeSP",
-                   "Vesp ",
-                   "VESP ",
-                   "vesp",
-                   "VEDP",
-                   "VESp",
+    Species %in% c("VEDP",
                    "VESO",
-                   "VESP",
-                   "Vesp_",
-                   "VESP_",
                    "VSSP",
                    "CESP",
                    "117",
                    "19",
                    "324"
     ) ~ "VESP",
-    Species.Raw == "53" & Distance.Raw == "VESP" ~ "VESP",
-    Species.Raw %in% c("Weme",
-                        "WEmE",
-                        "WEME ",
-                        "WEMe",
-                        "WEMA",
-                        "MEWE",
-                        "Mela",
-                        "MeLa",
-                        "MEME",
-                        "WEMD",
-                        "WEMR",
-                        "WEMW",
-                        "WENE",
-                        "WRME",
-                        "WEMA",
-                        "WTMA",
-                        "132",
-                        "222",
-                        "60",
-                       "Weme_",
-                       "WEME_",
-                        "WEME"
+    Species == "53" & Distance.Raw == "VESP" ~ "VESP",
+    Species %in% c("MEWE",
+                   "MELA",
+                   "MEME",
+                   "WEMD",
+                   "WEMR",
+                   "WEMW",
+                   "WENE",
+                   "WRME",
+                   "WEMA",
+                   "WTMA",
+                   "132",
+                   "222",
+                   "60"
     ) ~ "WEME",
-    Species.Raw %in% c("Hola",
-                       "HOLA_",
-                       "HOlA",
-                       "13_HOLA's",
-                       "Hola ",
-                       "HOLa",
-                       "Horned Lark",
-                       "HOL",
-                       "HOLA",
-                       "Hola_",
-                       "Horned_Lark",
-                       "107"
+    Species %in% c("13HOLA'S",
+                   "HOL",
+                   "HORNEDLARK",
+                   "107"
     ) ~ "HOLA",
-    Species.Raw %in% c("RNPH",
-                        "RPHE"
-                        
+    Species %in% c("RNPH",
+                   "RPHE"
     ) ~ "RNEP",
-    Species.Raw %in% c("Rowr_",
-                   "Rowr",
-                   "ROWR?",
-                   "ROWR_",
-                   "ROWE",
+    Species %in% c("ROWE",
                    "RORW",
                    "ROQR",
                    "ROHE",
-                   "ROWR"
+                   "ROWR?"
     ) ~ "ROWR",
-    Species.Raw %in% c("NoBI",
-                        "NoBi",
-                        "NOBI",
-                        "MOBI",
-                        "NONE",
-                       ""
+    Species %in% c("MOBI",
+                   "NONE",
+                   ""
     ) ~ "NOBI",
-    Species.Raw %in% c("CoRa",
-                        "Cora",
-                        "CoRa_",
-                        "CORA_",
-                        "CORA"
-    ) ~ "CORA",
-    Species.Raw %in% c("Lasp",
-                        "LASP ",
-                        "LSSP",
-                        "LASL",
-                        "LARS",
-                        "LASP",
-                        "LASP_"
+    Species %in% c("LSSP",
+                   "LASL",
+                   "LARS"
     ) ~ "LASP",
-    Species.Raw %in% c("CoNI",
-                   "CONH",
-                   "Niha_",
-                   "Night_Hawk",
-                   "Niha",
+    Species %in% c("CONH",
                    "NIHA",
-                   "CONI",
+                   "NIGHTHAWK",
                    "152"
     ) ~ "CONI",
-    Species.Raw %in% c("MoDo",
-                   "Modo",
-                   "MODo",
-                   "MODo_",
-                   "MODO_",
-                   "MOSO",
-                   "MIDO",
-                   "MODO"
+    Species %in% c("MOSO",
+                   "MIDO"
     ) ~ "MODO",
-    Species.Raw %in% c("Unsp_",
-                        "Unsp",
-                        "UNSP_",
-                        "UNSP"
-    ) ~ "UNSP",
-    Species.Raw %in% c("Chsp_",
-                        "Chsp",
-                        "CHDP",
-                        "CHSP"
-    ) ~ "CHSP",
-    Species.Raw %in% c("Bbma_",
-                        "Bbma",
-                        "BLMA",
-                        "BBMP",
-                        "BTMJ",
-                        "BBMQ",
-                        "MAPI",
-                        "MTMP",
-                        "BBMA"
+    Species %in% c("BLMA",
+                   "BBMP",
+                   "BTMJ",
+                   "BBMQ",
+                   "MAPI",
+                   "MTMP"
     ) ~ "BBMA",
-    Species.Raw %in% c("BAOW",
-                        "BUOW"
-    ) ~ "BUOW",
-    Species.Raw %in% c("Pija",
-                        "PINJ",
-                        "PIJA"
-    ) ~ "PIJA",
-    Species.Raw %in% c("Swha_",
-                        "SWHA_",
-                        "SWHA"
-    ) ~ "SWHA",
-    Species.Raw %in% c("BLSP",
-                        "BTSP"
-    ) ~ "BTSP",
-    Species.Raw %in% c("Brsp_",
-                        "Brsp",
-                        "BRSP_",
-                        "Brsp",
-                        "Brs",
-                        "Brap",
-                        "BRAP",
-                        "BRSL",
-                        "BRSO",
-                        "BESP",
-                        " BRSP",
-                       "_BRSP",
-                       "_Brsp",
-                        " Brsp"
+    Species %in% c("BRS",
+                   "BRAP",
+                   "BRSL",
+                   "BRSO",
+                   "BESP"
     ) ~ "BRSP",
-    Species.Raw %in% c("Gtto_",
-                        "Gtto",
-                        "gtto",
-                        "GTTO_",
-                        "GRTO",
-                        "GTRO",
-                        "GTTI",
-                        "GTTP",
-                        " GTTO",
-                       "_GTTO",
-                        "20"
+    Species %in% c("GRTO",
+                   "GTRO",
+                   "GTTI",
+                   "GTTP",
+                   "20"
     ) ~ "GTTO",
-    Species.Raw %in% c("SATH_",
-                        "Sath",
-                        "SATH ",
-                        "SAGT",
-                        "SATG",
-                        "151",
-                        "SATH"
+    Species %in% c("SAGT",
+                   "SATG",
+                   "151"
     ) ~ "SATH",
-    Species.Raw %in% c("Spto_",
-                        "Spto",
-                        "Spotted_towhee",
-                        "SPOT",
-                        "SPRO",
-                        "SPTO"
+    Species %in% c("SPOTTEDTOWHEE",
+                   "SPOT",
+                   "SPRO"
     ) ~ "SPTO",
-    Species.Raw == "53" & Distance.Raw == "SPTO" ~ "SPTO",
-    Species.Raw %in% c("Sabs_",
-                   "Sabs",
-                   "SABS ",
-                   "Sags",
+    Species == "53" & Distance.Raw == "SPTO" ~ "SPTO",
+    Species %in% c("SAGS",
                    "SASP",
-                   "SASP_",
-                   "SBSP",
-                   "SABS_",
-                   "SABS"
+                   "SBSP"
     ) ~ "SABS",
-    Species.Raw %in% c("GRPA",
+    Species %in% c("GRPA",
                    "GRAG",
-                   "GRAP",
                    "HUPA"
     ) ~ "GRAP",
-    Species.Raw %in% c("Rtha ",
-                   "Rtha",
-                   "Rtha_",
-                   "REHA"
-    ) ~ "RTHA",
-    Species.Raw %in% c("Lazb_",
-                        "LABU",
-                        "Labu_",
-                        "LAZB",
-                        "LAZP",
-                        "Lazuli bunting",
-                        "Lazuli_bunting",
-                        "LUBU",
-                        "LAZB"
+    Species %in% c("LABU",
+                   "LAZP",
+                   "LAZULIBUNTING",
+                   "LUBU"
     ) ~ "LAZB",
-    Species.Raw %in% c("LHSH",
-                        "LOSH"
-    ) ~ "LOSH",
-    Species.Raw %in% c("UN",
-                        "UNKNOWN",
-                        "BLTH",
-                        "UNBI",
-                       "283"
+    Species %in% c("UN",
+                   "UNKNOWN",
+                   "BLTH",
+                   "283",
+                   "GFCA"
     ) ~ "UNBI",
-    Species.Raw %in% c(" WCSP",
-                        "WTSP",
-                        "WTSW",
-                        "WTSP",
-                        "WHSP",
-                       "_WCSP",
-                        "WCDP"
+    Species %in% c("WHSP",
+                   "WCDP"
     ) ~ "WCSP",
-    Species.Raw %in% c("AMRA",
-                        "AMRO"
-    ) ~ "AMRO",
-    Species.Raw %in% c("Gray FlyCatcher",
-                        "Gray_FlyCatcher_",
-                        "GFLC",
-                        "GFLC",
-                        "GRFC",
-                        "Gray_FlyCatcher",
-                        "GRFL"
+    Species %in% c("GRAYFLYCATCHER",
+                   "GFLC",
+                   "GFLC",
+                   "GRFC"
     ) ~ "GRFL",
-    Species.Raw %in% c("chukar",
-                        "chukar ",
-                        "chukar?",
-                        "Chukar",
-                        "Chuk",
-                        "Chuk_",
-                        "CHUC",
-                        "Chukar?",
-                       "chukar_",
-                        "CHUCK"
+    Species %in% c("CHUKAR",
+                   "CHUKAR?",
+                   "CHUC",
+                   "CHUCK"
     ) ~ "CHUK",
-    Species.Raw %in% c("Nofl_",
-                   "Nofl",
-                   "Northern_flicker"
-     ) ~ "NOFL",
-    Species.Raw %in% c("ATFC",
-                        "ASFL"
+    Species %in% c("ATFC",
+                   "ASFL"
     ) ~ "ATFL",
-    Species.Raw %in% c("Northern harrier",
-                    "Northern_harrier"
-    ) ~ "NOHA",
-    Species.Raw %in% c("Sacr_",
-                        "Sacr",
-                        "SHCR",
-                        "SAND",
-                        "SACR"
-    ) ~ "SACR",
-    Species.Raw %in% c("Flycatcher",
-                        "Flycatcher "
-    ) ~ "UNFL",
-    Species.Raw == "Turkey" ~ "WITU",
-    Species.Raw %in% c("Bhco_",
-                        "BRCO",
-                        "BHCB"
+    Species %in% c("TURKEY",
+                   'WITA'
+    ) ~ "WITU",
+    Species %in% c("BRCO",
+                   "BHCB"
     ) ~ "BHCO",
-    Species.Raw %in% c("Lbcu_",
-                        "Lbcu",
-                        "LOCU",
-                        "Lbcu_"
-    ) ~ "LBCU",
-    Species.Raw %in% c("SAGR",
-                        "Greater Sage grouse",
-                        "Greater Sage grouse ",
-                        "Greater_Sage_grouse_",
-                        "GSAG"
+    Species %in% c("SAGR",
+                   "GREATERSAGEGROUSE",
+                   "GSAG"
     ) ~ "GRSG",
-    Species.Raw == "Howr_" ~ "HOWR",
-    Species.Raw %in% c("Tuvu_",
-                        "Tuvu"
-    ) ~ "TUVU",
-    Species.Raw %in% c("Brbl_",
-                        "Brbl",
-                        "BRBB",
-                        "10_BRBB's"
+    Species %in% c("BRBB",
+                   "10BRBB'S"
     ) ~ "BRBL",
-    Species.Raw == "Spotted_falcon_" ~ "PRFA",
-    Species.Raw %in% c("Amke_",
-                        "Amke",
-                        "MAKE"
-    ) ~ "AMKE",
-    Species.Raw %in% c("BGGC",
-                        "BGNA",
-                        "BLGN"
+    Species %in% c("BGGC",
+                   "BGNA",
+                   "BLGN"
     ) ~ "BGGN",
-    Species.Raw == "KIDE" ~ "KILL",
-    Species.Raw == "Unknown_owl" ~ "UNOW",
-    Species.Raw == "BLGN" ~ "BGGN",
-    Species.Raw == "bushtit" ~ "BUSH",
-    Species.Raw == "BASW" ~ "BARS",
-    Species.Raw == "TRSW" ~ "TRES",
-    Species.Raw == "GHSP" ~ "GRSP",
-    Species.Raw == "Coha" ~ "COHA",
-    Species.Raw == "ANGO" ~ "AMGO",
-    Species.Raw == "BBHU" ~ "BTHU",
-    Species.Raw == "CAWR" ~ "CANW",
-    Species.Raw == "CEWA" ~ "CEDW",
-    Species.Raw == "DEFL" ~ "DUFL",
-    Species.Raw == "RTHU" ~ "UNHU",
-    Species.Raw == "EUCD" ~ "EUCD",
-    Species.Raw == "FERH" ~ "FEHA",
-    Species.Raw == "GOFI" ~ "UNFI",
-    Species.Raw == "MAWA" ~ "MGMA",
-    Species.Raw == "RWBB" ~ "RWBL",
-    Species.Raw == "YECH" ~ "YBCH",
-    Species.Raw == "YHBK" ~ "YHBL",
-    Species.Raw == "UNBB" ~ "UNBL",
-    Species.Raw == "Flycatcher_" ~ "UNFL",
-    TRUE ~ as.character(Species.Raw)
+    Species ==   "ECDO" ~ "EUCD",
+    Species == "NORTHERNFLICKER" ~ "NOFL",
+    Species == "KIDE" ~ "KILL",
+    Species == "SAND" ~ "SACR",
+    Species == "NORTHERNHARRIER" ~ "NOHA",
+    Species == "SPOTTEDFALCON" ~ "PRFA",
+    Species == "FLYCATCHER" ~ "UNFL",
+    Species == "LOCU" ~ "LBCU",
+    Species == "UNKNOWNOWL" ~ "UNOW",
+    Species == "BLGN" ~ "BGGN",
+    Species == "BUSHTIT" ~ "BUSH",
+    Species == "BASW" ~ "BARS",
+    Species == "CHDP" ~ "CHSP",
+    Species == "AMRO" ~ "AMRO",
+    Species == "REHA" ~ "RTHA", 
+    Species ==  "MAKE" ~ "AMKE",
+    Species == "LHSH" ~ "LOSH",
+    Species == "TRSW" ~ "TRES",
+    Species == "GHSP" ~ "GRSP",
+    Species == "Coha" ~ "COHA",
+    Species == "WTSW" ~ "WTSP",
+    Species == "ANGO" ~ "AMGO",
+    Species == "BBHU" ~ "BTHU",
+    Species == "BAOW" ~ "BUOW",
+    Species == "PINJ" ~ "PIJA",
+    Species == "BLSP" ~ "BTSP",
+    Species == "CAWR" ~ "CANW",
+    Species == "CEWA" ~ "CEDW",
+    Species == "DEFL" ~ "DUFL",
+    Species == "RTHU" ~ "UNHU",
+    Species == "FERH" ~ "FEHA",
+    Species == "GOFI" ~ "UNFI",
+    Species == "MAWA" ~ "MGMA",
+    Species == "RWBB" ~ "RWBL",
+    Species == "YECH" ~ "YBCH",
+    Species == "YHBK" ~ "YHBL",
+    Species == "UNBB" ~ "UNBL",
+    TRUE ~ as.character(Species)
   ))
 
 #check for any missing corrections
@@ -729,9 +577,9 @@ str(observations)
 #Cleaning the Point data --------------------------------------
 #Add in point data
 #2022 point data
-points_22_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Points_2022_Raw.csv")))
+points_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_2022_Raw.csv"))
 #2023 point data
-points_23_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Points_Raw_2023.csv")))
+points_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_Raw_2023.csv"))
 
 #View the two datasets
 str(points_22_raw)
@@ -845,9 +693,9 @@ str(points)
 #Clean survey data -----------------------------------------------------------
 #Add in survey data
 #2022 survey data
-surveys_22_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Surveys_2022_Raw.csv")))
+surveys_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Surveys_2022_Raw.csv"))
 #2023 survey data
-surveys_23_raw <- tibble(read.csv(paste0(data_path, "Inputs\\Sobs_Surveys_Raw_2023.csv")))
+surveys_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Surveys_Raw_2023.csv"))
 
 #View the two datasets
 glimpse(surveys_22_raw)
@@ -1295,7 +1143,6 @@ surveys_cleaned %>%
 #IT-C11 and ID-C22 might just only have three surveys and that's okay
 
 #fix observer name ----------------------------------------------------------
-
 #observer name
 surveys_cleaned %>%
   distinct(Observer.ID.Raw)
@@ -1676,6 +1523,48 @@ sobs %>%
 #View the dataset to make sure everything looks good
 str(sobs)
 
+#After learning more about fire history in this area I have realized that UT-C24 and UT-C25 
+#burned in 1999 and ID-B03 did not burn
+#change those points to the correct route type ------
+#start by defining the burn points
+burn_points_99 <- c("UT-C24-P02",
+                    "UT-C24-P03",
+                    "UT-C24-P04",
+                    "UT-C24-P06",
+                    "UT-C24-P07",
+                    "UT-C24-P08",
+                    "UT-C24-P11",
+                    "UT-C24-P12",
+                    "UT-C24-P15",
+                    "UT-C24-P16",
+                    "UT-C25-P01",
+                    "UT-C25-P02",
+                    "UT-C25-P03",
+                    "UT-C25-P04",
+                    "UT-C25-P05",
+                    "UT-C25-P06",
+                    "UT-C25-P07",
+                    "UT-C25-P08",
+                    "UT-C25-P09",
+                    "UT-C25-P11",
+                    "UT-C25-P12",
+                    "UT-C25-P13",
+                    "UT-C25-P14",
+                    "UT-C30-P05",
+                    "UT-C30-P13")
+
+#Redefine the incorrect route types
+sobs <- sobs %>% 
+  mutate(Route.Type = case_when(Full.Point.ID %in% burn_points_99 ~ "B",
+                                Route.ID == "ID-B03" ~ "R",
+                                TRUE ~ Route.Type))
+#...and view
+glimpse(sobs)
+sobs %>% 
+  filter(Route.ID == "UT-C24") %>% 
+  select(Full.Point.ID, Year, Visit, Route.Type, Species) %>% 
+  print(n = 100)
+
 #Many of the counts do not have NOBI for minutes where no birds were detected
 #Add in NOBI Observations ---------------------------------------------------
 #View some example NOBI observations
@@ -1734,7 +1623,7 @@ glimpse(sobs)
 #Convert coordinates to numeric
 
 #read in point corrdinates
-point_cords <- tibble(read.csv(paste0(data_path, "Inputs\\Point_Cords_Raw.csv")))
+point_cords <- tibble(read.csv("Data\\Inputs\\Point_Cords_Raw.csv"))
 #View point ID's
 point_cords %>% 
   distinct(Point_ID)
@@ -1902,47 +1791,8 @@ glimpse(sobs)
 glimpse(sobs)
 print(sobs, n = 200)
 
-#After learning more about fire history in this area I have realized that UT-C24 and UT-C25 
-#burned in 1999 and ID-B03 did not burn
-#change those points to the correct route type ------
-#start by defining the burn points
-burn_points_99 <- c("UT-C24-P02",
-                    "UT-C24-P03",
-                    "UT-C24-P04",
-                    "UT-C24-P06",
-                    "UT-C24-P07",
-                    "UT-C24-P08",
-                    "UT-C24-P11",
-                    "UT-C24-P12",
-                    "UT-C24-P15",
-                    "UT-C24-P16",
-                    "UT-C25-P01",
-                    "UT-C25-P02",
-                    "UT-C25-P03",
-                    "UT-C25-P04",
-                    "UT-C25-P05",
-                    "UT-C25-P06",
-                    "UT-C25-P07",
-                    "UT-C25-P08",
-                    "UT-C25-P09",
-                    "UT-C25-P11",
-                    "UT-C25-P12",
-                    "UT-C25-P13",
-                    "UT-C25-P14",
-                    "UT-C30-P05",
-                    "UT-C30-P13")
-
-#Redefine the incorrect route types
-sobs <- sobs %>% 
-  mutate(Route.Type = case_when(Full.Point.ID %in% burn_points_99 ~ "B",
-                                Route.ID == "ID-B03" ~ "R",
-                                TRUE ~ Route.Type))
-#...and view
-glimpse(sobs)
 sobs %>% 
-  filter(Route.ID == "UT-C24") %>% 
-  select(Full.Point.ID, Year, Visit, Route.Type, Species) %>% 
-  print(n = 100)
+  count(Sky.Start)
 
 #Save the cleaned data as a csv
 write.csv(sobs, paste0(data_path, "Outputs\\sobs_data.csv"))

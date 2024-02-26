@@ -1,6 +1,9 @@
 #Top of the code block ----
 #Basic Single Species detection functions
 
+#clear objects
+rm(list = ls())
+
 #Load packages
 #Load Required Packages
 library(dplyr)
@@ -10,11 +13,8 @@ library(ggplot2)
 library(Distance)
 library(dsm)
 
-#Set working directory
-data_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\"
-
 #Load in Data
-sobs <- read.csv(paste0(data_path, "Outputs\\sobs_data.csv")) %>% 
+sobs <- read.csv("Data\\Outputs\\sobs_data.csv") %>% 
   dplyr::select(-X) #Remove the column that excel generated
 
 #view our data

@@ -304,7 +304,8 @@ glimpse(route_summaries)
 #looks good. time to export
 write.csv(route_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")
 
-#Extract values to 125m buffers around each point -------------------------------------
+#Extract values to 125m buffers around each point ----------------------------------------------------
+
 #make an object to store all of the raster summaries
 point_summaries <- points %>% 
   tibble()

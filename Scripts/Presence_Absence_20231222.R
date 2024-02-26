@@ -1,5 +1,8 @@
 #Presence absence data based on my songbird surveys
 
+#Clear Objects
+rm(list = ls())
+
 #Load tidyverse
 library(dplyr)
 library(tidyr)
@@ -7,11 +10,8 @@ library(stringr)
 library(ggplot2)
 library(lubridate)
 
-#set path for the data
-data_path <-"C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\"
-
 #add in data
-sobs <- read.csv(paste0(data_path, "Outputs\\sobs_data.csv")) %>% 
+sobs <- read.csv("Data\\Outputs\\sobs_data.csv") %>% 
   tibble() %>% 
   select(-X)
 #... and view
