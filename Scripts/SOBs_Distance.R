@@ -5,7 +5,6 @@
 rm(list = ls())
 
 #Load packages
-#Load Required Packages
 library(dplyr)
 library(tidyr)
 library(stringr)
@@ -13,8 +12,9 @@ library(ggplot2)
 library(Distance)
 library(dsm)
 
-#Load in Data
-sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") 
+#Add in Data
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>% 
+  select(-X)
 #view the data
 glimpse(sobs)                      
 
@@ -27,6 +27,8 @@ mutate(Effort = case_when(Year == 'Y1' & Visit == 'V1' ~ 1,
                           TRUE ~ NA))
 #View the data again  
 glimpse(sobs)
+
+#View odd visit numbers
 sobs %>% 
   filter(is.na(Effort))
 
@@ -267,7 +269,7 @@ SOI_Density_BoxP <- SOI_Density %>%
         legend.title = element_blank())        #remove the legend title  
 SOI_Density_BoxP
 
-#That model looks pretty good but let's try some more models -----------------------------------
+#That model looks pretty good but let's try some more models ---------------------------------
 #view covariates so I know the options
 glimpse(sobs)
 
