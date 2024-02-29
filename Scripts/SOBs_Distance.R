@@ -14,10 +14,8 @@ library(Distance)
 library(dsm)
 
 #Load in Data
-sobs <- read.csv("Data\\Outputs\\sobs_data.csv") %>% 
-  dplyr::select(-X) #Remove the column that excel generated
-
-#view our data
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") 
+#view the data
 glimpse(sobs)                      
 
 #Add in an Effort Column to the count data
@@ -95,14 +93,14 @@ sample_table <- sobs %>%
 glimpse(sample_table)
 
 #Add site level covariates
-point_covs <- read.csv("Data\\Outputs\\point_summaries.csv") %>% 
-  select(-X, -Route.ID) 
+point_covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/point_summaries.csv") %>% 
+  select(-X)
 #...and view
 glimpse(point_covs)
 
 #Join to sample Table
 sample_table <- left_join(sample_table, point_covs, by = "Full.Point.ID") %>% 
-  select(-Full.Point.ID)
+  select(-Route.ID, -Full.Point.ID)
 #View
 glimpse(sample_table)
 
@@ -229,21 +227,16 @@ gof_ds(SOI_model_obs, main="QQ plot Haz-Observer for SOI")
 
 #Plot of SOI density by plot type ----
 #Build an object to store the density outputs
-SOI_Density <- tibble(SOI_model_obs$dht$individuals$D)
-print(SOI_Density)
-
-#Add a column for plot type to this new object
-SOI_Density <- SOI_Density %>%
-  rename(Route.ID = 'Label', #Rename columns so they make more sense
-         SOI.Per.km2 = 'Estimate') %>%
-  filter(Route.ID != 'Total') %>% #Remove the total estimate
-  mutate(Route.Type = if_else(str_detect(Route.ID, "B"), #Add back in plot type
-                             "Burn", "Reference")) %>% 
-  mutate(Species = SOI) %>% 
-  dplyr::select(Species, Route.ID, Route.Type, SOI.Per.km2,
-         se, lcl, ucl) #Remove the columns I no longer need
-  
-#...And view
+SOI_Density <- tibble(SOI_model_obs$dht$individuals$D) %>% 
+  filter(Label != "Total") %>% 
+  mutate(Year = case_when(str_detect(Label, "Y1") ~ "Y1",
+                          str_detect(Label, "Y2") ~ "Y2"),
+         SOI.Per.km2.Est = Estimate,
+         Route.ID = str_remove(Label, "-Y[12]"),
+         Route.Type = case_when(str_detect(Route.ID, "B") ~ "Burn",
+                                str_detect(Route.ID, "C") ~ "Reference")) %>% 
+  select(Route.ID, Route.Type, Year, SOI.Per.km2.Est, se)
+#and view
 glimpse(SOI_Density)
 
 #Exploratory analysis of the data -----------------------------------------
@@ -258,10 +251,12 @@ SOI_Colors <- c("brown2", "dodgerblue3", "darkorchid4") #The colors we will use 
 
 #Density in burn vs unburned plots -----
 SOI_Density_BoxP <- SOI_Density %>%
-  ggplot(aes(x = Route.Type, y = SOI.Per.km2, fill = Route.Type)) +
+  ggplot(aes(x = Route.Type, y = SOI.Per.km2.Est, fill = Route.Type)) +
   geom_boxplot() +
   ggtitle(SOI_density_chart_title) +                   
-  ylab(SOI_density_chart_ylab) +  
+  ylab(SOI_density_chart_ylab) +
+  facet_wrap(~ Year) +
+  theme_bw() +
   theme(plot.title = element_text(hjust = 0.3, size = 14, face = "bold"), #Set the plot title
         axis.title.y = element_text(size = 13),       #change the size of the y axis title
         axis.text.y = element_text(size = 12), #change the size of the y-axis values
@@ -272,7 +267,7 @@ SOI_Density_BoxP <- SOI_Density %>%
         legend.title = element_blank())        #remove the legend title  
 SOI_Density_BoxP
 
-#That model looks pretty good but let's try some more -----------------------------------
+#That model looks pretty good but let's try some more models -----------------------------------
 #view covariates so I know the options
 glimpse(sobs)
 
