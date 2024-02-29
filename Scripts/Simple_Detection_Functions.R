@@ -36,54 +36,28 @@ sobs %>%
 sobs <- sobs %>% 
   filter(!is.na(Effort))
 
-#rename columns so distance can understand them
-#storage object for new names
-dist_names <- c(Region.Label = "Route.ID", 
-                Sample.Label = "Full.Point.ID",
-                distance = "Distance")
-
-#now the actual renaming
+#Change the orgional tibble so distance likes it
 sobs <- sobs %>% 
-  rename(all_of(dist_names))
-glimpse(sobs)
-
-#Make Distance Continuous
-sobs <- sobs %>% 
+  #rename columns so distance can understand them
+  rename(distance = "Distance") %>% 
+  #Each point within each year is a "Sample"
+  mutate(Sample.Label = paste(Full.Point.ID, Year, sep = "-")) %>% 
+  #Each route within each year is a "region"
+  mutate(Region.Label = paste(Route.ID, Year, sep = "-")) %>% 
+  #Make Distance Continuous
   mutate(distance = as.numeric(distance))
+#...and view
 glimpse(sobs)
 
 #View and combine some of the detection level covariates -----------------------------
-#View all observer ID's
-sobs %>% 
-  distinct(Observer.ID)
-
-#Add a column for observer skill
-sobs <- sobs %>% 
-  mutate(Observer.Experience = case_when(Observer.ID %in% c("Eliza Wesemann",
-                                                       "Eoin Ohearn",
-                                                       "Austin Heitzman",
-                                                       "Anna Mumford",
-                                                       "Devin Erwin") ~ "Beginer",
-                                    Observer.ID %in% c("Thea Mills",
-                                                       "Andrew Zilka") ~ "Intermetiate",
-                                    Observer.ID %in% c("Rory Eggleston",
-                                                       "Ruger Carter",
-                                                       "Trey Mccuen",
-                                                       "Will Harrod") ~ "Experienced",
-                                    Observer.ID == "Keramie Hamby" & Year == "Y1" ~ "Beginer",
-                                    Observer.ID == "Keramie Hamby" & Year == "Y2" ~ "Intermetiate",
-                                    TRUE ~ NA))
-#View Observer Exerience
-distinct(sobs, Observer.Experience)
-glimpse(sobs)
-
 #Start Sky
 sobs %>% count(Sky.Start)
 sobs <- sobs %>% 
   mutate(Sky.Start = case_when(Sky.Start %in% c('Cloudy',
                                                 'Drizzle',
                                                 'Fog or Smoke') ~ 'Poor',
-                               TRUE ~ Sky.Start))
+                              TRUE ~ Sky.Start))
+#...and view 
 count(sobs, Sky.Start)
 
 #Start Wind
@@ -91,12 +65,13 @@ sobs %>% count(Wind.Start)
 sobs <- sobs %>% 
   mutate(Wind.Start = case_when(Wind.Start %in% c('8-12 mph', '13-18 mph') ~ '> 7 mph',
                                TRUE ~ Wind.Start))
+#...and view
 count(sobs, Wind.Start)
 
 #Transform the covariates we need to factors
 sobs <- sobs %>%
   mutate_at(c("Minute", "Year", "Sky.Start", "Wind.Start", "Route.Type", 
-              "Observer.ID", 'Observer.Experience', "Visit", "How.Detected", "Sex", 
+              "Observer.ID", "Visit", "How.Detected", "Sex", 
               "Visual.ID"), 
             factor)
 
@@ -111,24 +86,23 @@ glimpse(sobs)
 
 #Calculate effort
 sample_table <- sobs %>% 
-  expand(nesting(Sample.Label, Year, Visit)) %>% 
+  expand(nesting(Region.Label, Sample.Label, Full.Point.ID, Visit)) %>% 
   group_by(Sample.Label) %>% 
-  reframe(Sample.Label, Effort = n()) %>% 
-  distinct(Sample.Label, Effort) %>% 
-  mutate(Region.Label = str_remove_all(Sample.Label, "-P[01][123456789]")) %>% 
-  relocate(Region.Label, Sample.Label, Effort)
+  reframe(Region.Label, Sample.Label, Full.Point.ID, Effort = n()) %>% 
+  distinct(Region.Label, Sample.Label, Full.Point.ID, Effort) %>% 
+  relocate(Region.Label, Full.Point.ID, Sample.Label, Effort)
 #And view
 glimpse(sample_table)
 
 #Add site level covariates
-point_covs <- read.csv(paste0(data_path, "Outputs\\point_summaries.csv")) %>% 
-  select(-X, -Route.ID) %>% 
-  rename(Sample.Label = 'Full.Point.ID')
+point_covs <- read.csv("Data\\Outputs\\point_summaries.csv") %>% 
+  select(-X, -Route.ID) 
 #...and view
 glimpse(point_covs)
 
 #Join to sample Table
-sample_table <- left_join(sample_table, point_covs, by = "Sample.Label")
+sample_table <- left_join(sample_table, point_covs, by = "Full.Point.ID") %>% 
+  select(-Full.Point.ID)
 #View
 glimpse(sample_table)
 
@@ -159,7 +133,7 @@ print(point_area)
 
 #Show the number of points by route
 n_points <- sobs %>% 
-  expand(nesting(Region.Label, Sample.Label)) %>%
+  expand(nesting(Region.Label, Full.Point.ID)) %>%
   group_by(Region.Label) %>% 
   reframe(Region.Label, N.Points = n()) %>% 
   distinct(Region.Label, N.Points)
@@ -168,7 +142,7 @@ glimpse(n_points)
 
 #Number of visits that each route had
 route_visits <- sobs %>% 
-  expand(nesting(Region.Label, Year, Visit)) %>%
+  expand(nesting(Region, Year, Visit)) %>%
   group_by(Region.Label) %>% 
   reframe(Region.Label, N.Visits = n()) %>% 
   distinct(Region.Label, N.Visits)
@@ -188,28 +162,30 @@ region_table <- region_table %>%
 #view our finalized region table
 glimpse(region_table)
 
+#Build an object unit for conversion
+conv <- convert_units("Meter", NULL, "Square kilometer")
+
 #Final data exploration --------------------------------------------
 print(SOI) #Check which species we're looking at
-
-#A storage object for the plot title
-SOI_count_chart_title <- paste(SOI, "Observed by Distance", sep = " ")
 
 #Table of which Plots have SOI
 sobs %>%
   filter(Species == SOI) %>% 
   count(Region.Label, Year, Visit) %>% 
-  mutate(Visit.ID = paste(Year, Visit, sep = '-')) %>% 
-  select(Region.Label, Visit.ID, n) %>% 
-  pivot_wider(names_from = Visit.ID, values_from = n) %>% 
+  select(Region.Label, Visit, n) %>% 
+  pivot_wider(names_from = Visit, values_from = n) %>% 
   replace(is.na(.), 0) %>% 
   print(n = 60)
+
+#A storage object for the plot title
+SOI_count_chart_title <- paste(SOI, "Observed by Distance", sep = " ")
 
 #Plot of the distribution of observed distances
 sobs %>%
   filter(Species == SOI) %>%
   ggplot(aes(x = distance)) +
   geom_histogram() + 
-  facet_wrap(~Route.Type) +
+  facet_wrap(~ Year + Route.Type) +
   labs(title = SOI_count_chart_title, x="Radial Distance (m)", y="Observed Count") +
   theme_bw()
 
@@ -219,13 +195,8 @@ sobs %>%
   dplyr::select(distance, Observer.ID, MAS,  How.Detected, Ord.Date) %>% 
   filter_all(any_vars(is.na(.)))
 
-#fix the NA
-sobs <- sobs %>% 
-  mutate(How.Detected = case_when(is.na(How.Detected) ~ 'O',
-                                  TRUE ~ How.Detected))
+#View juvenile observations
 
-#Build an object unit for conversion
-conv <- convert_units("Meter", NULL, "Square kilometer")
 
 #view data one more time
 glimpse(sobs)
@@ -234,7 +205,7 @@ glimpse(sobs)
 #naive model ----------------------------------------------
 SOI_model_obs <- sobs %>%
   filter(Species == SOI) %>%         #for starters, only look at our SOI
-  drop_na(distance) %>% 
+  drop_na(distance, How.Detected) %>% 
   ds(truncation = "10%",                           #truncate the 10% #of distances
     transect = "point",                            #point transect
     formula = ~ Observer.ID,          #observer is the most important covariate
@@ -275,9 +246,6 @@ SOI_Density <- SOI_Density %>%
 #...And view
 glimpse(SOI_Density)
 
-#Export the data
-write.csv(SOI_Density, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\soi_dens_est_20240205.csv")
-
 #Exploratory analysis of the data -----------------------------------------
 #build a storage object for y axis so it will change with species
 SOI_density_chart_ylab <- paste("Estimated number of", SOI, "per km^2", sep = " ") 
@@ -304,8 +272,8 @@ SOI_Density_BoxP <- SOI_Density %>%
         legend.title = element_blank())        #remove the legend title  
 SOI_Density_BoxP
 
-#More models -----------------------------------
-#view covariates
+#That model looks pretty good but let's try some more -----------------------------------
+#view covariates so I know the options
 glimpse(sobs)
 
 #observer + mas
