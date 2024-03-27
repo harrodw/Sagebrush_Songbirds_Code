@@ -11,11 +11,11 @@ library(dplyr)
 #Remove objects
 rm(list = ls())
 
-#Add point count data
-sobs <- tibble(read.csv("Data\\Outputs\\sobs_count_covs.csv")) %>% 
-        dplyr::select(-X) #Remove the column that excel generated
-#and view the data
-glimpse(sobs)
+#Add in Data
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_count_covs.csv") %>% 
+  select(-X)
+#view the data
+glimpse(sobs) 
 
 #Select a species of interest (SOI)
 soi <- "WEME"

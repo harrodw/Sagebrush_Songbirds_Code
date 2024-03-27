@@ -21,7 +21,8 @@ glimpse(sobs)
 utm_12n <- '+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs'
 
 #Object for point coordinates
-points <- sobs %>% 
+points <- sobs %>%
+  #tidyverse shenanigans 
   group_by(Full.Point.ID) %>% 
   reframe(Full.Point.ID,
           Route.ID,
@@ -29,6 +30,7 @@ points <- sobs %>%
           UTM.X,
           UTM.Y) %>% 
   distinct(Full.Point.ID, Route.ID, Route.Type, UTM.X, UTM.Y) %>% 
+  #transform to a geographic object
   st_as_sf(coords = c("UTM.X", "UTM.Y")) %>% 
   st_set_crs(utm_12n)
 #View points
@@ -37,6 +39,11 @@ points
 
 #Create an object for route centers
 route_centers <- sobs %>% 
+  #Fix the routes that straddle a fire boundary
+  mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
+                                Route.ID == "UT-C25" ~ "B",
+                                Route.ID == "UT-C30" ~ "R",
+                                TRUE ~ Route.Type)) %>% 
   group_by(Route.ID) %>% 
   reframe(Route.ID, Route.Type,
           Center.X = mean(UTM.X , na.rm = TRUE), 
@@ -49,7 +56,8 @@ route_centers <- sobs %>%
   st_set_crs(utm_12n) %>% 
   arrange(Route.ID)
 #View routes
-route_centers
+route_centers %>% 
+  print(n = Inf)
 #route_centers %>% ggplot(aes(col = Route.Type)) + geom_sf()
 
 #Add rasters ------------------------------------------------------------------------------
@@ -106,49 +114,45 @@ glimpse(route_summaries)
 #summarize Sagebrush cover
 route_summaries$Sagebrush.Cover <- raster::extract(x = sage_cvr,
                                                    y = route_centers,
-                                                   buffer = 564,
+                                                   buffer = 689,
                                                    fun = mean) 
 #summarize annual cover
 route_summaries$Annual.Cover <- raster::extract(x = anu_cvr,
                                     y = route_centers,
-                                    buffer = 564,
+                                    buffer = 689,
                                     fun = mean)
 
 #summarize perennial cover
 route_summaries$Perennial.Cover <- raster::extract(x = perin_cvr,
                                              y = route_centers,
-                                             buffer = 564,
+                                             buffer = 689,
                                              fun = mean) 
 #summarize shrub cover from RCMAP
 route_summaries$Shrub.Cover<- raster::extract(x = shrub_cvr,
                                     y = route_centers,
-                                    buffer = 564,
+                                    buffer = 689,
                                     fun = mean)
-#summarize tree cover
-# route_summaries$Tree.Cover <- raster::extract(x = tree_cvr,
-#                                               y = route_centers,
-#                                               buffer = 564,
-#                                               fun = mean)
-#summarize bare gound cover
+
+#summarize bare grund cover
 route_summaries$Bare.Ground.Cover <- raster::extract(x = bg_cvr,
                                                      y = route_centers,
-                                                     buffer = 564,
+                                                     buffer = 689,
                                                      fun = mean)
 #summarize shrub height
 route_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                     y = route_centers,
-                                    buffer = 564,
+                                    buffer = 689,
                                     fun = mean)
 
-#summarize burn sevarity
+#summarize burn severity
 route_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
                                                  y = route_centers,
-                                                 buffer = 564,
+                                                 buffer = 689,
                                                  fun = modal) 
 #summarize distance to fire edge
 route_summaries$Fire.Distance <- raster::extract(x = fire_dist,
                                                  y = route_centers,
-                                                 buffer = 564,
+                                                 buffer = 689,
                                                  fun = mean) 
 #define inside vs outside of fire
 route_summaries <- route_summaries %>% 
@@ -158,27 +162,27 @@ route_summaries <- route_summaries %>%
 #summarize elevation
 route_summaries$Elevation <- raster::extract(x = elevation,
                                              y = route_centers,
-                                             buffer = 564,
+                                             buffer = 689,
                                              fun = mean) 
 #summarize topographic ruggedness index
 route_summaries$TRI <- raster::extract(x = tri,
                                        y = route_centers,
-                                       buffer = 564,
+                                       buffer = 689,
                                        fun = mean)
 #summarize aspect
 route_summaries$Aspect <- raster::extract(x = aspect,
                                           y = route_centers,
-                                          buffer = 564,
+                                          buffer = 689,
                                           fun = modal)
 #summarize precipitation
 route_summaries$Precipitation <- raster::extract(x = precip,
                                              y = route_centers,
-                                             buffer = 564,
+                                             buffer = 689,
                                              fun = mean) 
 #summarize road distance
 route_summaries$Road.Distance <- raster::extract(x = road_dist,
                                              y = route_centers,
-                                             buffer = 564,
+                                             buffer = 689,
                                              fun = mean)
 #View summaries
 glimpse(route_summaries)

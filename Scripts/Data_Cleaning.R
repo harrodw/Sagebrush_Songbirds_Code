@@ -1597,7 +1597,7 @@ print(sobs_nobi, n = 400)
 
 #For loop to remove duplicates and NOBI's on rows that 
 for(i in 2:nrow(sobs_nobi)) {
-  sobs_nobi$Remove[1] <- F #Down't remove the first row
+  sobs_nobi$Remove[1] <- F #Don't remove the first row
   sobs_nobi$Remove[i] <- ifelse(sobs_nobi$Species[i] == "NOBI" &
                                   sobs_nobi$Minute[i] == sobs_nobi$Minute[i - 1],
                                 T, F)

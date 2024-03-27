@@ -13,7 +13,7 @@ library(Distance)
 library(dsm)
 
 #Add in Data
-sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>% 
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_count_covs.csv") %>% 
   select(-X)
 #view the data
 glimpse(sobs)                      
@@ -24,7 +24,7 @@ mutate(Effort = case_when(Year == 'Y1' & Visit == 'V1' ~ 1,
                           Year == 'Y1' & Visit == 'V2' ~ 1,
                           Year == 'Y2' & Visit == 'V1' ~ 1,
                           Year == 'Y2' & Visit == 'V2' ~ 1,
-                          TRUE ~ NA))
+                          TRUE ~ NA)) 
 #View the data again  
 glimpse(sobs)
 
