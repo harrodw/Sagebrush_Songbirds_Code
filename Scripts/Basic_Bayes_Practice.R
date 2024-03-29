@@ -24,11 +24,11 @@ soi <- "BRSP"
 
 #Make a table of all possible route and visit combinations
 possible_points <- sobs %>% 
-  expand(nesting(Full.Point.ID, Year, Visit, Route.Type, Shrub.Cover, Shrub.Height,
-                 Sagebrush.Cover, Annual.Cover, Fire.Distance, Aspect,
-                 Bare.Ground.Cover, Burn.Sevarity, TRI, Elevation,
-                 Road.Distance)) %>% 
-  mutate(Route.Type = as.factor(Route.Type))
+  tidyr::expand(nesting(Full.Point.ID, Year, Visit, Observer.ID, Route.Type,
+                        Shrub.Cover, Shrub.Height, Sagebrush.Cover, Annual.Cover, Fire.Distance, 
+                        Aspect, Bare.Ground.Cover, Burn.Sevarity, TRI, Elevation, Road.Distance)) %>% 
+  mutate_at(c('Route.Type', 'Full.Point.ID', 'Observer.ID', 'Aspect', 'Burn.Sevarity'), 
+            as.factor)
 #View possible routes
 glimpse(possible_points)
 
@@ -50,27 +50,5 @@ sobs_count <- left_join(possible_points, count_0inf,
 #View the full count
 glimpse(sobs_count)
 
-#Frequentest Model --------------------------------------------------------------------------
-
-#Naive Model
-sobs_fm1 <- glm(Count ~ Shrub.Cover + Shrub.Height + TRI + Elevation + Road.Distance + Route.Type, 
-                data = sobs_count,
-                family = poisson)
-#View diagnostics plot
-par(mfrow =c(2, 2))
-plot(sobs_fm1)
-
-#Vieew moddel summary
-summary(sobs_fm1)
-
-#shrub cover only model
-sobs_fm2 <- glm(Shrub.Cover, 
-                data = sobs_count,
-                family = poisson)
-#View diagnostics plot
-par(mfrow =c(2, 2))
-plot(sobs_fm2)
-
-#Vieew moddel summary
-summary(sobs_fm2)
+#Build Models -------------------------------------------------------------------------------------------------------------
  

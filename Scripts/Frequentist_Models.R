@@ -7,50 +7,116 @@
 library(stringr)
 library(tidyr)
 library(dplyr)
+library(ggplot2)
+library(forcats)
+library(gridExtra)
+library(glmmTMB)
+library(DHARMa)
+library(lme4)
 
 #Remove objects
 rm(list = ls())
 
 #Add in Data
 sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_count_covs.csv") %>% 
-  select(-X)
+  dplyr::select(-X)
 #view the data
 glimpse(sobs) 
 
-#Select a species of interest (SOI)
-soi <- "WEME"
+#add covariates
+#I'm going to start with only the route level covariates
+covs <- tibble(read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/route_summaries.csv")) %>% 
+  dplyr::select(-X)
+#View covariates
+glimpse(covs)
 
-#Make a table of all possible route and visit combinations
-possible_points <- sobs %>% 
-  expand(nesting(Full.Point.ID, Year, Visit, Shrub.Cover, Shrub.Height,
-                 Sagebrush.Cover, Annual.Cover, Fire.Distance, Aspect,
-                 Bare.Ground.Cover, Burn.Sevarity, TRI, Elevation,
-                 Road.Distance))
-#View possib;e routes
-glimpse(possible_points)
+#...and view
+print(covs, n = Inf)
 
-#Make a table of how many of the species of interest were observed on each route
-count_0inf <- sobs %>% 
-  filter(Species == soi) %>%
-  group_by(Full.Point.ID, Year, Visit) %>% 
-  reframe(Full.Point.ID, Year, Visit, SOI.Count = n()) %>% 
+#Find how many of each species were observed across the whole data set 
+obs_count <- sobs %>% 
+  group_by(Species) %>% 
+  reframe(Species, Count = n()) %>% 
+  filter(!Species %in% c("NOBI", "UNBI")) %>% 
+  distinct(Species, Count) %>% 
+  arrange(desc(Count)) %>%
+  mutate(Species = factor(Species, levels = Species)) %>% 
+  filter(Count >= 60)
+#...and view
+print(obs_count, n = Inf)
+#...and plot
+obs_count %>% 
+  ggplot(aes(x = Species, y = Count)) +
+  geom_col(fill = "lightblue") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, size = 7))
+
+
+#Transform into a table with each species observations by visit ----------------------------
+#define relevant species
+important_species <- c("BRSP", "SATH", "SABS", "GTTO",
+                       "WEME", "HOLA", "VESP", "LASP", 
+                       "GRFL", "LAZB", "ROWR")
+
+#make a table of important species sightings by visit
+sobs_count_0inf <- sobs %>% 
+  filter(Species %in% important_species) %>% 
+  group_by(Route.ID, Year, Visit, Date, Species) %>% 
+  reframe(Route.ID, Year, Visit, Date, Species, Count = n()) %>% 
   distinct()
-#Vieew soi count
-glimpse(count_0inf)
+#...and view
+glimpse(sobs_count_0inf)
 
-#Join the two so I have the zero counts
-sobs_count <- left_join(possible_points, count_0inf, 
-          by = c('Full.Point.ID', 'Year', 'Visit')) %>% 
-  mutate(SOI.Count = case_when(is.na(SOI.Count) ~ 0,
-                               TRUE ~ SOI.Count)) 
+#make a table of all possible species visit combinations so we get the zero counts
+visit_count <- sobs %>% 
+  filter(Species %in% important_species) %>% 
+  tidyr::expand(nesting(Route.ID, Year, Visit, Date, Observer.ID), Species)
 
-#View the full count
+#...and view
+glimpse(visit_count)
+
+#Join the two, add zeros and average observations within year
+sobs_count <-  visit_count %>% 
+  left_join(sobs_count_0inf, by = c('Route.ID', 'Year', 'Visit', 'Date', 'Species')) %>% 
+  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count))
+#...and view
 glimpse(sobs_count)
 
-#View the counts with covariates
+#View the routes done by two observers
+two_obs_routes <- sobs %>% 
+  tidyr::expand(nesting(Route.ID, Year, Visit, Observer.ID)) %>% 
+  group_by(Route.ID, Year, Visit) %>% 
+  filter(n() > 1) %>% 
+  ungroup() %>% 
+  mutate(Keep = NA)
+#...and view
+print(two_obs_routes, n = Inf)
+
+#Pick every other row to drop
+for(i in 1:nrow(two_obs_routes)){
+  if(i %% 2 == 0){
+    two_obs_routes$Keep[i] <- T
+  } else if(i %% 2 != 0) {
+    two_obs_routes$Keep[i] <- F
+  } #end if else
+} # end loop
+#...and view
+print(two_obs_routes, n = Inf)
+
+#remove those
+two_obs_routes_drop <- two_obs_routes %>% 
+  filter(Keep == F) %>% 
+  mutate(Visit.ID = paste(Route.ID, Year, Visit, Observer.ID, sep = "-"))
+#...and view
+glimpse(two_obs_routes_drop)
+
+#Remove from the counts
+sobs_count <- sobs_count %>% 
+  mutate(Visit.ID = paste(Route.ID, Year, Visit, Observer.ID, sep = "-")) %>% 
+  filter(!Visit.ID %in% two_obs_routes_drop$Visit.ID) %>% 
+  select(-Visit.ID)
+#...and view
 glimpse(sobs_count)
-print(sobs_count, n = 240)
-hist(sobs_count$SOI.Count)
 
 #test model to unserstand how a Bayesian framework can be used to model my data -----
 #Make an object of how many ponts we had
@@ -181,10 +247,9 @@ class(output_exp)
 
 #More specific model ----
 model2_most_relv <- glm(data = brsp_est,
-                        family = 'poisson',
+                        family = poisson,
                         formula = BRSP.Estimate ~ Annual.Cover + 
-                          Shrub.Cover.RCMAP + TRI +
-                          shru])
+                                  Shrub.Cover.RCMAP + TRI + Shrub.Height)
 #View the model
 summary(model2_most_relv)
 
