@@ -1683,7 +1683,7 @@ point_cords <- point_cords %>%
                                 TRUE ~ NA))
 
 #export these updated point coordinates
-write.csv(point_cords, paste0(data_path, "Outputs\\clean_point_coords.csv"))
+write.csv(point_cords, "Data\\Outputs\\clean_point_coords.csv")
 
 #Remove route type
 point_cords <- point_cords %>% 
@@ -1742,7 +1742,8 @@ sobs <- sobs %>%
   mutate(Time.lbr = lubridate::hm(Point.Time)) %>% #read start time into lubridate
   mutate(MAS = as.duration(Time.lbr - Loc.SunR + 1800)) %>%  # find the time in seconds from 30 mins before sunrise to the start of the survey
   mutate(MAS = as.numeric(MAS)) %>%  #switch mas to a number 
-  mutate(MAS = (MAS / 60)) #switch from seconds to munutes
+  mutate(MAS = (MAS / 60)) %>%  #switch from seconds to munutes
+  mutate(MAS = as.integer(MAS)) #Round to the nearest whole number
   
 #View the data after the calculation
 str(sobs)
@@ -1795,7 +1796,7 @@ sobs %>%
   count(Sky.Start)
 
 #Save the cleaned data as a csv
-write.csv(sobs, paste0(data_path, "Outputs\\sobs_data.csv"))
+write.csv(sobs, "Data\\Outputs\\sobs_data.csv")
 
 # Notes and next steps ------------------------
 #I might need to link external temp data

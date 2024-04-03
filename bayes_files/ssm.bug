@@ -1,0 +1,35 @@
+
+model {
+
+#Priors ----
+logN.est[1] ~ dnorm(5.6, 0.01) #initial pop size
+mean.r ~ dnorm(1, 0.001) #mean growth rate
+tau.proc <- pow(sigma.proc, -2) 
+sigma.proc ~ dunif(0, 1)
+sigma2.proc <- pow(sigma.proc, 2)
+sigma.obs ~ dunif(0, 1)
+sigma2.obs <- pow(sigma.obs, 2)
+tau.obs <- pow(sigma.obs, -2)
+
+
+#Likelihood ----
+
+  #State process
+  for(t in 1:(T-1)){
+  r[t] ~ dnorm(mean.r, tau.proc)
+  logN.est[t + 1] <- logN.est[t] + r[t]
+  } 
+
+  #Observation Process
+  for(t in 1:T) {
+    y[t] ~ dnorm(logN.est[t], tau.obs)
+  }
+  
+  #Switch counts to a real world scale
+  for(t in 1:T) {
+    N.est[t] <- exp(logN.est[t])
+  }
+
+
+}
+

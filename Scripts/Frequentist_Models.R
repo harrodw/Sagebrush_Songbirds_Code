@@ -13,6 +13,7 @@ library(gridExtra)
 library(glmmTMB)
 library(DHARMa)
 library(lme4)
+library(jagsUI)
 
 #Remove objects
 rm(list = ls())

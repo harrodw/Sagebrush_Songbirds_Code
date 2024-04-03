@@ -230,6 +230,44 @@ burn_v_ref %>%
 #Export the tables
 write.csv(burn_v_ref, "Data\\Outputs\\burn_v_ref_20240308.csv")
 
+
+#Plot average number of observations between burned and unburned plots  ---------------------------
+burn_v_ref %>% 
+  pivot_longer(cols = c(Mean.B, Mean.R),
+               values_to = "Mean.Count",
+               names_to = "Route.Type") %>% 
+  mutate(Route.Type = case_when(Route.Type == "Mean.B" ~ "Burn",
+                                Route.Type == "Mean.R" ~ "Reference")) %>% 
+  select(Year, Route.Type, Species, Mean.Count) %>% 
+  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
+                             Species == "SATH" ~ "Sage Thrasher",
+                             Species == "SABS" ~ "Sagebrush Sparrow",
+                             Species == "GTTO" ~ "Green-Tailed Towhee",
+                             Species == "VESP" ~ "Vesper Sparrow",
+                             Species == "WEME" ~ "Western Meadowlark",
+                             Species == "HOLA" ~ "Horned Lark",
+                             Species == "GRFL" ~ "Gray Flycatcher",
+                             Species == "LASP" ~ "Lark Sparrow")) %>% 
+  mutate(Year = case_when(Year == "Y1" ~ "Year 1",
+                          Year == "Y2" ~ "Year 2")) %>% 
+  mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
+  ggplot(aes(x = Year.Type, y = Mean.Count, fill = Year.Type)) +
+  geom_boxplot() +
+  theme_bw() +
+  scale_fill_manual("",
+                    values = count_cols) +
+  labs(y = "Average Number of Observations") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.y = element_text()) +
+  ylim(0, 75) +
+  facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
+                                         "Sagebrush Sparrow", "Green-Tailed Towhee",
+                                         "Gray Flycatcher","Vesper Sparrow", 
+                                         "Western Meadowlark", "Horned Lark", 
+                                         "Lark Sparrow")))
+
 sobs_count %>% 
   mutate(Route.Type = case_when(Route.ID %in% c("UT-C24", "UT-C25") ~ "B",
                                 Route.ID %in% c("ID-B03", "UT-C30") ~ "R",

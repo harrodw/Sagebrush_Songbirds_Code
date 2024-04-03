@@ -1,0 +1,54 @@
+
+  model{
+    #Fixed effect Priors ----
+    
+    #Abondance covariate priors
+    beta_shb_cvr ~ dnorm(0, 0.001) #slope offset for shrub cover
+    beta_sage ~ dnorm(0, 0.001) #slope offset for an interaction between sagebrush cover and shrub cover
+    beta_tri ~ dnorm(0, 0.001) #slope offset for topographic ruggedness
+    
+    #Site level random effect priors 
+    sigma_route ~ dunif(0, 50) #between route variation
+    sigma2_route <- pow(sigma_route, 2) 
+    tau_route <- pow(sigma_route, -2)
+    
+    #Random intercept priors ---
+    for(n in 1:n_routes){
+      beta0_route[uqi_routes[n]] ~ dnorm(0, tau_route)
+    } 
+    
+    #detection level random effect priors 
+    beta_wind ~ dnorm(0, 0.001)
+    sigma_obs ~ dunif(0, 50) #between observer variation
+    sigma2_obs <- pow(sigma_route, 2)
+    tau_obs <- pow(sigma_route, -2)
+
+    #Detection level random effects
+    for(m in 1:observers){
+        beta0_obs[uqi_obs[m]] ~ dnorm(0, tau_obs)
+    }
+    
+    #State process Likelihood -----
+    for(k in 1:K){ 
+      #linear combination of predictors
+      lin_comb_abond[k] <- beta0_route[routes[k]] + 
+                           beta_shb_cvr * shrub_cvr[k] + 
+                           beta_sage * shrub_cvr[k] * sage_cvr[k] +
+                           beta_tri * tri[k]
+      lambda[k] <- exp(lin_comb_abond[k])    #log link
+      n_est[k] ~ dpois(lambda[k]) 
+    } 
+    
+    #Total abondance in burned and unburned plots
+    N_burn <- sum(n_est * burned)
+    N_ref <- sum(n_est) - N_burn
+    
+    #Observation process Likelihood -----
+     for(k in 1:K){
+       lin_comb_pd[k] <- beta0_obs[obs[k]] + beta_wind * wind[k]
+       pd[k] <- exp(lin_comb_pd[k]) / (1 + exp(lin_comb_pd[k])) #undo the logit link
+       n_obs[k] ~ dbin(pd[k], n_est[k])
+     }
+     
+  }# end model
+

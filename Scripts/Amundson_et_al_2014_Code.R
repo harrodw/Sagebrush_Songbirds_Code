@@ -90,7 +90,7 @@ cat(
     # Using summation technique - Pr(p of x)=exp(-x^2/2*sigma^2)*f(x)
     for(b in 1:nbreaks){
     log(g[b,k])<- -mdpts[b]*mdpts[b]/(2*sigma[k]*sigma[k])  # half-normal detection function - first half of eq., 
-    f[b,k]<-  (2*mdpts[b]*delta )/(maxd*maxd) # this is f(x), the scaled radial density function
+    f[b,k]<-  ( 2*mdpts[b]*delta )/(maxd*maxd) # this is f(x), the scaled radial density function
     ##ADD [b] TO DELTA IF INTERVALS ARE NOT ALL THE SAME AMONG BREAKS
        
     pi.pd[b,k]<- g[b,k]*f[b,k]  #this is the product Pr(detect)*Pr(distribution)
@@ -168,3 +168,4 @@ cat(
 sink()
 
 # End code.
+ 
