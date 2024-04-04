@@ -1,53 +1,37 @@
 
   model{
     #Fixed effect Priors ----
+    beta_burn ~ dnorm(0, 0.001) #Offset for burned or not
+    beta_fire_y ~ dnorm(0, 0.001) #offset for years since fire
+    beta_burn_sev ~ dnorm(0, 0.001) #offset for fire sevarity
+    beta_elev ~ dnorm(0, 0.001) #offset for elevation
     
-    #Abondance covariate priors
-    beta_shb_cvr ~ dnorm(0, 0.001) #slope offset for shrub cover
-    beta_sage ~ dnorm(0, 0.001) #slope offset for an interaction between sagebrush cover and shrub cover
-    beta_tri ~ dnorm(0, 0.001) #slope offset for topographic ruggedness
     
-    #Site level random effect priors 
     sigma_route ~ dunif(0, 50) #between route variation
     sigma2_route <- pow(sigma_route, 2) 
     tau_route <- pow(sigma_route, -2)
+    pd ~ dunif(0, 1) #probability of detection
     
     #Random intercept priors ---
     for(n in 1:n_routes){
-      beta0_route[uqi_routes[n]] ~ dnorm(0, tau_route)
-    } 
-    
-    #detection level random effect priors 
-    beta_wind ~ dnorm(0, 0.001)
-    sigma_obs ~ dunif(0, 50) #between observer variation
-    sigma2_obs <- pow(sigma_route, 2)
-    tau_obs <- pow(sigma_route, -2)
-
-    #Detection level random effects
-    for(m in 1:observers){
-        beta0_obs[uqi_obs[m]] ~ dnorm(0, tau_obs)
-    }
+      beta0[route[n]] ~ dnorm(0, tau_route)
+    } #end random effects loop
     
     #State process Likelihood -----
     for(k in 1:K){ 
+      lin_comb[k] <- beta0[route_visits[k]] +
+                     beta_burn * burn_yn[k] + 
+                     beta_fire_y * fire_y[k] * burn_yn[k] + 
+                     beta_burn_sev * burn_sev[k] * burn_yn[k] +
+                     beta_elev * elevation[k]
       #linear combination of predictors
-      lin_comb_abond[k] <- beta0_route[routes[k]] + 
-                           beta_shb_cvr * shrub_cvr[k] + 
-                           beta_sage * shrub_cvr[k] * sage_cvr[k] +
-                           beta_tri * tri[k]
-      lambda[k] <- exp(lin_comb_abond[k])    #log link
-      n_est[k] ~ dpois(lambda[k]) 
+      lambda[k] <- exp(lin_comb[k]) #log link
+      n_brsp[k] ~ dpois(lambda[k]) 
     } 
-    
-    #Total abondance in burned and unburned plots
-    N_burn <- sum(n_est * burned)
-    N_ref <- sum(n_est) - N_burn
     
     #Observation process Likelihood -----
      for(k in 1:K){
-       lin_comb_pd[k] <- beta0_obs[obs[k]] + beta_wind * wind[k]
-       pd[k] <- exp(lin_comb_pd[k]) / (1 + exp(lin_comb_pd[k])) #undo the logit link
-       n_obs[k] ~ dbin(pd[k], n_est[k])
+       obs_brsp[k] ~ dbin(pd, n_brsp[k])
      }
      
   }# end model

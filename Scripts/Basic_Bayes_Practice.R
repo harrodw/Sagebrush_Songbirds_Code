@@ -7,13 +7,14 @@ rm(list = ls())
 library(jagsUI)
 library(dplyr)
 library(tidyr)
+library(plyr)
 library(ggplot2)
 library(glmmTMB)
 library(DHARMa)
 
 #Prep ------------------------------------------------------------------------------------
 #Add in Data
-sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_count_covs.csv") %>% 
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>% 
   dplyr::select(-X)
 #view the data
 glimpse(sobs) 
@@ -33,7 +34,7 @@ print(covs, n = Inf)
 soi <- "BRSP"
 #make a table of important species sightings by visit
 sobs_count_0inf <- sobs %>% 
-  filter(Species  == soi) %>% 
+  filter(Species  == soi & Year == "Y2") %>% 
   group_by(Full.Point.ID, Route.ID, Year, Visit, Date, Species) %>% 
   reframe(Full.Point.ID, Route.ID, Year, Visit, Date, Species,
           Count = n()) %>% 
@@ -43,7 +44,8 @@ glimpse(sobs_count_0inf)
 
 #make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
-  tidyr::expand(nesting(Full.Point.ID, Route.ID, Year, 
+  filter(Year == "Y2") %>% 
+  tidyr::expand(nesting(Full.Point.ID, Route.ID, Year, MAS,
                         Wind.Start, Visit, Date, Observer.ID))
 
 #...and view
@@ -53,7 +55,8 @@ glimpse(visit_count)
 sobs_count <-  visit_count %>% 
   left_join(sobs_count_0inf, by = c('Full.Point.ID', 'Route.ID', 
                                     'Year', 'Visit', 'Date')) %>% 
-  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count))
+  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count)) %>% 
+  mutate(Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-"))
 #...and view
 glimpse(sobs_count)
 
@@ -90,10 +93,83 @@ glimpse(brsp_count)
 
 #Create all observations of a single species
 brsp <- sobs %>% 
-  filter(Species == soi)
+  filter(Species == soi) %>% #only one species
+  mutate(Burned = factor(Route.Type, levels = c("R", "B"))) %>% 
+  select(Distance, Minute, How.Detected, 
+         Route.ID, Full.Point.ID, Observer.ID, Year, Visit,
+         Burned, Ord.Date, MAS, Wind.Start) %>% 
+  left_join(covs, by = c("Route.ID", "Full.Point.ID")) %>% 
+  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
+                                      Year == "Y2" ~ 2023 - Fire.Year,
+                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
+  select(-Burn.Sevarity, -Perennial.Cover, - Fire.Distance,
+         -Fire.Name, - Fire.Year, - Route.Type, - Aspect) %>% 
+  mutate(Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-"))
+
+
+#Fill in years since fire
+for(i in 1:nrow(brsp)) {
+  if(is.na(brsp$Years.Since.Fire[i])){
+    brsp$Years.Since.Fire[i] <- as.integer(rnorm(1, 150, 30))
+  }
+}
+  
 #... and view
 glimpse(brsp)
 
+#View the farthest 10% of distances
+brsp %>% 
+  arrange(Distance) %>% 
+  slice(as.integer(nrow(brsp) * 0.9))
+
+#Histogram of distances
+brsp %>% 
+  filter(Distance <= 153) %>% 
+  ggplot(aes(x = Distance)) +
+  geom_histogram(col = "darkgray", fill = "lightblue")
+
+#Histogram of Distance scaled by radius
+brsp %>% 
+  filter(Distance <= 160) %>%
+  mutate(Dist.Bin = round_any(Distance, 10, floor)) %>% 
+  mutate(Dist.Bin = case_when(Dist.Bin == 0 ~ 1, TRUE ~ Dist.Bin)) %>% 
+  group_by(Dist.Bin) %>% 
+  reframe(Dist.Bin, Count = n(), Scaled.Count = n()/ Dist.Bin) %>%
+  distinct() %>% 
+  mutate(Scaled.Count = Scaled.Count / max(Scaled.Count)) %>% 
+  ggplot(aes(x = Dist.Bin, y = Scaled.Count)) +
+  geom_col(col = "darkgray", fill = "lightblue") +
+  stat_smooth()
+
+# I like these 10m bins. I'll use them in the data for now
+brsp <- brsp %>% 
+  filter(Distance <= 160) %>%
+  mutate(Dist.Bin = round_any(Distance, 10, floor)) %>% 
+  mutate(Dist.Bin = case_when(Dist.Bin == 0 ~ 1, TRUE ~ Dist.Bin))%>% 
+  mutate(Dist.Bin.Midpoint = case_when(Dist.Bin == 1 ~ 5,
+                                   TRUE ~ Dist.Bin + 5))
+#...and view
+glimpse(brsp)
+
+#Plot of detentions by time
+brsp %>% 
+  mutate(Time.Bin = as.factor(case_when(Minute %in% c(1, 2) ~ "1",
+                              Minute %in% c(3, 4) ~ "2",
+                              Minute %in% c(5, 6) ~ "3"))) %>% 
+  group_by(Time.Bin) %>% 
+  reframe(Time.Bin, Count = n()) %>% 
+  distinct() %>% 
+  ggplot(aes(x = Time.Bin, y = Count)) +
+  geom_col()
+
+#Looks good, I'm adding it to the data
+brsp <- brsp %>% 
+  mutate(Time.Bin = as.factor(case_when(Minute %in% c(1, 2) ~ "1",
+                                        Minute %in% c(3, 4) ~ "2",
+                                        Minute %in% c(5, 6) ~ "3")))
+#...and view
+glimpse(brsp)
+         
 #Plot comparisons --------------------------------------------------------------------
 
 #Individual counts vs shrub cover
@@ -411,4 +487,122 @@ brsp_fit <- jagsUI(data = brsp_data,
 #View model output
 print(brsp_fit, digits = 2)
 
-#Model 4: Single parameter model for abundance with detections binned by distance
+##########################################################################################
+#Model 4: Single parameter model for abundance with detentions binned by distance ---------------
+glimpse(brsp)
+
+sink("jags_files\\brsp_model_distance")
+cat(
+  model{
+    #Priors #################
+    #Detection level priors
+    tau_observer ~ dunif(0, 500)   #between observer variation in detection
+    beta_pd_mas ~ dnorm(0, 0.001) #offset in detection probability for minutes after sunrise               
+    
+
+    #Random intercepts for observer
+    for(o in 1: n_observers){
+      alpha_observer[o] ~ dnorm(0, tau_observer)
+    }
+    
+    #Abundance level priors ----------
+    tau_route ~ dunif(0, 50)           #Between route variation in abundance
+    beta_lambda_burn ~ dnorm(0, 0.001) #difference in abundance between burned and ref routes
+    
+    #Random intercept for route ID
+    for(n in 1: n_routes){
+      alpha_route[n] ~ dnorm(0, tau_route) 
+    }
+    
+    #Likelihood ##############################################################
+    
+    ##DETECTION PROBABILITY ------------------------------
+    #Linear combination of covariates
+    for(k in 1:n_surveys){
+      #Linear combination of predictors for detection probability
+      lin_comb_pd[k] <- alpha_observer[surveys[k]] + beta_pd_mas * mas[k]
+      #undo log transformation to get a scale parameter for the detection function
+      sigma[k] <- exp(lin_comb_pd[k])
+      
+      #Distance sampling detection probability estimation -----------------------
+      # Using summation technique - Pr(p of x)=exp(-x^2/2*sigma^2)*f(x)
+      for(b in 1:n_bins){
+        # half-normal detection function - first half of eq., 
+        ln_g[b,k] <- -bin_midpoint[b]*bin_midpoint[b] / (2*sigma[k]*sigma[k])  
+        #Log link
+        g[b, k] <- exp(ln_g[b, k])
+        # this is f(x), the scaled radial density function
+        f[b,k]<-  ( 2*bin_midpoint[b]*delta ) / (maxd*maxd) 
+        
+        #this is the product Pr(detect)*Pr(distribution)
+        pi.pd[b,k]<- g[b,k]*f[b,k]  
+        #standardizing based on overall capture probability - conditional formulation
+        pi.pd.c[b,k]<- pi.pd[b,k]/pdet[k]  
+      } #End detection function loop
+      
+      #probability of detection is the sum of all rectangular areas
+      pd[k] <- sum(pi.pd[,k])  
+    }#end surveys loop
+    
+
+    ######## Observation-level model ----------------------------------  
+    for(i in 1:n_observations){  
+      #single binomial trial with categorical distribution linking distance class to survey point
+      dist_class[i] ~ dcat(pi.pd.c[,surveys[i]]) #come back to this pieces -------------------------
+    }
+    
+    #Abundance ----
+    for(i in 1:n_observations){
+      
+      
+    }
+      
+    
+    
+  }
+, fill = TRUE)
+
+
+#Initial values
+brsp_inits <- function(){list(
+  tau_route = runif(0, 50),
+  tau_observer = runif(0, 50)
+)}
+
+glimpse(brsp_count)
+#Bundle data
+brsp_data <- list(
+  #Parameters
+  observations = brsp_count$Count,
+  routes = as.numeric(as.factor(brsp_count$Route.ID)),
+  surveys = as.numeric(as.factor(brsp_count$Visit.ID)),
+  observers = as.numeric(as.factor(brsp_count$Observer.ID)),
+  dist_class = brsp_obs$Dist.Bin,
+  bin_midpoint = brsp_obs$Dist.Bin.Midpoint,
+  mas = brsp_count$MAS,
+  delta = 10,
+  max_dist = max(brsp$Dist.Bin),
+  
+  #Length Objects
+  n_surveys = length(unique(brsp$Visit.ID)),       #k
+  n_routes = length(unique(brsp$Route.ID)),        #n
+  n_observations = nrow(brsp),                     #i
+  n_observers = length(unique(brsp$Observer.ID)),  #o
+  n_bins = length(unique(brsp$Dist.Bin))           #b
+)
+
+#MCMC settings
+ni <- 1000
+nt <- 5
+nb <- 100
+nc <- 3
+
+#Send the data to BUGS
+brsp_fit <- jagsUI(data = brsp_data,
+                   inits = brsp_inits,
+                   parameters.to.save = brsp_params,
+                   model.file = "bayes_files\\brsp_count",
+                   n.chains = nc,
+                   n.iter = ni,
+                   n.burnin = nb,
+                   n.thin = nt)

@@ -20,8 +20,8 @@ obs_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_2022_Raw.csv"))
 obs_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_Raw_2023.csv"))
 
 #View the two datasets
-str(obs_22_raw)
-str(obs_23_raw)
+glimpse(obs_22_raw)
+glimpse(obs_23_raw)
 
 #Rename 2022 observations
 #View the 2022 names
@@ -49,7 +49,7 @@ obs_22_names <- c(Minute.Raw= "Minute",
 
 #rename and remove the columns that I don't need
 obs_22 <- obs_22_raw %>% 
-  rename(all_of(obs_22_names)) %>% 
+  dplyr::rename(all_of(obs_22_names)) %>% 
   dplyr::select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
          Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, 
          Direction.Raw, Within.Burn.Raw,  #additional information
@@ -86,7 +86,7 @@ obs_23_names <- c(Minute.Raw = "Minute",
 
 #rename and remove the columns that I don't need
 obs_23 <- obs_23_raw %>% 
-  rename(all_of(obs_23_names)) %>% 
+  dplyr::rename(all_of(obs_23_names)) %>% 
   dplyr::select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
          Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, Direction.Raw, Within.Burn.Raw, #additional information
          Group.Size.Raw,
@@ -98,7 +98,7 @@ str(obs_23)
 
 #Combine the two years of data
 obs_cleaned <- bind_rows(obs_22, obs_23) %>% 
-  relocate(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
+  dplyr::relocate(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
           Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, 
           Direction.Raw, Within.Burn.Raw, #additional information
           Group.Size.Raw, Obs.Notes,
@@ -113,7 +113,7 @@ str(obs_cleaned) #Looks good
 
 #View the unique species observed
 obs_cleaned %>% 
-  count(Species.Raw) %>% 
+  dplyr::count(Species.Raw) %>% 
   print(n = Inf)
 
 #View specific observations
@@ -128,7 +128,7 @@ obs_cleaned  <- obs_cleaned %>%
 
 #...and view
 obs_cleaned %>% 
-  count(Species) %>% 
+  dplyr::count(Species) %>% 
   print(n = Inf)
   
 #Mutate incorrect species codes to corrected ones  
@@ -309,7 +309,7 @@ obs_cleaned <- obs_cleaned %>%
 
 #check for any missing corrections
 obs_cleaned %>% 
-  count(Species) %>% 
+  dplyr::count(Species) %>% 
   print(n = Inf)
 
 #check for blank species
@@ -323,7 +323,7 @@ str(obs_cleaned)
 #Fix Distances ----------------------------------------------------
 #View raw distances
 obs_cleaned %>% 
-  count(Distance.Raw) %>% 
+  dplyr::count(Distance.Raw) %>% 
   print(n = Inf)
 
 #View specific distances
@@ -343,7 +343,7 @@ obs_cleaned <- obs_cleaned %>%
 
 #View clean distances
 obs_cleaned %>% 
-  count(Distance) %>%
+  dplyr::count(Distance) %>%
   print(n = Inf)
 
 #Convert distance to numeric
@@ -353,7 +353,7 @@ obs_cleaned <- obs_cleaned %>%
 #make sure the NA's carried over correctly
 obs_cleaned %>% 
   filter(is.na(Distance)) %>% 
-  count(Distance.Raw, Distance)
+  dplyr::count(Distance.Raw, Distance)
 
 #plot distances
 # obs_cleaned %>% 
@@ -378,7 +378,7 @@ nrow(obs_cleaned)
 #Fix direction codes ------------------------------------------------------
 #View all raw directions
 obs_cleaned %>% 
-  count(Direction.Raw) %>% 
+  dplyr::count(Direction.Raw) %>% 
   print(n = Inf)
 
 #Make a clean direction column
@@ -409,7 +409,7 @@ obs_cleaned %>%
 # Fix song also ----------------------------------------------
 #view song also
 obs_cleaned %>% 
-  count(Song.Also.Raw) %>% 
+  dplyr::count(Song.Also.Raw) %>% 
   print(n = Inf)
 
 #View specific songs
@@ -447,13 +447,13 @@ obs_cleaned <- obs_cleaned %>%
 
 #View clean song
 obs_cleaned %>% 
-  count(Song.Also) %>% 
+  dplyr::count(Song.Also) %>% 
   print(n = Inf)
 
 #Fix detection type -----------------------------------------
 #View detection type
 obs_cleaned %>% 
-  count(How.Detected.Raw) %>% 
+  dplyr::count(How.Detected.Raw) %>% 
   print(n = Inf)
 
 #view specific detections
@@ -469,13 +469,13 @@ obs_cleaned <- obs_cleaned %>%
 
 #View clean detection type
 obs_cleaned %>% 
-  count(How.Detected) %>% 
+  dplyr::count(How.Detected) %>% 
   print(n = Inf)
 
 #fix sex ---------------------------------------------
 #view raw sex data
 obs_cleaned %>% 
-  count(Sex.Raw) %>% 
+  dplyr::count(Sex.Raw) %>% 
   print(n = Inf)
 
 #None of these need to be fixed yet
@@ -486,7 +486,7 @@ obs_cleaned <- obs_cleaned %>%
 
 #View raw migration data
 obs_cleaned %>% 
-  count(Migrant.Raw) %>% 
+  dplyr::count(Migrant.Raw) %>% 
   print(n = Inf)
 
 #create a clean migrant column
@@ -500,13 +500,13 @@ obs_cleaned <- obs_cleaned %>%
 
 #View clean migration data
 obs_cleaned %>% 
-  count(Migrant) %>% 
+  dplyr::count(Migrant) %>% 
   print(n = Inf)
 
 #fix group size -------------------------------------------------------------------------
 #View raw group size data
 obs_cleaned %>% 
-  count(Group.Size.Raw) %>% 
+  dplyr::count(Group.Size.Raw) %>% 
   print(n = Inf)
 
 #clean group size
@@ -520,13 +520,13 @@ obs_cleaned <- obs_cleaned %>%
 
 #View clean group size data
 obs_cleaned %>% 
-  count(Group.Size) %>% 
+  dplyr::count(Group.Size) %>% 
   print(n = Inf)
 
 #Fix Visual ID
 #View raw visual id
 obs_cleaned %>% 
-  count(Visual.Raw) %>% 
+  dplyr::count(Visual.Raw) %>% 
   print(n = Inf)
 
 #Change visual
@@ -539,7 +539,7 @@ obs_cleaned <- obs_cleaned %>%
 
 #View clean visual id
 obs_cleaned %>% 
-  count(Visual.ID) %>% 
+  dplyr::count(Visual.ID) %>% 
   print(n = Inf)
 
 #Fix Minute ---------------------------------------
@@ -561,7 +561,7 @@ obs_cleaned <- obs_cleaned %>%
 
 #View cleaned minutes
 obs_cleaned %>%
-  count(Minute)
+  dplyr::count(Minute)
 
 #change blank cells to NA and select useful columns ---------------------------------
 observations <- obs_cleaned %>% 
@@ -598,7 +598,7 @@ points_22_names <- c(Point.Time = "Start.Time.at.Point",
 
 #Pull out what I need from the points dataset and rename
 points_22 <- points_22_raw %>% 
-  rename(all_of(points_22_names)) %>% 
+  dplyr::rename(all_of(points_22_names)) %>% 
   dplyr::select(Point.ID.Raw, Point.Time, Cheatgrass, Percent.Area.Burned,
          Point.Notes, Global.ID.Point, Global.ID.Survey)
 
@@ -619,7 +619,7 @@ points_23_names <- c(Point.Time = "Start.Time.at.Point",
 
 #Pull out what I need from the points dataset and rename
 points_23 <- points_23_raw %>% 
-  rename(all_of(points_23_names)) %>% 
+  dplyr::rename(all_of(points_23_names)) %>% 
   dplyr::select(Point.ID.Raw, Point.Time, Cheatgrass, Percent.Area.Burned,
          Point.Notes, Global.ID.Point, Global.ID.Survey) %>%  #make sure the point id fields match
   mutate(Point.ID.Raw = as.character(Point.ID.Raw))
@@ -636,7 +636,7 @@ str(points_cleaned)
 #Standardize point numbers -------------------------------
 #view point numbers
 points_cleaned %>% 
-  count(Point.ID.Raw) %>% 
+  dplyr::count(Point.ID.Raw) %>% 
   print(n = Inf)
 
 #clean point numbers
@@ -663,7 +663,7 @@ points_cleaned <- points_cleaned %>%
 
 #View the clean point id's
 points_cleaned %>% 
-  count(Point.ID) %>% 
+  dplyr::count(Point.ID) %>% 
   print(n = Inf)
 
 #Remove the nest points ------------------------------------------
@@ -721,7 +721,7 @@ surveys_22_names <- c(Route.ID.Raw = "Transect.ID",
 
 #rename and select useful columns
 surveys_22 <- surveys_22_raw %>% 
-  rename(all_of(surveys_22_names)) %>% 
+  dplyr::rename(all_of(surveys_22_names)) %>% 
   dplyr::select(Route.ID.Raw, Visit.Raw, Date.Time.Raw,
          Observer.ID.Raw,
          Sky.Start.Raw, Sky.End.Raw, Temp.Start.Raw, 
@@ -758,7 +758,7 @@ surveys_23_names <- c(Route.ID.Raw = "Route.ID",
 
 #rename and slect useful columns
 surveys_23 <- surveys_23_raw %>% 
-  rename(all_of(surveys_23_names)) %>% 
+  dplyr::rename(all_of(surveys_23_names)) %>% 
   dplyr::select(Route.ID.Raw, Year.Raw, Visit.Raw, Date.Time.Raw,
          Observer.ID.Raw, Route.Notes,
          Sky.Start.Raw, Sky.End.Raw, Temp.Start.Raw, 
@@ -787,7 +787,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View the new date column
 surveys_cleaned %>% 
-  count(Date) %>% 
+  dplyr::count(Date) %>% 
   print(n= Inf)
 
 #Make an ordinal date column
@@ -836,12 +836,12 @@ surveys_cleaned %>%
 
 #view all the start temps
 surveys_cleaned %>% 
-  count(Temp.Start) %>% 
+  dplyr::count(Temp.Start) %>% 
   print(n = Inf)
 
 #View all the end temps
 surveys_cleaned %>% 
-  count(Temp.End) %>% 
+  dplyr::count(Temp.End) %>% 
   print(n = Inf)
 #I'll probably have to link climate data instead of using these
 #I'm not sure how to piece apart the real C's from the fake ones
@@ -904,7 +904,7 @@ surveys_cleaned %>% distinct(Sky.Start)
 
 #Fix Year ---------------------------------------------------------
 surveys_cleaned %>% 
-  count(Year.Raw) %>% 
+  dplyr::count(Year.Raw) %>% 
   print(n = Inf)
 
 #Why are there three blanks in year?
@@ -934,7 +934,7 @@ surveys_cleaned %>%
 #Fix route ID's -------------------------------------------------
 #view all the route id's
 surveys_cleaned %>% 
-  count(Route.ID.Raw) %>% 
+  dplyr::count(Route.ID.Raw) %>% 
   print(n = Inf)
 
 #View a specific route id
@@ -987,7 +987,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #view cleaned route id's
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf)
 #There are a couple incorrect routes
 
@@ -1008,7 +1008,7 @@ surveys_cleaned <- surveys_cleaned %>%
                                      TRUE ~ as.character(Route.ID)))
 #view cleaned route id's
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf)
 #Those two routes look good
 
@@ -1049,7 +1049,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View surveys after the change
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf)
 
 #Fix UT-B24
@@ -1074,7 +1074,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View surveys after the change
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf)
 #looks good 
 
@@ -1098,7 +1098,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View surveys after the change
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf) 
 #looks good 
 
@@ -1118,7 +1118,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View surveys after the change
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf) 
 
 #Fix UT-C22
@@ -1136,7 +1136,7 @@ surveys_cleaned <- surveys_cleaned %>%
 
 #View surveys after the change
 surveys_cleaned %>% 
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf) 
 
 #That's all of the ones that I know how to fix
@@ -1192,7 +1192,7 @@ surveys_cleaned %>%
 
 #Fix Visit Number ------------------------------------------------------------------------
 surveys_cleaned %>%
-  count(Visit.Raw)
+  dplyr::count(Visit.Raw)
 
 #View the V3's
 surveys_cleaned %>% 
@@ -1212,13 +1212,13 @@ surveys_cleaned <- surveys_cleaned %>%
 #View the cleaned visit number 
 surveys_cleaned %>%
   group_by(Year, Visit) %>% 
-  summarise(Count = n()) %>% 
+  dplyr::summarise(Count = n()) %>% 
   ungroup()
 
 #How many of each visit did each route get
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1236,7 +1236,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1252,7 +1252,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1268,7 +1268,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1290,7 +1290,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1307,7 +1307,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1323,7 +1323,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1346,7 +1346,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1369,7 +1369,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1385,7 +1385,7 @@ surveys_cleaned <- surveys_cleaned %>%
 #Did that fix it
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   print(n = Inf)
 
@@ -1393,15 +1393,15 @@ surveys_cleaned %>%
 #Do they all have the right number of unique visits?
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID) %>% 
   print(n = Inf)
 
 #How many visits are doubled?
 surveys_cleaned %>% 
   group_by(Route.ID, Year, Visit) %>% 
-  summarise(Visit.Count = n()) %>% 
+  dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
   filter(Visit.Count != 1) %>% 
   print(n = Inf)
@@ -1442,8 +1442,8 @@ str(sobs)
 
 #How many times was each route surveyed in the final dataset
 sobs %>% 
-  count(Route.ID, Year, Visit) %>%
-  count(Route.ID) %>% 
+  dplyr::count(Route.ID, Year, Visit) %>%
+  dplyr::count(Route.ID) %>% 
   print(n = Inf)
 
 
@@ -1460,7 +1460,7 @@ sobs %>% distinct(Full.Point.ID) %>% print(n = Inf)
 visit_count <- sobs %>% 
   filter(Visit %in% c("V1", "V2")) %>% 
   group_by(Full.Point.ID, Route.ID, Year, Visit) %>% 
-  summarise(Observations = n()) %>% 
+  dplyr::summarise(Observations = n()) %>% 
   ungroup() %>% 
   mutate(Full.Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   dplyr::select(Full.Point.ID, Route.ID, Full.Visit.ID, Observations) %>% 
@@ -1480,7 +1480,7 @@ sobs <- sobs %>%
 
 #View the updated notes
 str(sobs)
-sobs %>% count(Notes)
+sobs %>% dplyr::count(Notes)
 
 #Pull out the columns that I will actually need
 #I will probably end up tweaking which of these are included
@@ -1518,7 +1518,7 @@ sobs <- sobs %>%
 str(sobs)
 sobs %>% 
   filter(Route.ID == "UT-B25") %>% 
-  count(Full.Point.ID)
+  dplyr::count(Full.Point.ID)
 
 #View the dataset to make sure everything looks good
 str(sobs)
@@ -1657,7 +1657,7 @@ point_cords <- point_cords %>%
   arrange(Route.ID)
 
 #View the cleaned Routes and how many points they have
-point_cords %>% count(Route.ID) %>% print(n = Inf)
+point_cords %>% dplyr::count(Route.ID) %>% print(n = Inf)
 
 #Add column for full point id
 #Make a new column that combines point id and route id
@@ -1666,14 +1666,14 @@ point_cords <- point_cords %>%
                                 "-", "P", 
                                 Point.ID, 
                                 collapse = NULL)) %>% 
-  rename(UTM.X = "UTM_X", UTM.Y = "UTM_Y",
+  dplyr::rename(UTM.X = "UTM_X", UTM.Y = "UTM_Y",
          Geo.X = "Geo_X", Geo.Y = "Geo_Y") %>% 
   dplyr::select(Full.Point.ID, Point.ID, Route.ID, UTM.X, UTM.Y, Geo.X, Geo.Y) 
 
 #View point coordinates  
 str(point_cords) 
 point_cords %>% 
-  count(Full.Point.ID) %>% 
+  dplyr::count(Full.Point.ID) %>% 
   print(n = Inf)
 
 #Add route type 
@@ -1693,12 +1693,12 @@ point_cords <- point_cords %>%
 str(point_cords) 
 #points
 coords_tbl <- point_cords %>% 
-  count(Route.ID, Full.Point.ID) %>% 
-  count(Route.ID)
+  dplyr::count(Route.ID, Full.Point.ID) %>% 
+  dplyr::count(Route.ID)
 #observations
 surveys_tbl <- sobs %>% 
-  count(Route.ID, Full.Point.ID) %>% 
-  count(Route.ID)
+  dplyr::count(Route.ID, Full.Point.ID) %>% 
+  dplyr::count(Route.ID)
 #compare the two
 full_join(surveys_tbl, coords_tbl, by = "Route.ID") %>% 
   filter(n.x != n.y) %>% 
@@ -1719,10 +1719,6 @@ str(sobs)
 sobs %>% distinct(Full.Point.ID, UTM.X, UTM.Y)
 
 #calculate minutes after sunrise ------------------------------------------------
-sobs %>% 
-  distinct(Point.Time) %>% 
-  arrange(Point.Time) %>% 
-  print(n = Inf)
 
 #Install bioRAD package for working with sunrises
 #install.packages("bioRad")
@@ -1743,10 +1739,11 @@ sobs <- sobs %>%
   mutate(MAS = as.duration(Time.lbr - Loc.SunR + 1800)) %>%  # find the time in seconds from 30 mins before sunrise to the start of the survey
   mutate(MAS = as.numeric(MAS)) %>%  #switch mas to a number 
   mutate(MAS = (MAS / 60)) %>%  #switch from seconds to munutes
-  mutate(MAS = as.integer(MAS)) #Round to the nearest whole number
-  
+  mutate(MAS = as.integer(MAS)) %>% #Round to the nearest whole number
+  drop_na(MAS)
+
 #View the data after the calculation
-str(sobs)
+glimpse(sobs)
 sobs %>% 
   dplyr::select(Full.Point.ID, Time.lbr, Loc.SunR, MAS) %>% 
   head(n = 6)
@@ -1756,11 +1753,6 @@ sobs %>%
   filter(is.na(MAS)) %>% 
   dplyr::select(Species, Full.Point.ID, Time.lbr, Loc.SunR, MAS)
 #there are none
-
-#histagram of minutes after start 
-# sobs %>% 
-#   ggplot(aes(x = MAS)) +
-#   geom_histogram()
 
 #view the points that are more than 5.5 hours after sunrise
 sobs %>% 
@@ -1793,7 +1785,7 @@ glimpse(sobs)
 print(sobs, n = 200)
 
 sobs %>% 
-  count(Sky.Start)
+  dplyr::count(Sky.Start)
 
 #Save the cleaned data as a csv
 write.csv(sobs, "Data\\Outputs\\sobs_data.csv")
