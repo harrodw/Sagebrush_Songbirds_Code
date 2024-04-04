@@ -1784,9 +1784,6 @@ glimpse(sobs)
 glimpse(sobs)
 print(sobs, n = 200)
 
-sobs %>% 
-  dplyr::count(Sky.Start)
-
 #Save the cleaned data as a csv
 write.csv(sobs, "Data\\Outputs\\sobs_data.csv")
 
