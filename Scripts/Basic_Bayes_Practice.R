@@ -176,6 +176,10 @@ brsp_obs <- brsp %>%
 #...and view
 glimpse(brsp_obs)
 glimpse(brsp_count)
+
+#Export data
+write.csv(brsp_obs, "Data\\Outputs\\brsp_obs_jags")
+write.csv(brsp_count, "Data\\Outputs\\brsp_count_jags")
          
 #Plot comparisons --------------------------------------------------------------------
 
