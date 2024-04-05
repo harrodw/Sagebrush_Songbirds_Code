@@ -28,11 +28,9 @@
     ##DETECTION PROBABILITY ------------------------------
     #Linear combination of covariates
     for(k in 1:n_surveys){
-      #Linear combination of predictors for detection probability
-      lin_comb_pd[k] <- alpha_observer[surveys[k]] + beta_pd_wind * wind[k]
-      #undo log transformation to get a scale parameter for the detection function
-      sigma[k] <- exp(lin_comb_pd[k])
-      
+      #Log linear combination of predictors for detection probability
+      log(sigma[k]) <- log(alpha_observer[surveys[k]]) + beta_pd_wind * wind[k]
+
       #Distance sampling detection probability estimation -----------------------
       # Using summation technique - Pr(p of x)=exp(-x^2/2*sigma^2)*f(x)
       for(b in 1:n_bins){
@@ -61,7 +59,7 @@
     }
     
     ################# Abundance level model  -----------------------------
-    for(y in 1:n_surveys){
+    for(k in 1:n_surveys){
       # Abundance
       #Linear combonation of abundance predictors
       lin_comb_lambda <- alpha_route[surveys[k]] + beta_lambda_burn * burned[k]
@@ -75,17 +73,6 @@
     }
   }
 
-
-Processing function input....... 
-
-Processing function input....... 
-
-Processing function input....... 
-
-Processing function input....... 
-
-Done. 
- 
 
 Processing function input....... 
 
