@@ -1534,9 +1534,11 @@ sobs <- sobs %>%
 glimpse(sobs)
 
 ##########################################################################################
+sobs_point_fix <- sobs 
+
 #Fix the incorrect point names
 #The naming systems for the first year was different 
-sobs <- sobs %>% 
+sobs_temp <- sobs_point_fix %>% 
   mutate(Full.Point.ID = case_when(#ID-B13-V1
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P10"
                                    ~ "ID-B13-P01",
@@ -2324,7 +2326,7 @@ sobs <- sobs %>%
                                    Year == "Y1" & Full.Point.ID == "ID-C23-P07"
                                    ~ "ID-C23-P16",
                                    Year == "Y1" & Full.Point.ID == "ID-C23-P08"
-                                   ~ "ID-C23-P15 ",
+                                   ~ "ID-C23-P15",
                                    Year == "Y1" & Full.Point.ID == "ID-C23-P09"
                                    ~ "ID-C23-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-C23-P10"
@@ -2524,7 +2526,7 @@ sobs <- sobs %>%
                                    Year == "Y1" & Full.Point.ID == "ID-B24-P07" & Visit == "V2"
                                    ~ "ID-B24-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-B24-P08" & Visit == "V2"
-                                   ~ "ID-B24-P14 ",
+                                   ~ "ID-B24-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-B24-P09" & Visit == "V2"
                                    ~ "ID-B24-P15",
                                    Year == "Y1" & Full.Point.ID == "ID-B24-P10" & Visit == "V2"
@@ -2943,7 +2945,7 @@ sobs <- sobs %>%
                                    Year == "Y1" & Full.Point.ID == "UT-C05-P10"
                                    ~ "UT-C05-P07",
                                    Year == "Y1" & Full.Point.ID == "UT-C05-P11" 
-                                   ~ "UT-C05-11",
+                                   ~ "UT-C05-P11",
                                    Year == "Y1" &  Full.Point.ID == "UT-C05-P12"
                                    ~ "UT-C05-P15",
                                    Year == "Y1" & Full.Point.ID == "UT-C05-P13"
@@ -2990,7 +2992,7 @@ sobs <- sobs %>%
                                    #UT-B06-Y1-V1
                                    Year == "Y1" & Full.Point.ID == "UT-B06-P01" & Visit == "V1"
                                    ~ "UT-B06-P16",
-                                   Year == "Y1" & Full.Point.ID == "UT-B06-P02" & Visit == "V2"
+                                   Year == "Y1" & Full.Point.ID == "UT-B06-P02" & Visit == "V1"
                                    ~ "UT-B06-P15",
                                    Year == "Y1" & Full.Point.ID == "UT-B06-P03" & Visit == "V1"
                                    ~ "UT-B06-P14",
@@ -3161,51 +3163,562 @@ sobs <- sobs %>%
                                    ~ "UT-C27-P05",
                                    Year == "Y1" &  Full.Point.ID == "UT-C27-P16" 
                                    ~ "UT-C27-P09",
-                                  
-                                   #Next are the 10 Black pine routes and I should check the one I just did
+                                   #UT-C16-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P01"
+                                   ~ "UT-C16-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P02" 
+                                   ~ "UT-C16-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P03"
+                                   ~ "UT-C16-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P04" 
+                                   ~ "UT-C16-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P05" 
+                                   ~ "UT-C16-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P06" 
+                                   ~ "UT-C16-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P07" 
+                                   ~ "UT-C16-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P08" 
+                                   ~ "UT-C16-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P09" 
+                                   ~ "UT-C16-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P10"  
+                                   ~ "UT-C16-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P11" 
+                                   ~ "UT-C16-P06",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C16-P12" 
+                                   ~ "UT-C16-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-C16-P13" 
+                                   ~ "UT-C16-P08",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C16-P14" 
+                                   ~ "UT-C16-P04",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C16-P15" 
+                                   ~ "UT-C16-P03",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C16-P16" 
+                                   ~ "UT-C16-P02",
+                                   #UT-B30-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P01"
+                                   ~ "UT-B30-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P02" 
+                                   ~ "UT-B30-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P03"
+                                   ~ "UT-B30-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P04" 
+                                   ~ "UT-B30-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P05" 
+                                   ~ "UT-B30-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P06" 
+                                   ~ "UT-B30-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P07" 
+                                   ~ "UT-B30-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P08" 
+                                   ~ "UT-B30-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P09" 
+                                   ~ "UT-B30-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P10"  
+                                   ~ "UT-B30-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P11" 
+                                   ~ "UT-B30-P06",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P12" 
+                                   ~ "UT-B30-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P13" 
+                                   ~ "UT-B30-P01",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P14" 
+                                   ~ "UT-B30-P02",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P15" 
+                                   ~ "UT-B30-P03",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P16" 
+                                   ~ "UT-B30-P04",
+                                   #UT-B30-Y1-V1
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P01" & Visit == "V1"
+                                   ~ "UT-B30-P04",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P02" & Visit == "V1"
+                                   ~ "UT-B30-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P03" & Visit == "V1"
+                                   ~ "UT-B30-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P04" & Visit == "V1"
+                                   ~ "UT-B30-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P05" & Visit == "V1"
+                                   ~ "UT-B30-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P06" & Visit == "V1"
+                                   ~ "UT-B30-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P07" & Visit == "V1"
+                                   ~ "UT-B30-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P08" & Visit == "V1"
+                                   ~ "UT-B30-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P09" & Visit == "V1"
+                                   ~ "UT-B30-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P10" & Visit == "V1"
+                                   ~ "UT-B30-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P11" & Visit == "V1"
+                                   ~ "UT-B30-P10",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P12" & Visit == "V1"
+                                   ~ "UT-B30-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P13" & Visit == "V1"
+                                   ~ "UT-B30-P13",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P14" & Visit == "V1"
+                                   ~ "UT-B30-P14",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P15" & Visit == "V1"
+                                   ~ "UT-B30-P15",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P16" & Visit == "V2"
+                                   ~ "UT-B30-P16",
+                                   #UT-B30-Y1-V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P01" & Visit == "V2"
+                                   ~ "UT-B30-P04",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P02" & Visit == "V2"
+                                   ~ "UT-B30-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P03" & Visit == "V2"
+                                   ~ "UT-B30-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P04" & Visit == "V2"
+                                   ~ "UT-B30-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P05" & Visit == "V2"
+                                   ~ "UT-B30-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P06" & Visit == "V2"
+                                   ~ "UT-B30-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P07" & Visit == "V2"
+                                   ~ "UT-B30-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P08" & Visit == "V2"
+                                   ~ "UT-B30-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P09" & Visit == "V2"
+                                   ~ "UT-B30-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P10" & Visit == "V2"
+                                   ~ "UT-B30-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P11" & Visit == "V2"
+                                   ~ "UT-B30-P10",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P12" & Visit == "V2"
+                                   ~ "UT-B30-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B30-P13" & Visit == "V2"
+                                   ~ "UT-B30-P13",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P14" & Visit == "V2"
+                                   ~ "UT-B30-P09",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P15" & Visit == "V2"
+                                   ~ "UT-B30-P05",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B30-P16" & Visit == "V2"
+                                   ~ "UT-B30-P01",
+                                   #UT-B16-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P01"
+                                   ~ "UT-B16-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P02" 
+                                   ~ "UT-B16-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P03"
+                                   ~ "UT-B16-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P04" 
+                                   ~ "UT-B16-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P05" 
+                                   ~ "UT-B16-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P06" 
+                                   ~ "UT-B16-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P07" 
+                                   ~ "UT-B16-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P08" 
+                                   ~ "UT-B16-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P09" 
+                                   ~ "UT-B16-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P10"  
+                                   ~ "UT-B16-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P11" 
+                                   ~ "UT-B16-P07",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B16-P12" 
+                                   ~ "UT-B16-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-B16-P13" 
+                                   ~ "UT-B16-P04",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B16-P14" 
+                                   ~ "UT-B16-P08",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B16-P15" 
+                                   ~ "UT-B16-P12",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B16-P16" 
+                                   ~ "UT-B16-P16",
+                                   #UT-B25-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P01"
+                                   ~ "UT-B25-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P02" 
+                                   ~ "UT-B25-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P03"
+                                   ~ "UT-B25-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P04" 
+                                   ~ "UT-B25-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P05" 
+                                   ~ "UT-B25-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P06" 
+                                   ~ "UT-B25-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P07" 
+                                   ~ "UT-B25-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P08" 
+                                   ~ "UT-B25-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P09" 
+                                   ~ "UT-B25-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P10"  
+                                   ~ "UT-B25-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P11" 
+                                   ~ "UT-B25-P10",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B25-P12" 
+                                   ~ "UT-B25-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P13" 
+                                   ~ "UT-B25-P04",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B25-P14" 
+                                   ~ "UT-B25-P03",
+                                   #UT-B15-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P01"
+                                   ~ "UT-B15-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P02" 
+                                   ~ "UT-B15-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P03"
+                                   ~ "UT-B15-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P04" 
+                                   ~ "UT-B15-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P05" 
+                                   ~ "UT-B15-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P06" 
+                                   ~ "UT-B15-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P07" 
+                                   ~ "UT-B15-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P08" 
+                                   ~ "UT-B15-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P09" 
+                                   ~ "UT-B15-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P10"  
+                                   ~ "UT-B15-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P11" 
+                                   ~ "UT-B15-P07",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B15-P12" 
+                                   ~ "UT-B15-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B15-P13" 
+                                   ~ "UT-B15-P04",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B15-P14" 
+                                   ~ "UT-B15-P03",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B15-P15" 
+                                   ~ "UT-B15-P02",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B15-P16" 
+                                   ~ "UT-B15-P01",
+                                   #UT-C15-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P01"
+                                   ~ "UT-C15-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P02" 
+                                   ~ "UT-C15-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P03"
+                                   ~ "UT-C15-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P04" 
+                                   ~ "UT-C15-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P05" 
+                                   ~ "UT-C15-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P06" 
+                                   ~ "UT-C15-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P07" 
+                                   ~ "UT-C15-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P08" 
+                                   ~ "UT-C15-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P09" & Point.Time %in% c("09:08", "08:30")
+                                   ~ "UT-C15-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P09" & Point.Time == "08:56"
+                                   ~ "UT-C15-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P10"  
+                                   ~ "UT-C15-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P11" 
+                                   ~ "UT-C15-P07",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C15-P12" 
+                                   ~ "UT-C15-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-C15-P13" 
+                                   ~ "UT-C15-P04",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C15-P14" 
+                                   ~ "UT-C15-P08",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C15-P15" 
+                                   ~ "UT-C15-P12",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C15-P16" 
+                                   ~ "UT-C15-P16",
+                                   #UT-B25-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P01"
+                                   ~ "UT-B25-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P02" 
+                                   ~ "UT-B25-P04",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P03"
+                                   ~ "UT-B25-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P04" 
+                                   ~ "UT-B25-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P05" 
+                                   ~ "UT-B25-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P06" 
+                                   ~ "UT-B25-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P07" 
+                                   ~ "UT-B25-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P08" 
+                                   ~ "UT-B25-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P09" 
+                                   ~ "UT-B25-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P10"  
+                                   ~ "UT-B25-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B25-P11" 
+                                   ~ "UT-B25-P14",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B25-P12" 
+                                   ~ "UT-B25-P10",
+                                   #UT-C30-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P01"
+                                   ~ "UT-C30-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P02" 
+                                   ~ "UT-C30-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P03"
+                                   ~ "UT-C30-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P04" 
+                                   ~ "UT-C30-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P05" 
+                                   ~ "UT-C30-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P06" 
+                                   ~ "UT-C30-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P07" 
+                                   ~ "UT-C30-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P08" 
+                                   ~ "UT-C30-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P09" 
+                                   ~ "UT-C30-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P10"  
+                                   ~ "UT-C30-P04",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P11" 
+                                   ~ "UT-C30-P03",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C30-P12" 
+                                   ~ "UT-C30-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-C30-P13" 
+                                   ~ "UT-C30-P01",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C30-P14" 
+                                   ~ "UT-C30-P05",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C30-P15" 
+                                   ~ "UT-C30-P09",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C30-P16" 
+                                   ~ "UT-C30-P13",
+                                   #UT-B24-Y1-V1
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P01" & Visit == "V1"
+                                   ~ "UT-B24-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P02" & Visit == "V1"
+                                   ~ "UT-B24-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P03" & Visit == "V1"
+                                   ~ "UT-B24-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P04" & Visit == "V1"
+                                   ~ "UT-B24-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P05" & Visit == "V1"
+                                   ~ "UT-B24-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P06" & Visit == "V1"
+                                   ~ "UT-B24-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P07" & Visit == "V1"
+                                   ~ "UT-B24-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P08" & Visit == "V1"
+                                   ~ "UT-B24-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P09" & Visit == "V1"
+                                   ~ "UT-B24-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P10" & Visit == "V1"
+                                   ~ "UT-B24-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P11" & Visit == "V1"
+                                   ~ "UT-B24-P06",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P12" & Visit == "V1"
+                                   ~ "UT-B24-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P13" & Visit == "V1"
+                                   ~ "UT-B24-P01",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P14" & Visit == "V1"
+                                   ~ "UT-B24-P02",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P15" & Visit == "V1"
+                                   ~ "UT-B24-P03",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P16" & Visit == "V2"
+                                   ~ "UT-B24-P04",
+                                   #UT-B24-Y1-V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P01" & Visit == "V2"
+                                   ~ "UT-B24-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P02" & Visit == "V2"
+                                   ~ "UT-B24-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P03" & Visit == "V2"
+                                   ~ "UT-B24-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P04" & Visit == "V2"
+                                   ~ "UT-B24-P04",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P05" & Visit == "V2"
+                                   ~ "UT-B24-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P06" & Visit == "V2"
+                                   ~ "UT-B24-P07",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P07" & Visit == "V2"
+                                   ~ "UT-B24-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P08" & Visit == "V2"
+                                   ~ "UT-B24-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P09" & Visit == "V2"
+                                   ~ "UT-B24-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P10" & Visit == "V2"
+                                   ~ "UT-B24-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P11" & Visit == "V2"
+                                   ~ "UT-B24-P06",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P12" & Visit == "V2"
+                                   ~ "UT-B24-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B24-P13" & Visit == "V2"
+                                   ~ "UT-B24-P01",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P14" & Visit == "V2"
+                                   ~ "UT-B24-P05",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P15" & Visit == "V2"
+                                   ~ "UT-B24-P09",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P16" & Visit == "V2"
+                                   ~ "UT-B24-P13",
+                                   #UT-B08-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P01"
+                                   ~ "UT-B08-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P02" 
+                                   ~ "UT-B08-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P03"
+                                   ~ "UT-B08-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P04" 
+                                   ~ "UT-B08-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P05" 
+                                   ~ "UT-B08-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P06" 
+                                   ~ "UT-B08-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P07" 
+                                   ~ "UT-B08-P16",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P08" 
+                                   ~ "UT-B08-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P09" 
+                                   ~ "UT-B08-P08",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P10"  
+                                   ~ "UT-B08-P04",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P11" 
+                                   ~ "UT-B08-P03",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B08-P12" 
+                                   ~ "UT-B08-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P13" 
+                                   ~ "UT-B08-P07",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B08-P14" 
+                                   ~ "UT-B08-P11",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B08-P15" 
+                                   ~ "UT-B08-P06",
+                                   Year == "Y1" &  Full.Point.ID == "UT-B08-P16" 
+                                   ~ "UT-B08-P10",
+                                   #UT-C08-Y1-V1&V2
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P01"
+                                   ~ "UT-C08-P13",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P02" 
+                                   ~ "UT-C08-P09",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P03"
+                                   ~ "UT-C08-P05",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P04" 
+                                   ~ "UT-C08-P01",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P05" 
+                                   ~ "UT-C08-P02",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P06" 
+                                   ~ "UT-C08-P06",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P07" 
+                                   ~ "UT-C08-P10",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P08" 
+                                   ~ "UT-C08-P14",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P09" 
+                                   ~ "UT-C08-P15",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P10"  
+                                   ~ "UT-C08-P11",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P11" 
+                                   ~ "UT-C08-P07",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C08-P12" 
+                                   ~ "UT-C08-P03",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P13" 
+                                   ~ "UT-C08-P04",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C08-P14" 
+                                   ~ "UT-C08-P08",
+                                   Year == "Y1" &  Full.Point.ID == "UT-C08-P15" 
+                                   ~ "UT-C08-P12",
+                                   Year == "Y1" & Full.Point.ID == "UT-C08-P16" 
+                                   ~ "UT-C08-P16",
+                                   ###### Fix a few Y2's #######################
+                                   Year == "Y2" & Full.Point.ID == "ID-B13-P09" & Point.Time == "06:23" 
+                                   ~ "ID-B13-P16",
+                                   Year == "Y2" & Full.Point.ID == "ID-B13-P16" & Visit == "V1" 
+                                   ~ "ID-B13-P15",
+                                   Year == "Y2" & Full.Point.ID == "ID-B13-P15" & Visit == "V1" 
+                                   ~ "ID-B13-P14",
+                                   Year == "Y2" & Full.Point.ID == "ID-B13-P13" & Visit == "V1" 
+                                   ~ "ID-B13-P13",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P10" & Visit == "V1" 
+                                   ~ "ID-B12-P09",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P11" & Visit == "V1" 
+                                   ~ "ID-B12-P10",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P12" & Visit == "V1" 
+                                   ~ "ID-B12-P11",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P13" & Visit == "V1" 
+                                   ~ "ID-B12-P12",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P14" & Visit == "V1" 
+                                   ~ "ID-B12-P13",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P15" & Visit == "V1" 
+                                   ~ "ID-B12-P14",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P16" & Visit == "V1" 
+                                   ~ "ID-B12-P15",
+                                   Year == "Y2" & Full.Point.ID == "ID-B12-P09" & Visit == "V1" 
+                                   ~ "ID-B12-P16",
+                                   Year == "Y2" & Full.Point.ID == "UT-B16-P13" & Visit == "V2" 
+                                   ~ "UT-B16-P14",
+                                   Year == "Y2" & Full.Point.ID == "UT-B16-P14" & Visit == "V2" 
+                                   ~ "UT-B16-P13",
+                                   #UT-B25
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P02" & Visit == "V1" 
+                                   ~ "UT-B25-P15",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P03" & Visit == "V1" 
+                                   ~ "UT-B25-P02",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P04" & Visit == "V1" 
+                                   ~ "UT-B25-P03",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P05" & Visit == "V1" 
+                                   ~ "UT-B25-P04",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P06" & Visit == "V1" 
+                                   ~ "UT-B25-P05",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P07" & Visit == "V1" 
+                                   ~ "UT-B25-P06",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P08" & Visit == "V1" 
+                                   ~ "UT-B25-P07",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P09" & Visit == "V1" 
+                                   ~ "UT-B25-P08",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P10" & Visit == "V1" 
+                                   ~ "UT-B25-P09",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P11" & Visit == "V1" 
+                                   ~ "UT-B25-P10",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P12" & Visit == "V1" 
+                                   ~ "UT-B25-P11",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P13" & Visit == "V1" 
+                                   ~ "UT-B25-P12",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P14" & Visit == "V1" 
+                                   ~ "UT-B25-P13",
+                                   Year == "Y2" & Full.Point.ID == "UT-B25-P15" & Visit == "V1" 
+                                   ~ "UT-B25-P14",
+                                   #UT-C25
+                                   Year == "Y2" & Full.Point.ID == "UT-C25-P11" & Point.Time == "08:25"
+                                   ~ "UT-C25-P12",
+                                   Year == "Y2" & Full.Point.ID == "UT-C25-P12" & Visit == "V1"
+                                   ~ "UT-C25-P13",
+                                   Year == "Y2" & Full.Point.ID == "UT-C25-P13" & Visit == "V1"
+                                   ~ "UT-C25-P14",
+                                   Year == "Y2" & Full.Point.ID == "UT-C25-P13" & Point.Time == "09:13"
+                                   ~ "UT-C25-P10",
+                                   #Need to continue the Goose creek plots
                                    TRUE ~  Full.Point.ID))
 
 
+#View the UT-B25 points
+glimpse(sobs_temp)
+sobs_temp %>% 
+  filter(Route.ID == "UT-B25") %>% 
+  dplyr::count(Full.Point.ID)
 
+#Fix UT-B25. It has one extra point (now P15)
+sobs_temp <- sobs_temp %>% 
+  filter(Full.Point.ID != "UT-B25-P15") %>% 
+  #IDK what to do with the V3's so I'm dropping them
+  filter(Visit %in% c("V1", "V2"))
 
 #View how many of each point we have after the fix
-sobs %>% 
+sobs_temp %>% 
+  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  distinct(Full.Point.ID, Visit.ID) %>% 
+  count(Full.Point.ID, Visit.ID) %>% 
+  arrange(Full.Point.ID) %>% 
+  pivot_wider(names_from = Visit.ID, values_from = n) %>% 
+  print(n = Inf)
+
+#Now in a more condenced format
+sobs_temp %>% 
   distinct(Full.Point.ID, Year, Visit) %>% 
   count(Full.Point.ID) %>% 
   arrange(Full.Point.ID) %>% 
   print(n = Inf)
 
-#Fix UT-B25. It has one extra point (02)
-sobs <- sobs %>% 
-  filter(Full.Point.ID != "UT-B25-P02") %>% 
-  mutate(Full.Point.ID = case_when(Full.Point.ID == "UT-B25-P01" ~ "UT-B25-P01",
-                                   Full.Point.ID == "UT-B25-P03" ~ "UT-B25-P02",
-                                   Full.Point.ID == "UT-B25-P04" ~ "UT-B25-P03",
-                                   Full.Point.ID == "UT-B25-P05" ~ "UT-B25-P04",
-                                   Full.Point.ID == "UT-B25-P06" ~ "UT-B25-P05",
-                                   Full.Point.ID == "UT-B25-P07" ~ "UT-B25-P06",
-                                   Full.Point.ID == "UT-B25-P08" ~ "UT-B25-P07",
-                                   Full.Point.ID == "UT-B25-P09" ~ "UT-B25-P08",
-                                   Full.Point.ID == "UT-B25-P10" ~ "UT-B25-P09",
-                                   Full.Point.ID == "UT-B25-P11" ~ "UT-B25-P10",
-                                   Full.Point.ID == "UT-B25-P12" ~ "UT-B25-P11",
-                                   Full.Point.ID == "UT-B25-P13" ~ "UT-B25-P12",
-                                   Full.Point.ID == "UT-B25-P14" ~ "UT-B25-P13",
-                                   Full.Point.ID == "UT-B25-P15" ~ "UT-B25-P14",
-                                   .default = Full.Point.ID)) 
-
-#View the UT-B25 points
-glimpse(sobs)
-sobs %>% 
-  filter(Route.ID == "UT-B25") %>% 
-  dplyr::count(Full.Point.ID)
-
 #View the dataset to make sure everything looks good
-glimpse(sobs)
-
+glimpse(sobs_temp)
 
 #Redefine the incorrect route types
-sobs <- sobs %>% 
+sobs<- sobs_temp %>% 
   mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
                                 Route.ID == "UT-C25" ~ "B",
                                 Route.ID == "UT-C30" ~ "R",
@@ -3450,9 +3963,6 @@ sobs <- sobs %>%
   mutate(MAS = (MAS / 60)) %>%  #switch from seconds to munutes
   mutate(MAS = as.integer(MAS)) %>% #Round to the nearest whole number
   drop_na(MAS)
-
-sobs %>% 
-  
 
 #View the data after the calculation
 glimpse(sobs)
