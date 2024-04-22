@@ -517,7 +517,7 @@ point_summaries <- point_summaries %>%
   mutate(geometry = as.character(geometry)) %>% 
   mutate(Point.X = str_sub(geometry, start = 3, end = 8)) %>% 
   mutate(Point.Y = str_sub(geometry, start = 11, end = 17)) %>% 
-  select(-geometry) %>% 
+  dplyr::select(-geometry) %>% 
   mutate_at(c('Point.X', 'Point.Y'), as.integer) 
 
 #View one last time
