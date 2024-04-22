@@ -11,7 +11,7 @@ library(raster)
 library(sf)
 
 #add in the data
-sobs <- tibble(read.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_data.csv")) %>% 
+sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
   dplyr::select(-X) #Remove the column that excel generated
 #View the data
 glimpse(sobs)
@@ -39,11 +39,6 @@ points
 
 #Create an object for route centers
 route_centers <- sobs %>% 
-  #Fix the routes that straddle a fire boundary
-  mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
-                                Route.ID == "UT-C25" ~ "B",
-                                Route.ID == "UT-C30" ~ "R",
-                                TRUE ~ Route.Type)) %>% 
   group_by(Route.ID) %>% 
   reframe(Route.ID, Route.Type,
           Center.X = mean(UTM.X , na.rm = TRUE), 
@@ -70,7 +65,6 @@ sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
 anu_cvr <- raster(paste0(ras_path, "anu_cvr.tif"))
 perin_cvr <- raster(paste0(ras_path, "herb_cvr.tif"))
 shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
-# tree_cvr <- raster(paste0(ras_path, "tree_cvr.tif"))
 bg_cvr <- raster(paste0(ras_path, "bg_cvr.tif"))
 shrub_hgt <- raster(paste0(ras_path, "shrub_height.tif"))
 burn_sev <- raster(paste0(ras_path, "Burn_Sev.tif"))
@@ -289,10 +283,8 @@ route_summaries %>%
 
 
 #annual and perennial cover are too correlated
-#shrub cover and srub height are correlated but more so on reference plots than on burn plots
+#shrub cover and shrub height are correlated but more so on reference plots than on burn plots
 #precipitation and elevation are too correlated
-route_summaries <- route_summaries %>% 
-  dplyr::select(-Precipitation, - Perennial.Cover)
 
 #Split up the x and y coords
 route_summaries <- route_summaries %>% 
@@ -301,14 +293,13 @@ route_summaries <- route_summaries %>%
   mutate(Center.Y = str_sub(geometry, start = 11, end = 17)) %>% 
   dplyr::select(-geometry) %>% 
   mutate_at(c('Center.X', 'Center.Y'), as.integer) 
-  
-#View one last time
-glimpse(route_summaries)
-  
-#looks good. time to export
-write.csv(route_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\route_summaries.csv")
 
-#Extract values to 125m buffers around each point ----------------------------------------------------
+#looks good. time to export
+write.csv(route_summaries, "Data\\Outputs\\route_summaries.csv")
+
+
+#################################################################################################
+#Extract values to 125m buffers around each point ------------------------------------------------
 
 #make an object to store all of the raster summaries
 point_summaries <- points %>% 
@@ -535,7 +526,6 @@ glimpse(point_summaries)
 #export the point summaries
 write.csv(point_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\point_summaries.csv")
 
-#Join point covs to the sob points --------------------------------------------
 #remove the variables that I no longer need
 point_covs <- point_summaries %>% 
   select(-c(Route.ID, Route.Type, Point.X, Point.Y))
@@ -546,11 +536,3 @@ glimpse(point_covs)
 point_covs %>% 
   select(-Fire.Name, -Full.Point.ID) %>% 
   cor()
-
-#Join
-sobs_covs <- left_join(sobs, point_covs, by = "Full.Point.ID")
-#...and view
-glimpse(sobs_covs)
-
-#Export this dataset
-write.csv(sobs_covs, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\sobs_count_covs.csv")

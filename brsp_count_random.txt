@@ -1,0 +1,55 @@
+
+  model{
+    #Fixed effect Priors ----
+    beta_shrub ~ dnorm(0, 0.001) #Offset for shrub cover
+    beta_p_wind ~ dnorm(0, 0.001) #offset for average wind speed
+    
+    #Random effect hyperparameters
+    tau.lam <- 1/(sd.lam*sd.lam)
+    sd.lam ~ dunif(0,3)
+    tau.p <- 1/(sd.p*sd.p)
+    sd.p ~ dunif(0,3)
+
+    # #Random intercept priors ---
+    for(i in 1:n_routes){
+      beta0[i] ~ dnorm(0, tau.lam) # Abundance noise
+       for(j in 1:n_visits){  # Observation noise
+       beta0_p[i,j] ~ dnorm(0, tau.p)
+      }
+    }
+    
+   #State process Likelihood -----
+    for(i in 1:n_routes){ 
+      lin_comb[i] <- beta0[i] + beta_shrub * shrub[i] 
+      #linear combination of predictors
+      lambda[i] <- exp(lin_comb[i]) #log link
+      n_brsp[i] ~ dpois(lambda[i]) 
+    
+    #Observation process Likelihood -----
+     for(j in 1:n_visits){
+       obs_brsp[i, j] ~ dbin(p[i, j], n_brsp[i]) #actual likelihood
+       p[i, j] <- exp(lp[i, j]) /(1+ exp(lp[i, j])) #logit link
+       lp[i, j] <- beta0_p[i,j] + beta_p_wind * wind[i, j] #linear combonation  of predictors
+       
+       # Assess model fit using Chi-squared discrepancy
+       # Compute fit statistic E for observed data
+       eval[i,j] <- p[i,j]*n_brsp[i]
+       #chi square test statistic
+       E[i,j] <- pow((obs_brsp[i,j] - eval[i,j]),2)/(eval[i,j] + 0.5)
+       
+       # Generate replicate data and compute fit stats for them
+       y.new[i,j]~dbin(p[i,j],n_brsp[i])
+       #Chi sqare test statistic
+       E.new[i,j]<-pow((y.new[i,j]- eval[i,j]),2)/(eval[i,j] + 0.5)
+       
+     } #j
+    } #i
+    
+    # Derived quantities
+    
+    totalN <- sum(n_brsp[]) #Total population size
+    fit <- sum(E[,]) #true data fit
+    fit.new <- sum(E.new[,]) #simulated data fit
+    
+  }# end model
+

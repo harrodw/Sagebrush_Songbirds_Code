@@ -54,6 +54,62 @@ sobs_count <-  visit_count %>%
 #...and view
 glimpse(sobs_count)
 
+###########################################################################################
+#How many total species
+sobs %>% 
+  group_by(Species) %>% 
+  reframe(Species, Observation = n()) %>% 
+  distinct() %>% 
+  print(n = Inf)
+
+#How many total observations
+sobs %>% 
+  filter(Species != "NOBI") %>% 
+  nrow()
+
+#Table for Average number of observations between burned and unburned plots --------------
+#Table for output
+burn_v_ref <- sobs_count %>% 
+  distinct(Year, Species) %>% 
+  mutate(Mean.B = NA,
+         Mean.R = NA,
+         t = NA,
+         p = NA,
+         CI.lb = NA,
+         CI.ub = NA)
+#..and view
+glimpse(burn_v_ref)
+
+#For-loop to compare counts observed between B and R within each year
+for(i in 1:nrow(burn_v_ref)){
+  #Pull the info I want t=out of the data frame
+  soi_count <- sobs_count %>% 
+    group_by(Route.ID, Route.Type, Year, Species) %>% 
+    reframe(Route.ID, Route.Type, Year, Species, Total.Count = sum(Count)) %>% 
+    distinct(Route.ID, Route.Type, Year, Species, Total.Count) %>% 
+    filter(Year == burn_v_ref$Year[i]) %>% 
+    filter(Species == burn_v_ref$Species[i])
+  #Compare species count within year
+  t_test <- t.test(Total.Count ~ Route.Type, data = soi_count)
+  #Pull what I need out of the 
+  burn_v_ref$Mean.B[i] <- t_test$estimate[1]
+  burn_v_ref$Mean.R[i] <- t_test$estimate[2]
+  burn_v_ref$t[i] <- t_test$p.value
+  burn_v_ref$p[i] <- t_test$p.value
+  burn_v_ref$CI.lb[i] <- t_test$conf.int[1]
+  burn_v_ref$CI.ub[i] <- t_test$conf.int[2]
+}
+
+#View the output
+burn_v_ref %>% 
+  print(n = Inf)
+
+#Export the tables
+write.csv(burn_v_ref, "Data\\Outputs\\burn_v_ref_20240308.csv")
+
+
+
+#######################################################################################
 #Start plotting --------------------------------------------------------------------------
 
 #Define colors for boxplot
@@ -61,9 +117,6 @@ count_cols <- c("darkorange3", "deepskyblue1", "red3", "dodgerblue3")
 
 #Average number of observations between burned and unburned plots 
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-B24", "UT-B25") ~ "B",
-                                Route.ID %in% c("ID-B03") ~ "R",
-                                TRUE ~ Route.Type)) %>% 
   mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
                                 Route.Type == "R" ~ "Reference")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
@@ -97,9 +150,6 @@ sobs_count %>%
 
 #Total number of observations between burned and unburned plots 
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-B24", "UT-B25") ~ "B",
-                                Route.ID %in% c("ID-B03") ~ "R",
-                                TRUE ~ Route.Type)) %>% 
   mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
                                 Route.Type == "R" ~ "Reference")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
@@ -130,20 +180,9 @@ sobs_count %>%
                                          "Western Meadowlark", "Horned Lark", 
                                          "Lark Sparrow")))
 
-sobs %>%
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-C24", "UT-C25") ~ "B",
-                                Route.ID %in% c("ID-B03", "UT-C30") ~ "R", 
-                                TRUE ~ Route.Type)) %>% 
-  distinct(Route.ID, Route.Type, Year) %>% 
-  arrange(Route.Type, Year, Route.ID) %>% 
-  count(Route.Type, Year) %>%
-  print(n = Inf)
 
 #proportion of plots with at least one observation 
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-C24", "UT-C25") ~ "B",
-                                Route.ID %in% c("ID-B03", "UT-C30") ~ "R",
-                                TRUE ~ Route.Type)) %>% 
   mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
                                 Route.Type == "R" ~ "Reference")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
@@ -184,112 +223,10 @@ sobs_count %>%
                                          "Western Meadowlark", "Horned Lark", 
                                          "Lark Sparrow")))
 
-#Table for Average number of observations between burned and unburned plots --------------
-#Table for output
-burn_v_ref <- sobs_count %>% 
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-C24", "UT-C25") ~ "B",
-                                Route.ID %in% c("ID-B03", "UT-C30") ~ "R",
-                                TRUE ~ Route.Type)) %>% 
-  distinct(Year, Species) %>% 
-  mutate(Mean.B = NA,
-  Mean.R = NA,
-  t = NA,
-  p = NA,
-  CI.lb = NA,
-  CI.ub = NA)
-#..and view
-glimpse(burn_v_ref)
-
-#For-loop to compare counts observed between B and R within each year
-for(i in 1:nrow(burn_v_ref)){
-#Pull the info I want t=out of the data frame
-soi_count <- sobs_count %>% 
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-C24", "UT-C25") ~ "B",
-                                Route.ID %in% c("ID-B03", "UT-C30") ~ "R",
-                                TRUE ~ Route.Type)) %>% 
-  group_by(Route.ID, Route.Type, Year, Species) %>% 
-  reframe(Route.ID, Route.Type, Year, Species, Total.Count = sum(Count)) %>% 
-  distinct(Route.ID, Route.Type, Year, Species, Total.Count) %>% 
-  filter(Year == burn_v_ref$Year[i]) %>% 
-  filter(Species == burn_v_ref$Species[i])
-#Compare species count within year
-t_test <- t.test(Total.Count ~ Route.Type, data = soi_count)
-#Pull what I need out of the 
-burn_v_ref$Mean.B[i] <- t_test$estimate[1]
-burn_v_ref$Mean.R[i] <- t_test$estimate[2]
-burn_v_ref$t[i] <- t_test$p.value
-burn_v_ref$p[i] <- t_test$p.value
-burn_v_ref$CI.lb[i] <- t_test$conf.int[1]
-burn_v_ref$CI.ub[i] <- t_test$conf.int[2]
-  }
-
-#View the output
-burn_v_ref %>% 
-  print(n = Inf)
-
-#Export the tables
-write.csv(burn_v_ref, "Data\\Outputs\\burn_v_ref_20240308.csv")
-
-
-#Plot average number of observations between burned and unburned plots  ---------------------------
-burn_v_ref %>% 
-  pivot_longer(cols = c(Mean.B, Mean.R),
-               values_to = "Mean.Count",
-               names_to = "Route.Type") %>% 
-  mutate(Route.Type = case_when(Route.Type == "Mean.B" ~ "Burn",
-                                Route.Type == "Mean.R" ~ "Reference")) %>% 
-  select(Year, Route.Type, Species, Mean.Count) %>% 
-  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
-                             Species == "SATH" ~ "Sage Thrasher",
-                             Species == "SABS" ~ "Sagebrush Sparrow",
-                             Species == "GTTO" ~ "Green-Tailed Towhee",
-                             Species == "VESP" ~ "Vesper Sparrow",
-                             Species == "WEME" ~ "Western Meadowlark",
-                             Species == "HOLA" ~ "Horned Lark",
-                             Species == "GRFL" ~ "Gray Flycatcher",
-                             Species == "LASP" ~ "Lark Sparrow")) %>% 
-  mutate(Year = case_when(Year == "Y1" ~ "Year 1",
-                          Year == "Y2" ~ "Year 2")) %>% 
-  mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
-  ggplot(aes(x = Year.Type, y = Mean.Count, fill = Year.Type)) +
-  geom_boxplot() +
-  theme_bw() +
-  scale_fill_manual("",
-                    values = count_cols) +
-  labs(y = "Average Number of Observations") +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.title.y = element_text()) +
-  ylim(0, 75) +
-  facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
-                                         "Sagebrush Sparrow", "Green-Tailed Towhee",
-                                         "Gray Flycatcher","Vesper Sparrow", 
-                                         "Western Meadowlark", "Horned Lark", 
-                                         "Lark Sparrow")))
-
+#Species counts and shrub cover plot ---------------------------------------
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.ID %in% c("UT-C24", "UT-C25") ~ "B",
-                                Route.ID %in% c("ID-B03", "UT-C30") ~ "R",
-                                TRUE ~ Route.Type)) %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
-                                Route.Type == "R" ~ "Reference")) %>% 
-  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
-                             Species == "SATH" ~ "Sage Thrasher",
-                             Species == "SABS" ~ "Sagebrush Sparrow",
-                             Species == "GTTO" ~ "Green-Tailed Towhee",
-                             Species == "VESP" ~ "Vesper Sparrow",
-                             Species == "WEME" ~ "Western Meadowlark",
-                             Species == "HOLA" ~ "Horned Lark",
-                             Species == "GRFL" ~ "Gray Flycatcher",
-                             Species == "LASP" ~ "Lark Sparrow")) %>% 
-  mutate(Year = case_when(Year == "Y1" ~ "Year 1",
-                          Year == "Y2" ~ "Year 2")) %>% 
-  mutate(Year.Type = paste(Year, Route.Type, sep = " "))
-
-
-#Species counts and shrub cover
-sobs_count %>% 
+  filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
+                        "VESP", "WEME", "HOLA")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -325,6 +262,8 @@ sobs_count %>%
 
 #Species counts and ruggedness
 sobs_count %>% 
+  filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
+                        "VESP", "WEME", "HOLA")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -350,6 +289,8 @@ sobs_count %>%
 
 #Species counts and fire year
 sobs_count %>% 
+  filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
+                        "VESP", "WEME", "HOLA")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -376,6 +317,8 @@ sobs_count %>%
 #Species counts and fire sevarety 
 fire_sev_cols <- c("yellow1", "darkorange1", "red1", "red4")
 sobs_count %>% 
+  filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
+                        "VESP", "WEME", "HOLA")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -400,50 +343,38 @@ sobs_count %>%
                                          "Western Meadowlark", "Horned Lark", 
                                          "Lark Sparrow")))
 
-#compare two species to each other
-sobs_count %>% 
+#compare two species to each other -----------------
+#Brewers sparrow vs sage thrasher
+brsp_vs_sath <- sobs_count %>% 
   group_by(Route.ID, Species) %>% 
   reframe(Route.ID, Species, Mean.Count = mean(Count)) %>% 
   distinct(Route.ID, Species, Mean.Count) %>% 
   pivot_wider(names_from = Species, values_from = Mean.Count) %>% 
-  ggplot(aes(x = WEME, y = SATH)) +
-  geom_point() +
-  geom_smooth()
-
-#Fake date ----------------------------------------------------------
-#Generate geometric data
-min_dat <- tibble(x = seq(from = 1, to = 6, by = 0.01)) %>% 
-  mutate(y = 25 + x^3)
-
-#Plot these data
-min_dat %>% 
-  ggplot(aes(x = x, y = 0.06 + y/max(y))) +
-  geom_point() +
-  ylim(0, 1) +
+  ggplot(aes(x = BRSP, y = SATH)) +
+  geom_point(col = "darkmagenta", size = 1) +
+  geom_smooth(col = "darkorchid4", fill = "orchid1") +
   theme_bw() +
-  theme(axis.text.x = element_text(size = 11),
-        axis.title.x = element_text(size = 13),
-        axis.text.y = element_text(size = 11),
-        axis.title.y = element_text(size = 13)) +
-  labs(x = "Minute",
-       y = "Probability of availability")
+  theme(axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12)) +
+  labs(x = "Brewers Sparrows Observed", y = "Sage Thrashers Observed")
 
-#simulate a half normal detection function
-#Generate geometric data
-dist_dat <- tibble(x = runif(n =10000, min = 0, max = 150),
-                   y = exp(-0.02 * x))
-
-#Plot these data
-dist_dat %>% 
-  ggplot(aes(x = x, y = y/max(y))) +
-  geom_point() +
+#western meadowlark vs horned lark
+brsp_vs_hola <- sobs_count %>% 
+  group_by(Route.ID, Species) %>% 
+  reframe(Route.ID, Species, Mean.Count = mean(Count)) %>% 
+  distinct(Route.ID, Species, Mean.Count) %>% 
+  pivot_wider(names_from = Species, values_from = Mean.Count) %>% 
+  ggplot(aes(x = BRSP, y = HOLA)) +
+  geom_point(col = "darkmagenta", size = 1) +
+  geom_smooth(col = "darkorchid4", fill = "orchid1") +
   theme_bw() +
-  theme(axis.text.x = element_text(size = 13),
-        axis.title.x = element_text(size = 13),
-        axis.text.y = element_text(size = 13),
-        axis.title.y = element_text(size = 13)) +
-  xlim(0, 150) + 
-  labs(x = "Distance (m)",
-       y = "Probability of detection")
+  theme(axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12)) +
+  labs(x = "Brewers Sparrows Observed", y = "Horned Larks Observed")
 
-
+#View both plots
+grid.arrange(brsp_vs_sath, brsp_vs_hola, ncol = 2)

@@ -14,7 +14,7 @@ library(DHARMa)
 
 #Add the data
 brsp_count <- read.csv("Data\\Outputs\\brsp_count_jags.csv") %>%
-  select(-X)
+  dplyr::select(-X)
 #View the data
 glimpse(brsp_count)
 
@@ -25,7 +25,7 @@ nmix_dat <- brsp_count %>%
   mutate(Wind.Start = factor(Wind.Start, levels = c("<1 mph", "1-3 mph", "4-7 mph",
                                                     "8-12 mph", "13-18 mph", "Unknown"))) %>% 
   mutate(Wind.Start = as.numeric(Wind.Start)) %>% 
-  select(Full.Point.ID, Visit, Count, Shrub.Cover, Wind.Start) %>% #Pull out only the variables of interest
+  dplyr::select(Full.Point.ID, Visit, Count, Shrub.Cover, Wind.Start) %>% #Pull out only the variables of interest
   pivot_wider(names_from = Visit, values_from = c('Count', 'Shrub.Cover', 'Wind.Start')) %>% #Pivot the data so it can be turned into a matrix
   drop_na(Count_V1, Count_V2) #Remove the sites that were only visited once
 
@@ -44,7 +44,7 @@ cat("
     # sigma2_route <- pow(sigma_route, 2) 
     # tau_route <- pow(sigma_route, -2)
     beta_p_wind ~ dnorm(0, 0.001) 
-    beta0 ~ dnorm(0, 0.001)
+    beta0_a ~ dnorm(0, 0.001)
     beta0_p ~ dnorm(0, 0.001)
      
     # #Random intercept priors ---
@@ -53,8 +53,8 @@ cat("
     #}
     
     #State process Likelihood -----
-    for(i in 1:n_routes){ 
-      lin_comb[i] <- beta0 + beta_shrub * shrub[i] 
+    for(i in 1:n_points){ 
+      lin_comb[i] <- beta0_a + beta_shrub * shrub[i] 
       #linear combination of predictors
       lambda[i] <- exp(lin_comb[i]) #log link
       n_brsp[i] ~ dpois(lambda[i]) 
@@ -69,6 +69,7 @@ cat("
     } #i
     
     totalN <- sum(n_brsp[])
+    
   }# end model
 ", fill = TRUE)
 sink()
@@ -76,8 +77,9 @@ sink()
 #Initial values
 brsp_inits <- function(){list(
   beta_shrub = rnorm(1, 0, 0.001),
-  beta_p_wind= rnorm(1, 0, 0.001),
+  beta_p_wind = rnorm(1, 0, 0.001),
   beta0_p = rnorm(1, 0, 0.001),
+  beta0_a = rnorm(1, 0, 0.001),
   n_brsp = apply(as.matrix(nmix_dat[, 2:3]), 1, max) + 1
 )}
 
@@ -87,11 +89,11 @@ brsp_data <- list(obs_brsp = as.matrix(nmix_dat[, 2:3]),
                   wind = as.matrix(nmix_dat[, 6:7]),
                   #route = unique(as.numeric(as.factor(nmix_dat$Full.Point.ID))),
                   n_visits = 2,
-                  n_routes = nrow(nmix_dat)
+                  n_points = nrow(nmix_dat)
 )
 
 #parameters to save
-brsp_params <- c("beta_0", "beta_shrub", "sigma_route", "pd", "totalN", "beta_p_wind")
+brsp_params <- c("beta_0", "beta_shrub", "totalN", "beta_p_wind")
 
 #MCMC settings
 ni <- 10000
@@ -110,7 +112,7 @@ brsp_fit <- jagsUI(data = brsp_data,
                    n.thin = nt)
 
 #View model output
-print(brsp_fit, digits = 2)
+print(brsp_fit, digits = 2, n = Inf)
 
 #View model traceplots
 # par(mfrow = c(5, 5))

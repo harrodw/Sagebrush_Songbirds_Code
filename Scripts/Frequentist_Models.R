@@ -83,6 +83,30 @@ sobs_count <-  visit_count %>%
 #...and view
 glimpse(sobs_count)
 
+
+brsp_count <- sobs_count %>% 
+  filter(Species == 'BRSP')
+head(brsp_count)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #View the routes done by two observers
 two_obs_routes <- sobs %>% 
   tidyr::expand(nesting(Route.ID, Year, Visit, Observer.ID)) %>% 

@@ -12,26 +12,32 @@ knitr::opts_chunk$set(echo = TRUE)
 ###Observation level model
 
 $$
-n \sim \text{Binom}(N, \ p_a\times p_d) 
+n_{observed} \sim \text{Binom}(N_{true}, \ p_{d}) 
 $$
 
 ### Abondance level model
 
 $$
-N \sim \text{Pois}(\lambda)
+N_{true} \sim \text{Pois}(\lambda)
 $$
 
 $$
-log(\lambda) = \alpha + \beta_1x_1 + \beta_2x_2 +...\beta_jx_j
+\text{log}(\lambda) = \alpha + \beta_1x_1 + \beta_2x_2 +...\beta_jx_j
 $$
 
-$$
-p_a \sim \text{Cat}(\pi_a)
-$$
+
 
 $$
-p_d \sim \text{Cat}(\pi_d)
+p_d \propto \sigma
 $$
+
+
+
+$$
+\text{log}(\sigma) = \sigma_0 + \beta_1x_1 + \beta_2x_2 +...\beta_jx_j
+$$
+
+
 
 ###Fake data
 ```{r}

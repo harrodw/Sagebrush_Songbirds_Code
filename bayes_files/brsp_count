@@ -1,14 +1,15 @@
 
   model{
     #Fixed effect Priors ----
-    beta_shrub ~ dnorm(0, 0.001) #Offset for burned or not
+    beta_burn ~ dnorm(0, 0.001) #Offset for burned or not
     #random effect hyperparameters
     # sigma_route ~ dunif(0, 50) 
     # sigma2_route <- pow(sigma_route, 2) 
     # tau_route <- pow(sigma_route, -2)
     beta_p_wind ~ dnorm(0, 0.001) 
-    beta0 ~ dnorm(0, 0.001)
+    beta0_a ~ dnorm(0, 0.001)
     beta0_p ~ dnorm(0, 0.001)
+    omega ~ dunif(0, 1)
      
     # #Random intercept priors ---
     # for(n in 1:n_routes){
@@ -16,21 +17,40 @@
     #}
     
     #State process Likelihood -----
-    for(i in 1:n_routes){ 
-      lin_comb[i] <- beta0 + beta_shrub * shrub[i] 
-      #linear combination of predictors
-      lambda[i] <- exp(lin_comb[i]) #log link
-      n_brsp[i] ~ dpois(lambda[i]) 
+    for(k in 1:n_points){ 
+      
+      z[k] ~ dbern(omega) #Zero inflation Bernoulli trial
+      
+      lin_comb[k] <- beta0_a + beta_burn * burned[k] #linear combination of predictors
+      lambda[k] <- exp(lin_comb[k]) #log link
+      lambda_eff[k] <- z[k] * lambda[k] + 0.1 #Zero inflate lambda
+      n_brsp[k] ~ dpois(lambda_eff[k]) 
      
     
     #Observation process Likelihood -----
      for(j in 1:n_visits){
-       obs_brsp[i, j] ~ dbin(p[i, j], n_brsp[i])
-       p[i, j] <- exp(lp[i, j]) /(1+ exp(lp[i, j]))
-       lp[i, j] <- beta0_p + beta_p_wind * wind[i, j] 
+       obs_brsp[k, j] ~ dbin(p[k, j], n_brsp[k])
+       p[k, j] <- exp(lp[k, j]) /(1+ exp(lp[k, j]))
+       lp[k, j] <- beta0_p + beta_p_wind * wind[k, j] 
+       
+       # # Assess model fit using Chi-squared discrepancy
+       # # Compute fit statistic E for observed data
+       # eval[k,j] <- p[k,j]*n_brsp[k]
+       # E[k,j] <- pow((obs_brsp[k,j] - eval[k,j]),2)/(eval[k,j] + 0.5)
+       # 
+       # # Generate replicate data and compute fit stats for them
+       # y.new[k,j] ~ dbin(p[k,j], n_brsp[k])
+       # E.new[k,j] <-pow((y.new[k,j]- eval[k,j]),2)/
+       # (eval[k,j] + 0.5)
+       
      } #j
-    } #i
+    } #k
+    
+    # Derived quantities
     
     totalN <- sum(n_brsp[])
+    # fit <- sum(E[,])
+    # fit.new <- sum(E.new[,])
+    
   }# end model
 
