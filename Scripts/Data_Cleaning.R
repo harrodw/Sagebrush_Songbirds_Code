@@ -3717,6 +3717,10 @@ sobs_temp %>%
 #View the dataset to make sure everything looks good
 glimpse(sobs_temp)
 
+
+#After learning more about fire history in this area I have realized that 
+#UT-C24 and UT-C25 burned in 1999 and ID-B03 did not burn
+
 #Redefine the incorrect route types
 sobs<- sobs_temp %>% 
   mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
@@ -3724,13 +3728,6 @@ sobs<- sobs_temp %>%
                                 Route.ID == "UT-C30" ~ "R",
                                 Route.ID == "ID-B03" ~ "R",
                                 TRUE ~ Route.Type))
-
-#After learning more about fire history in this area I have realized that 
-#UT-C24 and UT-C25 burned in 1999 and ID-B03 did not burn
-sobs %>% 
-  filter(Route.ID == "UT-C24") %>% 
-  dplyr::select(Full.Point.ID, Year, Visit, Route.Type, Species) %>% 
-  base::print(n = 100)
 
 #Many of the counts do not have NOBI for minutes where no birds were detected
 #Add in NOBI Observations ---------------------------------------------------
@@ -3817,7 +3814,8 @@ point_cords <- point_cords %>%
     Point_ID == "16" ~ "16"
   )))
 #View the cleaned points
-point_cords %>% distinct(Point.ID)
+point_cords %>% 
+  distinct(Point.ID)
 
 #Replace "_" with "-" in route name
 point_cords <- point_cords %>% 
@@ -3825,7 +3823,9 @@ point_cords <- point_cords %>%
   arrange(Route.ID)
 
 #View the cleaned Routes and how many points they have
-point_cords %>% dplyr::count(Route.ID) %>% base::print(n = Inf)
+point_cords %>% 
+  dplyr::count(Route.ID) %>% 
+  base::print(n = Inf)
 
 #Add column for full point id
 #Make a new column that combines point id and route id
@@ -3850,6 +3850,7 @@ point_cords <- point_cords %>%
 
 #Compare the points present in each dataset
 glimpse(point_cords) 
+
 #points
 coords_tbl <- point_cords %>% 
   dplyr::count(Route.ID, Full.Point.ID) %>% 
@@ -3877,7 +3878,8 @@ sobs <- sobs %>%
 
 #View updated point count data
 glimpse(sobs)
-sobs %>% distinct(Full.Point.ID, UTM.X, UTM.Y)
+sobs %>% 
+  distinct(Full.Point.ID, UTM.X, UTM.Y)
 
 #A lot of the temps were recorded in Fahrenheit instead of Celsius -------------------------
 
@@ -3991,7 +3993,8 @@ sobs %>%
 #Remove excess columns and reorder everything
 sobs <- sobs %>% 
    dplyr::select(Species, Distance, Minute, How.Detected, 
-          # Song.Also, Group.Size, Sex, Visual.ID,
+          # Song.Also, Group.Size, Sex, 
+          Visual.ID,
           Route.ID, Route.Type, Full.Point.ID, 
           Observer.ID, Year, Visit, Date, Ord.Date,
           Point.Time, MAS,

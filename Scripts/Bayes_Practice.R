@@ -27,7 +27,7 @@ covs <- tibble(read.csv("Data//Outputs//point_summaries.csv")) %>%
 glimpse(covs)
 
 #...and view
-print(covs, n = Inf)
+print(covs, n = 50)
 
 #Transform into a table with each species observations by visit ----------------------------
 #define relevant species
@@ -36,7 +36,7 @@ soi <- "BRSP"
 #make a table of important species sightings by visit
 sobs_count_0inf <- sobs %>% 
   filter(Species  == soi) %>%
-  filter(Year == "Y2") %>% #I'll remove this later
+  # filter(Year == "Y2") %>% #I'll remove this later
   group_by(Full.Point.ID, Route.ID, Year, Visit, Date, Species) %>% 
   reframe(Full.Point.ID, Route.ID, Year, Visit, Date, Species,
           Count = n()) %>% 
@@ -46,7 +46,7 @@ glimpse(sobs_count_0inf)
 
 #make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
-  filter(Year == "Y2") %>% 
+  # filter(Year == "Y2") %>% 
   tidyr::expand(nesting(Full.Point.ID, Route.ID, Year, Sky.Start,
                         Wind.Start, Visit, Date, Observer.ID))
 
@@ -75,15 +75,17 @@ brsp_count <- brsp_count %>%
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>% 
   mutate(Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0,
                                    TRUE ~ Burn.Sevarity)) %>%
-  mutate_at(c("Aspect", "Burn.Sevarity", 
-              "Fire.Name", "Observer.ID", "Route.ID"), factor) %>% 
   mutate(Burned = factor(Route.Type, levels = c("R", "B"))) %>% 
   mutate(Wind.Start = case_when(is.na(Wind.Start) ~ 'Unknown',
                                 TRUE ~ Wind.Start)) %>% 
   mutate(Wind.Start = factor(Wind.Start, levels = c("<1 mph", "1-3 mph", "4-7 mph",
-                                                    "8-12 mph", "13-18 mph", "Unknown"))) %>% 
+                                                    "8-12 mph", "13-18 mph", "Unknown"))) %>%
   mutate(Sky.Start = factor(Sky.Start, levels = c("Clear", "Partly Cloudy", "Cloudy",
-                                                  "Drizzle", "Fog or Smoke")))
+                                                  "Drizzle", "Fog or Smoke"))) %>%
+  mutate_at(c("Aspect", "Burn.Sevarity", 
+              "Fire.Name", "Observer.ID", "Route.ID"), factor) %>% 
+
+  select(-Species)
 
 # Fill in years since fire
 for(i in 1:nrow(brsp_count)) {
@@ -93,12 +95,12 @@ for(i in 1:nrow(brsp_count)) {
 }
 
 #...and view
-print(brsp_count)
+glimpse(brsp_count)
 
 #Create all observations of a single species
 brsp <- sobs %>% 
   filter(Species == soi) %>% #only one species
-  filter(Year == "Y2") %>% 
+  # filter(Year == "Y2") %>% 
   mutate(Burned = factor(Route.Type, levels = c("R", "B"))) %>% 
   dplyr::select(Distance, Minute, How.Detected, 
          Route.ID, Full.Point.ID, Observer.ID, Year, Visit,
@@ -182,16 +184,18 @@ head(brsp_count)
 
 #Prep the data for N-mixture model
 nmix_dat <- brsp_count %>% 
+  filter(Year == "Y2") %>% 
   mutate(Wind.Start = case_when(is.na(Wind.Start) ~ 'Unknown', #change the wind data
                                 TRUE ~ Wind.Start)) %>% 
   mutate(Wind.Start = factor(Wind.Start, levels = c("<1 mph", "1-3 mph", "4-7 mph",
                                                     "8-12 mph", "13-18 mph", "Unknown"))) %>% 
-  mutate(Wind.Start = as.numeric(Wind.Start)) %>% 
-  dplyr::select(Full.Point.ID, Visit, Count, Shrub.Cover, Wind.Start, Route.Type) %>% #Pull out only the variables of interest
-  pivot_wider(names_from = Visit, values_from = c('Count', 'Shrub.Cover', 'Wind.Start', "Route.Type")) %>% #Pivot the data so it can be turned into a matrix
+  dplyr::select(Full.Point.ID, Visit, Count, Shrub.Cover, Wind.Start, Route.Type) %>%  #Pull out only the variables of interest
+  pivot_wider(names_from = Visit, values_from = c('Count', 'Shrub.Cover', 'Wind.Start', "Route.Type")) %>%  #Pivot the data so it can be turned into a matrix
   drop_na(Count_V1, Count_V2) %>% #Remove the sites that were only visited once
   select(-Shrub.Cover_V2, - Route.Type_V2) %>% 
   mutate(Route.Type_V1 = factor(Route.Type_V1, levels = c("R", "B")))
+#...and view
+glimpse(nmix_dat)
 
 #Build Models ##############################################################################
 
@@ -636,14 +640,14 @@ abline(0, 1,lwd=2,col="black")
 
 ##############################################################################################################
 #Select only a single visit 
-brsp_count <- brsp_count %>% 
+count_v1 <- brsp_count %>% 
   filter(Visit == "V1")
 #...and view
-glimpse(brsp_count)
+glimpse(count_v1)
 
 #Model 5: Single parameter model for abundance with detentions binned by distance --------------------------
 sink("bayes_files\\brsp_model_distance")
-cat(
+cat("
   model{
     #Priors #################
     #Detection level priors
@@ -719,7 +723,7 @@ cat(
       
     } #k
   } #end model
-, fill = TRUE)
+", fill = TRUE)
 
 
 #Initial values
@@ -734,22 +738,22 @@ brsp_params <- c("pd_mean", "beta_lambda_burn", "beta_pd_wind", "N")
 #Bundle data
 brsp_data <- list(
   #Parameters
-  n = brsp_count$Count,
-  routes = as.numeric(as.factor(brsp_count$Route.ID)),
-  surveys = as.numeric(as.factor(brsp_count$Visit.ID)),
-  observers = as.numeric(as.factor(brsp_count$Observer.ID)),
-  burned = as.numeric(brsp_count$Burned),
+  n = count_v1$Count,
+  routes = as.numeric(as.factor(count_v1$Route.ID)),
+  surveys = as.numeric(as.factor(count_v1$Visit.ID)),
+  observers = as.numeric(as.factor(count_v1$Observer.ID)),
+  burned = as.numeric(count_v1$Burned),
   dist_class = brsp_obs$Dist.Bin,
   bin_midpoint = sort(unique(brsp_obs$Dist.Bin.Midpoint)),
-  wind = as.numeric(brsp_count$Wind.Start),
+  wind = as.numeric(count_v1$Wind.Start),
   delta = 10,
   max_dist = max(brsp_obs$Dist.Bin),
   
   #Length Objects
-  n_surveys = length(brsp_count$Visit.ID),               #k
-  n_routes = length(unique(brsp_count$Route.ID)),        #n
+  n_surveys = length(count_v1$Visit.ID),               #k
+  n_routes = length(unique(count_v1$Route.ID)),        #n
   n_observations = nrow(brsp_obs),                       #i
-  n_observers = length(unique(brsp_count$Observer.ID)),  #o
+  n_observers = length(unique(count_v1$Observer.ID)),  #o
   n_bins = length(unique(brsp_obs$Dist.Bin))             #b
 )
 

@@ -53,11 +53,11 @@
       pd[k] <- sum(pi_pd[,k])
     }#k
 
-    # ######## Observation-level model ----------------------------------
-    # for(i in 1:n_observations){
-    #   #single trial with categorical distribution linking distance class to survey point
-    #   dist_class[i] ~ dcat(pi_pd_conditional[,surveys[i]]) #come back to this pieces -------------------------
-    # } #i
+    ######## Observation-level model ----------------------------------
+    for(i in 1:n_observations){
+      #single trial with categorical distribution linking distance class to survey point
+      dist_class[i] ~ dcat(pi_pd_conditional[,surveys[i]]) #come back to this pieces -------------------------
+    } #i
 
     ################# Abundance level model  -----------------------------
     for(k in 1:n_surveys){

@@ -29,7 +29,7 @@ points <- read.csv("Data\\Inputs\\2024_Surveys\\Downloads\\Point_1.csv") %>%
   rename(GlobalID.Point = GlobalID,
          GlobalID.Survey = ParentGlobalID,
          Point.ID = Point..,
-         Start.Time = Start.Time.at.Point,
+         Point.Start.Time = Start.Time.at.Point,
          Shrub.Cover = Percent.of.the.area.within.50m.covered.by.any.shrub.species,
          Trees.Count = Count.the.number.of.trees.within.50m.of.the.point,
          Cheatgrass.Cover = Percent.of.the.area.within.50m.of.the.point.where.cheatgrass.is.present,
@@ -67,7 +67,7 @@ point_counts_all <- obs %>%
          Date,
          #Point level variables
          Point.ID,
-         Start.Time,
+         Point.Start.Time,
          Shrub.Cover,
          Cheatgrass.Cover,
          Trees.Count,
@@ -116,14 +116,15 @@ glimpse(point_counts_all)
 
 #One observers routes for the specified time period ############################################################################
 
+#Pick a date -----
+date <- "20240422"
+
 #Define all the observers
 observers <- point_counts_all %>% 
+  filter(Date == date) %>% 
   distinct(Observer.ID)
 #...and view
 glimpse(observers)
-
-#Pick a date -----
-date <- "20240422"
 
 #loop over all observers and export the results
 for(o in 1:nrow(observers)){
@@ -140,39 +141,39 @@ write.csv(point_counts, paste0("Data\\Inputs\\2024_Surveys\\Unedited\\surveys_",
 
 #Load the cleaned surveys back in #################################################################################################
 
-#Build a table of all survey dates
-visit_tbl <- point_counts_all %>% 
-  distinct(Date, Observer.ID)
-#...and view
-glimpse(visit_tbl)
-
-#create a blank data frame with the right column names
-surveys_cleaned <- point_counts_all %>% 
-  filter(Species == "Andian Cock-of-the-Rock") #Just a place holder so that we get an object with all the column names but no info
-#...and view
-glimpse(surveys_cleaned)
-
-#combine the cleaned surveyes
-for(k in 1:nrow(visit_tbl)){
-  #Pull out date
-  date <- visit_tbl$Date[k]
-  #pull out observer
-  observer <- visit_tbl$Observer.ID[k]
-  #add in that survey
-  survey_temp <- read.csv(paste0("Data\\Inputs\\2024_Surveys\\Edited\\surveys_", observer, "_", date, ".csv")) %>% 
-    mutate(Date = as.character(Date))
-  #Combine with other surveys
-  surveys_cleaned <- bind_rows(list(surveys_cleaned, survey_temp))
-}
-#...and view the result
-glimpse(surveys_cleaned)
-
-#How many total Surveys?
-surveys_cleaned %>% 
-  distinct(Route.ID, Year, Visit)
-  count(Route.ID)
-  
-#How many points?
-surveys_cleaned %>% 
-  distinct(Route.ID, Point.ID, Year, Visit) %>% 
-  count(Rounte.ID, Point.ID)
+# #Build a table of all survey dates
+# visit_tbl <- point_counts_all %>% 
+#   distinct(Date, Observer.ID)
+# #...and view
+# glimpse(visit_tbl)
+# 
+# #create a blank data frame with the right column names
+# surveys_cleaned <- point_counts_all %>% 
+#   filter(Species == "Andian Cock-of-the-Rock") #Just a place holder so that we get an object with all the column names but no info
+# #...and view
+# glimpse(surveys_cleaned)
+# 
+# #combine the cleaned surveyes
+# for(k in 1:nrow(visit_tbl)){
+#   #Pull out date
+#   date <- visit_tbl$Date[k]
+#   #pull out observer
+#   observer <- visit_tbl$Observer.ID[k]
+#   #add in that survey
+#   survey_temp <- read.csv(paste0("Data\\Inputs\\2024_Surveys\\Edited\\surveys_", observer, "_", date, ".csv")) %>% 
+#     mutate(Date = as.character(Date))
+#   #Combine with other surveys
+#   surveys_cleaned <- bind_rows(list(surveys_cleaned, survey_temp))
+# }
+# #...and view the result
+# glimpse(surveys_cleaned)
+# 
+# #How many total Surveys?
+# surveys_cleaned %>% 
+#   distinct(Route.ID, Year, Visit)
+#   count(Route.ID)
+#   
+# #How many points?
+# surveys_cleaned %>% 
+#   distinct(Route.ID, Point.ID, Year, Visit) %>% 
+#   count(Rounte.ID, Point.ID)
