@@ -32,7 +32,6 @@ nbreaks<-5 # number of distance bins
 breaks <- seq(0,maxd,by=maxd/nbreaks) # distance bins NOTE THAT THESE ARE OUTER BOUNDS OF EACH DISTANCE BIN AND NOT MIDPOINTS NEEDED FOR BUGS MODEL
 
 
-
 ####################################################################################################################
 ######## GENERATE HABITAT COVARIATES ###############################################################################
 # generate a spatially autocorrelated landscape
@@ -127,7 +126,8 @@ newwet<-wet/comp
 newag<-ag/comp
 newgrass<-grass/comp
 newtree<-tree/comp
-# Now assign NAs a reasonable habitat composition.  For simplicity - we assume all NA sites are 100% ag
+# Now assign NAs a reasonable habitat composition.
+For simplicity - we assume all NA sites are 100% ag
 newwet[is.na(newwet)]=0
 newag[is.na(newag)]=1
 newgrass[is.na(newgrass)]=0
@@ -406,6 +406,14 @@ delta<- maxd/nbreaks # bin size or width
 mdpts<-seq(delta/2,maxd,delta) # generates midpoint distance of bins up to max distance
 dclass<-x$d # distance class for each observation
 
+#Added by Will Harrod 05/07/2024 ###################################################################
+
+#Add dplyr
+library(dplyr)
+
+#View data
+glimpse(x)
+
 ########## DATA CREATION COMPLETE ####################################################################################
 
 # To run combined distance-sampling and time-removal model from Amundson et al. AUK in JAGS
@@ -415,9 +423,21 @@ library(R2jags)
 
 # Bundle data
 
-win.data<-list(y=y,surveyid=as.numeric(surveyid),dclass=as.numeric(dclass),nsurveys=nsites,nobs=nobs,delta=delta,nbreaks=nbreaks,
-               mdpts=mdpts,maxd=maxd,J=max(unique(tinterval)),tinterval=as.numeric(tinterval),tree=tree,grass=grass,
-               ag=ag,wet=wet,ntrans=ntrans,tran=transect$trans,date=date)
+win.data<-list(y=y,
+               surveyid=as.numeric(surveyid),
+               dclass=as.numeric(dclass),
+               nsurveys=nsites,
+               nobs=nobs,
+               delta=delta,
+               nbreaks=nbreaks,
+               mdpts=mdpts,
+               maxd=maxd,
+               J=max(unique(tinterval)),
+               tinterval=as.numeric(tinterval),
+               tree=tree,
+               grass=grass,
+               ag=ag,wet=wet,ntrans=ntrans,
+               tran=transect$trans,date=date)
 # create initial values for N and navail that are very close to actual values or model will not run!
 Nst<-win.data$y+1
 

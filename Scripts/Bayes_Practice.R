@@ -742,7 +742,7 @@ brsp_data <- list(
   routes = as.numeric(as.factor(count_v1$Route.ID)),
   surveys = as.numeric(as.factor(count_v1$Visit.ID)),
   observers = as.numeric(as.factor(count_v1$Observer.ID)),
-  burned = as.numeric(count_v1$Burned),
+  burned = as.numeric(count_v1$Burned) -1,
   dist_class = brsp_obs$Dist.Bin,
   bin_midpoint = sort(unique(brsp_obs$Dist.Bin.Midpoint)),
   wind = as.numeric(count_v1$Wind.Start),

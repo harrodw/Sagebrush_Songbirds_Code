@@ -11,129 +11,370 @@ library(stringr)
 library(ggplot2)
 library(lubridate)
 
+#clear environments
+rm(list = ls())
+
 #Start here ------------------------------------------------------------
+
+#Define the file path
 
 #Add in observation Data
 #2022 Observation data 
 obs_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_2022_Raw.csv"))
 #2023 observation data
-obs_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_Raw_2023.csv"))
+obs_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_2023_Raw.csv"))
+#2024 observation data 
+obs_24_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Observations_2024_Raw.csv"))
 
-#View the two datasets
+#View the tthree datasets
 glimpse(obs_22_raw)
 glimpse(obs_23_raw)
+glimpse(obs_24_raw)
 
-#Rename 2022 observations
 #View the 2022 names
 names(obs_22_raw)
 
-#rename the two datasets so they can be joined
 #storage object for new names for 2022 
-obs_22_names <- c(Minute.Raw= "Minute", 
-                  Species.Raw = "Species_Code", 
-                  Distance.Raw = "Radial_Distance",      
-                  How.Detected.Raw = "How_Detected.",       
-                  Song.Also.Raw = "Song_Also.",           
-                  Sex.Raw = "Sex",                  
-                  Visual.Raw = "Visual_Detection.",   
-                  Migrant.Raw = "Migrating.",
+obs_22_names <- c(Minute= "Minute", 
+                  Species = "Species_Code", 
+                  Distance = "Radial_Distance",      
+                  How.Detected = "How_Detected.",       
+                  Song.Also = "Song_Also.",           
+                  Sex = "Sex",                  
+                  Visual.ID = "Visual_Detection.",   
+                  Migrant = "Migrating.",
                   Obs.Notes = "Point_Notes",
                   Obs.Date = "CreationDate",        
-                  Creator = "Creator",              
-                  Edit.Date = "EditDate",            
-                  Editor = "Editor",
-                  Within.Burn.Raw = "Is_bird_within_burn.",
-                  Direction.Raw = "Direction",
-                  Global.ID.Obs = "GlobalID",
-                  Global.ID.Point = "ParentGlobalID")
+                  Direction = "Direction",
+                  GlobalID.Obs = "GlobalID",
+                  GlobalID.Point = "ParentGlobalID")
 
 #rename and remove the columns that I don't need
 obs_22 <- obs_22_raw %>% 
   dplyr::rename(all_of(obs_22_names)) %>% 
-  dplyr::select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
-         Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, 
-         Direction.Raw, Within.Burn.Raw,  #additional information
-         Obs.Date, Obs.Notes, #Notes
-         Global.ID.Obs, Global.ID.Point) %>% #join fields
-mutate(Distance.Raw = as.character(Distance.Raw)) #Make distance a character
+  dplyr::select(Species, Distance, Minute, How.Detected, #key observation information
+         Sex, Visual.ID, Migrant, Song.Also, 
+         Direction,  #additional information
+         Obs.Date, #Date
+         GlobalID.Obs, GlobalID.Point) %>% #join fields
+mutate(Distance = as.character(Distance)) #Make distance a character
 
 #View the updated dataframe
-str(obs_22) #2022 observations look good
+glimpse(obs_22) #2022 observations look good
 
 #Rename 2023 observations
 #View 2023 names
 names(obs_23_raw)
 
 #storage object for 2022 observanetions new names  
-obs_23_names <- c(Minute.Raw = "Minute", 
-                  Species.Raw = "X4.Letter.Species.Code", 
-                  Distance.Raw = "Radial.Distance..m.",      
-                  How.Detected.Raw = "How.Detected.",       
-                  Song.Also.Raw = "Song.Also.",           
-                  Sex.Raw = "Sex",                  
-                  Visual.Raw = "Visual.ID",   
-                  Migrant.Raw = "Migrant",
+obs_23_names <- c(Minute = "Minute", 
+                  Species = "X4.Letter.Species.Code", 
+                  Distance = "Radial.Distance..m.",      
+                  How.Detected = "How.Detected.",       
+                  Song.Also = "Song.Also.",           
+                  Sex = "Sex",                  
+                  Visual.ID = "Visual.ID",   
+                  Migrant = "Migrant",
                   Obs.Date = "CreationDate",        
-                  Creator = "Creator",              
-                  Edit.Date = "EditDate",            
-                  Editor = "Editor",
-                  Next.Observation  = "Next.Observation",
-                  Within.Burn.Raw = "Is.bird.within.burn.",
-                  Group.Size.Raw = "Number.of.Birds.in.Group",
-                  Direction.Raw = "Direction",
-                  Global.ID.Obs = "GlobalID",
-                  Global.ID.Point = "ParentGlobalID")
+                  Group.Size = "Number.of.Birds.in.Group",
+                  Direction = "Direction",
+                  GlobalID.Obs = "GlobalID",
+                  GlobalID.Point = "ParentGlobalID")
 
 #rename and remove the columns that I don't need
 obs_23 <- obs_23_raw %>% 
   dplyr::rename(all_of(obs_23_names)) %>% 
-  dplyr::select(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
-         Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, Direction.Raw, Within.Burn.Raw, #additional information
-         Group.Size.Raw,
-         Obs.Date, Global.ID.Obs, Global.ID.Point) %>% #join fields
-  mutate(Distance.Raw = as.character(Distance.Raw)) #Make distance a character
+  dplyr::select(Species, Distance, Minute, How.Detected, #key observation information
+         Sex, Visual.ID, Migrant, Song.Also, Direction, #additional information
+         Group.Size,
+         Obs.Date, GlobalID.Obs, GlobalID.Point) %>% #join fields
+  mutate(Distance = as.character(Distance)) #Make distance a character
 
 #Vew the 2023 observations
-str(obs_23)
+glimpse(obs_23)
 
-#Combine the two years of data
-obs_cleaned <- bind_rows(obs_22, obs_23) %>% 
-  dplyr::relocate(Species.Raw, Distance.Raw, Minute.Raw, How.Detected.Raw, #key observation information
-          Sex.Raw, Visual.Raw, Migrant.Raw, Song.Also.Raw, 
-          Direction.Raw, Within.Burn.Raw, #additional information
-          Group.Size.Raw, Obs.Notes,
-          Obs.Date, Global.ID.Point, Global.ID.Obs) %>% 
+#View the 2024 names
+names(obs_24_raw)
+
+#Rename the 2024 observations 
+obs_24_names <- c(GlobalID.Obs = "GlobalID",
+                           GlobalID.Point = "ParentGlobalID",
+                           Species = "X4.Letter.Species.Code",
+                           Distance = "Radial.Distance..m.",
+                           How.Detected = "How.Detected.",
+                           Song.Also = "Song.Also.",
+                           Obs.Date = "CreationDate", 
+                           Group.Size = "Number.of.Birds.in.Group")
+
+#rename and remove the columns that I don't need
+obs_24 <- obs_24_raw %>% 
+  dplyr::rename(all_of(obs_24_names)) %>% 
+  dplyr::select(Species, Distance, Minute, How.Detected, #key observation information
+                Sex, Visual.ID, Migrant, Song.Also, Direction, #additional information
+                Group.Size,
+                Obs.Date, GlobalID.Obs, GlobalID.Point) %>% #join fields
+  mutate(Distance = as.character(Distance)) #Make distance a character
+
+#...and view
+glimpse(obs_24)
+
+#Combine the three years of data
+obs_data <- bind_rows(obs_22, obs_23, obs_24) %>% 
+  dplyr::relocate(Species, Distance, Minute, How.Detected, #key observation information
+          Sex, Visual.ID, Migrant, Song.Also, 
+          Direction, #additional information
+          Group.Size,
+          Obs.Date, GlobalID.Point, GlobalID.Obs) %>% 
   tibble()
 
 #View the full dataframe
-str(obs_cleaned) #Looks good
+glimpse(obs_data) #Looks good
 
-#Cleaning up Observation Datasheet ----------------------------------------------                                                  
+#Cleaning up Observation Datasheet ########################################                                                 
 #First the species data
 
 #View the unique species observed
-obs_cleaned %>% 
-  dplyr::count(Species.Raw) %>% 
+obs_data %>% 
+  dplyr::count(Species) %>% 
   base::print(n = Inf)
 
 #View specific observations
-obs_cleaned %>% 
-  filter(Species.Raw == "")  #Change this based on which one I want to look at
+obs_data %>% 
+  filter(Species == "BHCI")  #Change this based on which one I want to look at
 
 #Capitalize Species Code
-obs_cleaned  <- obs_cleaned %>% 
-  mutate(Species = str_to_upper(Species.Raw)) %>% 
+obs_clean_species  <- obs_data %>% 
+  mutate(Species = str_to_upper(Species)) %>% 
   mutate(Species = str_remove_all(Species, "_")) %>% #remove "_, "
   mutate(Species = str_remove_all(Species, " "))
 
 #...and view
-obs_cleaned %>% 
+obs_clean_species  %>% 
   dplyr::count(Species) %>% 
   base::print(n = Inf)
   
-#Mutate incorrect species codes to corrected ones  
-obs_cleaned <- obs_cleaned %>% 
+#Mutate incorrect species codes to corrected ones --------------------------------------  
+obs_clean_species  <- obs_clean_species  %>% 
   mutate(Species = case_when(
+    Species ==  "MAKE" ~ "AMKE",
+    Species %in% c("ANGO", 
+                   "AGOL",
+                   "AMGF"
+    ) ~ "AMGO",
+    Species %in% c("AMRO",
+                   "AMRA"
+    ) ~ "AMRO",
+    Species %in% c("ATFC",
+                   "ASFL"
+    ) ~ "ATFL",
+    Species == "BASW" ~ "BARS",
+    Species %in% c("BLMA",
+                   "BBMP",
+                   "BTMJ",
+                   "BBMQ",
+                   "MAPI",
+                   "MTMP",
+                   "BLMG"
+    ) ~ "BBMA",
+    Species %in% c("BLCH"
+    ) ~ "BCCH",
+    Species %in% c("BGGC",
+                   "BGNA",
+                   "BLGN",
+                   "BGNC",
+                   "BLGN",
+                   "BGNC"
+    ) ~ "BGGN",
+    Species %in% c("BRCO",
+                   "BHCB",
+                   "BHCI"
+    ) ~ "BHCO",
+    Species %in% c("BRBB",
+                   "10BRBB'S",
+                   "BRBL",
+                   "BRBA",
+                   "BOBL"
+    ) ~ "BRBL",
+    Species %in% c("BRS",
+                   "BRAP",
+                   "BRSL",
+                   "BRSO",
+                   "BESP",
+                   "BRDP",
+                   "CCSP"
+    ) ~ "BRSP",
+    Species == "BBHU" ~ "BTHU",
+    Species %in% c("BLSP",
+                   "BTHS"
+    ) ~ "BTSP",
+    Species == "BAOW" ~ "BUOW",
+    Species == "BUSHTIT" ~ "BUSH",
+    Species == "CAWR" ~ "CANW",
+    Species == "CEWA" ~ "CEDW",
+    Species == "CHDP" ~ "CHSP",
+    Species %in% c("CHUKAR",
+                   "CHUKAR?",
+                   "CHUC",
+                   "CHUCK"
+    ) ~ "CHUK",
+    Species == "Coha" ~ "COHA",
+    Species %in% c("CONH",
+                   "NIHA",
+                   "NIGHTHAWK",
+                   "152"
+    ) ~ "CONI",
+    Species %in% c("CROA"
+    ) ~ "CORA",
+    Species %in% c("DAJU"
+    ) ~ "DEJU",
+    Species == "DEFL" ~ "DUFL",
+    Species %in% c("EUCO",
+                   "ECDO"
+    ) ~ "EUCD",
+    Species == "FERH" ~ "FEHA",
+    Species %in% c("GRPA",
+                        "GRAG",
+                        "HUPA"
+    ) ~ "GRAP",
+    Species %in% c("GRAYFLYCATCHER",
+                   "GFLC",
+                   "GFLC",
+                   "GRFC",
+                   "GRGL",
+                   "GTFL"
+    ) ~ "GRFL",
+    Species %in% c("SAGR",
+                   "GREATERSAGEGROUSE",
+                   "GSAG"
+    ) ~ "GRSG",
+    Species %in% c("GHSP",
+                   "GASP"
+    ) ~ "GRSP",
+    Species %in% c("GRTO",
+                   "GTRO",
+                   "GTTI",
+                   "GTTP",
+                   "GGTO",
+                   "GRTT",
+                   "20"
+    ) ~ "GTTO",
+    Species %in% c("HOFO"
+    ) ~ "HOFI",
+    Species %in% c("13HOLA'S",
+                   "HOL",
+                   "HORNEDLARK",
+                   "HKLA",
+                   "HOKA",
+                   "HOLS",
+                   "HOOA",
+                   "HORA",
+                   "107"
+    ) ~ "HOLA",
+    Species %in% c("HOWT"
+    ) ~ "HOWR",
+    Species %in% c("KIDE",
+                   "KILD"
+    ) ~ "KILL",
+    Species %in% c("LSSP",
+                   "LASL",
+                   "LARS",
+                   "LARK",
+                   "LAS0"
+    ) ~ "LASP",
+    Species %in% c("LABU",
+                   "LAZP",
+                   "LAZULIBUNTING",
+                   "LUBU",
+                   "LZBU",
+                   "INBU"
+    ) ~ "LAZB",
+    Species == "LOCU" ~ "LBCU",
+    Species %in% c("LEGE"
+    ) ~ "LEGO",
+    Species == "LHSH" ~ "LOSH",
+    Species %in% c("MBBL",
+                   "MOBB"
+    ) ~ "MOBL",
+    Species %in% c("MOSO",
+                   "MIDO",
+                   "MODA",
+                   "MODI"
+    ) ~ "MODO",
+    Species %in% c("MCWA",
+                   "MAWA",
+                   "MGMA"
+    ) ~ "MGWA",
+    Species %in% c("MOBI",
+                   "NONE",
+                   ""
+    ) ~ "NOBI",
+    Species %in% c("NORTHERNFLICKER"
+    ) ~ "NOFL",
+    Species == "NORTHERNHARRIER" ~ "NOHA",
+    Species %in% c("OCEA",
+                   "ORWA"
+    ) ~ "OCWA",
+    Species %in% c("OLFL"
+    ) ~ "OSFL",
+    Species == "PINJ" ~ "PIJA",
+    Species %in% c("PRFL",
+                   "SPOTTEDFALCON"
+    ) ~ "PRFA",
+    Species %in% c("RNPH",
+                   "RPHE",
+                   "RIPH"
+    ) ~ "RNEP",
+    Species %in% c("RODO"
+    ) ~ "ROPI",
+    Species %in% c("ROWE",
+                  "RORW",
+                   "ROQR",
+                   "ROHE",
+                   "ROWT",
+                   "ROWR?"
+    ) ~ "ROWR",
+    Species %in% c("REHA",
+                   "RTHU"
+    )~ "RTHA", 
+    Species %in% c("RWBB",
+                   "REBL"
+    ) ~ "RWBL",
+    Species %in% c("SAGS",
+                   "SASP",
+                   "SBSP"
+    ) ~ "SABS",
+    Species %in% c("SAND",
+                   "SHCR"
+    ) ~ "SACR",
+    Species %in% c("SAGT",
+                   "SATG",
+                   "SATR", 
+                   "151"
+    ) ~ "SATH",
+    Species %in% c("SHOW"
+    ) ~ "SEOW",
+    Species %in% c("SPOTTEDTOWHEE",
+                   "SPOT",
+                   "SPRO"
+    ) ~ "SPTO",
+    Species == "53" & Distance == "SPTO" ~ "SPTO",
+    Species == "TRSW" ~ "TRES",
+    Species %in% c("UN",
+                   "UNKNOWN",
+                   "BLTH",
+                   "283",
+                   "GFCA",
+                   "UNIB",
+                   "UNWP",
+                   "BBRS",
+                   "CALL",
+                   "FLOW"
+    ) ~ "UNBI",
+    Species == "UNBL" ~ "UNBB",
+    Species == "GOFI" ~ "UNFI",
+    Species == "FLYCATCHER" ~ "UNFL",
+    Species == "UNKNOWNOWL" ~ "UNOW",
+    Species == "WTSW" ~ "UNSW",
     Species %in% c("VEDP",
                    "VESO",
                    "VSSP",
@@ -142,7 +383,17 @@ obs_cleaned <- obs_cleaned %>%
                    "19",
                    "324"
     ) ~ "VESP",
-    Species == "53" & Distance.Raw == "VESP" ~ "VESP",
+    Species == "53" & Distance == "VESP" ~ "VESP",
+    Species %in% c("WAVE"
+    ) ~ "WAVI",
+    Species %in% c("WHSP",
+                   "WCDP",
+                   "WCRS",
+                   "WHCS"
+    ) ~ "WCSP",
+    Species %in%  c("WEKE",
+                    "KIBI"
+    ) ~ "WEKI",
     Species %in% c("MEWE",
                    "MELA",
                    "MEME",
@@ -153,188 +404,61 @@ obs_cleaned <- obs_cleaned %>%
                    "WRME",
                    "WEMA",
                    "WTMA",
+                   "EAME",
+                   "VEME",
+                   "WWME",
                    "132",
                    "222",
                    "60"
     ) ~ "WEME",
-    Species %in% c("13HOLA'S",
-                   "HOL",
-                   "HORNEDLARK",
-                   "107"
-    ) ~ "HOLA",
-    Species %in% c("RNPH",
-                   "RPHE"
-    ) ~ "RNEP",
-    Species %in% c("ROWE",
-                   "RORW",
-                   "ROQR",
-                   "ROHE",
-                   "ROWR?"
-    ) ~ "ROWR",
-    Species %in% c("MOBI",
-                   "NONE",
-                   ""
-    ) ~ "NOBI",
-    Species %in% c("LSSP",
-                   "LASL",
-                   "LARS"
-    ) ~ "LASP",
-    Species %in% c("CONH",
-                   "NIHA",
-                   "NIGHTHAWK",
-                   "152"
-    ) ~ "CONI",
-    Species %in% c("MOSO",
-                   "MIDO"
-    ) ~ "MODO",
-    Species %in% c("BLMA",
-                   "BBMP",
-                   "BTMJ",
-                   "BBMQ",
-                   "MAPI",
-                   "MTMP"
-    ) ~ "BBMA",
-    Species %in% c("BRS",
-                   "BRAP",
-                   "BRSL",
-                   "BRSO",
-                   "BESP"
-    ) ~ "BRSP",
-    Species %in% c("GRTO",
-                   "GTRO",
-                   "GTTI",
-                   "GTTP",
-                   "20"
-    ) ~ "GTTO",
-    Species %in% c("SAGT",
-                   "SATG",
-                   "151"
-    ) ~ "SATH",
-    Species %in% c("SPOTTEDTOWHEE",
-                   "SPOT",
-                   "SPRO"
-    ) ~ "SPTO",
-    Species == "53" & Distance.Raw == "SPTO" ~ "SPTO",
-    Species %in% c("SAGS",
-                   "SASP",
-                   "SBSP"
-    ) ~ "SABS",
-    Species %in% c("GRPA",
-                   "GRAG",
-                   "HUPA"
-    ) ~ "GRAP",
-    Species %in% c("LABU",
-                   "LAZP",
-                   "LAZULIBUNTING",
-                   "LUBU"
-    ) ~ "LAZB",
-    Species %in% c("UN",
-                   "UNKNOWN",
-                   "BLTH",
-                   "283",
-                   "GFCA"
-    ) ~ "UNBI",
-    Species %in% c("WHSP",
-                   "WCDP"
-    ) ~ "WCSP",
-    Species %in% c("GRAYFLYCATCHER",
-                   "GFLC",
-                   "GFLC",
-                   "GRFC"
-    ) ~ "GRFL",
-    Species %in% c("CHUKAR",
-                   "CHUKAR?",
-                   "CHUC",
-                   "CHUCK"
-    ) ~ "CHUK",
-    Species %in% c("ATFC",
-                   "ASFL"
-    ) ~ "ATFL",
+    Species %in% c("WWPE"
+    ) ~ "WEWP",
     Species %in% c("TURKEY",
                    'WITA'
     ) ~ "WITU",
-    Species %in% c("BRCO",
-                   "BHCB"
-    ) ~ "BHCO",
-    Species %in% c("SAGR",
-                   "GREATERSAGEGROUSE",
-                   "GSAG"
-    ) ~ "GRSG",
-    Species %in% c("BRBB",
-                   "10BRBB'S"
-    ) ~ "BRBL",
-    Species %in% c("BGGC",
-                   "BGNA",
-                   "BLGN"
-    ) ~ "BGGN",
-    Species %in% c("AMRO",
-                   "AMRA") ~ "AMRO",
-    Species ==   "ECDO" ~ "EUCD",
-    Species == "NORTHERNFLICKER" ~ "NOFL",
-    Species == "KIDE" ~ "KILL",
-    Species == "SAND" ~ "SACR",
-    Species == "NORTHERNHARRIER" ~ "NOHA",
-    Species == "SPOTTEDFALCON" ~ "PRFA",
-    Species == "FLYCATCHER" ~ "UNFL",
-    Species == "LOCU" ~ "LBCU",
-    Species == "UNKNOWNOWL" ~ "UNOW",
-    Species == "BLGN" ~ "BGGN",
-    Species == "BUSHTIT" ~ "BUSH",
-    Species == "BASW" ~ "BARS",
-    Species == "CHDP" ~ "CHSP",
-    Species == "REHA" ~ "RTHA", 
-    Species ==  "MAKE" ~ "AMKE",
-    Species == "LHSH" ~ "LOSH",
-    Species == "TRSW" ~ "TRES",
-    Species == "GHSP" ~ "GRSP",
-    Species == "Coha" ~ "COHA",
-    Species == "WTSW" ~ "WTSP",
-    Species == "ANGO" ~ "AMGO",
-    Species == "BBHU" ~ "BTHU",
-    Species == "BAOW" ~ "BUOW",
-    Species == "PINJ" ~ "PIJA",
-    Species == "BLSP" ~ "BTSP",
-    Species == "AUWA" ~ "YRWA",
-    Species == "CAWR" ~ "CANW",
-    Species == "CEWA" ~ "CEDW",
-    Species == "DEFL" ~ "DUFL",
-    Species == "RTHU" ~ "UNHU",
-    Species == "FERH" ~ "FEHA",
-    Species == "GOFI" ~ "UNFI",
-    Species == "MAWA" ~ "MGMA",
-    Species == "RWBB" ~ "RWBL",
+    Species %in% c("BLJA"
+    ) ~ "WOSJ",
     Species == "YECH" ~ "YBCH",
-    Species == "YHBK" ~ "YHBL",
-    Species == "UNBB" ~ "UNBL",
+    Species %in% c("YEWS",
+                   "YEWW"
+    ) ~ "YEWA",
+    Species %in% c("YHBK",
+                   "YHBB"
+    ) ~ "YHBL",
+    Species == "AUWA" ~ "YRWA",
     TRUE ~ as.character(Species)
   ))
 
 #check for any missing corrections
-obs_cleaned %>% 
+obs_clean_species  %>% 
   dplyr::count(Species) %>% 
   base::print(n = Inf)
 
+##########Syill need to look at LEOW, LEWO, LISP ##############################
+
 #check for blank species
-obs_cleaned %>% 
+obs_clean_species  %>% 
   filter(is.na(Species)) 
 #none :)
 
-str(obs_cleaned)
+glimpse(obs_clean_species )
 #I think this looks good for now
 
 #Fix Distances ----------------------------------------------------
+obs_clean_dist <- obs_clean_species
+
 #View raw distances
-obs_cleaned %>% 
-  dplyr::count(Distance.Raw) %>% 
+obs_clean_dist %>% 
+  dplyr::count(Distance) %>% 
   base::print(n = Inf)
 
 #View specific distances
-obs_cleaned %>% 
-  filter(Distance.Raw == "0NEST")
+obs_clean_dist %>% 
+  filter(Distance == "0NEST")
 
 #Make a clean distance column
-obs_cleaned <- obs_cleaned %>% 
-  mutate(Distance = str_remove_all(Distance.Raw, "_")) %>% # remove _
+obs_clean_dist <- obs_clean_dist %>% 
+  mutate(Distance = str_remove_all(Distance, "_")) %>% # remove _
   mutate(Distance = str_remove_all(Distance, "[a-z]")) %>% #remove lower case letters
   mutate(Distance = str_remove_all(Distance, "[A-Z]")) %>% #Remove capitol letters
   mutate(Distance = case_when(str_detect(Distance, ">") ~ "999", #I'm making the decision to 
@@ -344,84 +468,88 @@ obs_cleaned <- obs_cleaned %>%
                               TRUE ~ as.character(Distance)))
 
 #View clean distances
-obs_cleaned %>% 
+obs_clean_dist %>% 
   dplyr::count(Distance) %>%
   base::print(n = Inf)
 
 #Convert distance to numeric
-obs_cleaned <- obs_cleaned %>% 
+obs_clean_dist <- obs_clean_dist %>% 
   mutate(Distance = as.numeric(Distance))
 
 #make sure the NA's carried over correctly
-obs_cleaned %>% 
+obs_clean_dist %>% 
   filter(is.na(Distance)) %>% 
-  dplyr::count(Distance.Raw, Distance)
+  dplyr::count(Distance, Distance)
 
 #plot distances
-# obs_cleaned %>% 
+# obs_clean_dist %>% 
 #   ggplot(aes(x = Distance)) +
 #   geom_histogram(col = "black", fill = "gray") +
 #   theme_bw()
 
 #View the data
-str(obs_cleaned)
+glimpse(obs_clean_dist)
 
 #remove the nest observation
 #check how many rows we start with
-nrow(obs_cleaned)
+nrow(obs_clean_dist)
 
 #create an object for all raw distances
-obs_cleaned <- obs_cleaned %>% 
-  filter(! Distance.Raw %in% c("0NEST"))
+obs_clean_dist <- obs_clean_dist %>% 
+  filter(! Distance %in% c("0NEST"))
 
 #how many rows after I remove the nest?
-nrow(obs_cleaned)
+nrow(obs_clean_dist)
 
 #Fix direction codes ------------------------------------------------------
+obs_clean_dirc <- obs_clean_dist
+
 #View all raw directions
-obs_cleaned %>% 
-  dplyr::count(Direction.Raw) %>% 
+obs_clean_dirc %>% 
+  dplyr::count(Direction) %>% 
   base::print(n = Inf)
 
 #Make a clean direction column
-obs_cleaned <- obs_cleaned %>% 
+obs_clean_dirc <- obs_clean_dirc %>% 
   mutate(Direction = case_when(
-    Direction.Raw == "n" ~ "N",
-    Direction.Raw == "North" ~ "N",
-    Direction.Raw == "ne" ~ "NE",
-    Direction.Raw == "Norteast" ~ "NE",
-    Direction.Raw == "e" ~ "E",
-    Direction.Raw == "East" ~ "E",
-    Direction.Raw == "se" ~ "SE",
-    Direction.Raw == "Southeast" ~ "SE",
-    Direction.Raw == "s" ~ "S",
-    Direction.Raw == "South" ~ "S",
-    Direction.Raw == "sw" ~ "SW",
-    Direction.Raw == "Southwest" ~ "SW",
-    Direction.Raw == "w" ~ "W",
-    Direction.Raw == "West" ~ "W",
-    Direction.Raw == "nw" ~ "NW",
-    Direction.Raw == "Northwest" ~ "NW"
+    Direction == "n" ~ "N",
+    Direction == "North" ~ "N",
+    Direction == "ne" ~ "NE",
+    Direction == "Norteast" ~ "NE",
+    Direction == "e" ~ "E",
+    Direction == "East" ~ "E",
+    Direction == "se" ~ "SE",
+    Direction == "Southeast" ~ "SE",
+    Direction == "s" ~ "S",
+    Direction == "South" ~ "S",
+    Direction == "sw" ~ "SW",
+    Direction == "Southwest" ~ "SW",
+    Direction == "w" ~ "W",
+    Direction == "West" ~ "W",
+    Direction == "nw" ~ "NW",
+    Direction == "Northwest" ~ "NW"
   ))
 
 #View the new directions
-obs_cleaned %>% 
+obs_clean_dirc %>% 
   distinct(Direction)
 
 # Fix song also ----------------------------------------------
+obs_clean_song <- obs_clean_dirc
+
 #view song also
-obs_cleaned %>% 
-  dplyr::count(Song.Also.Raw) %>% 
+obs_clean_song %>% 
+  dplyr::count(Song.Also) %>% 
   base::print(n = Inf)
 
 #View specific songs
-obs_cleaned %>% 
-  filter(Song.Also.Raw == "(begging)")
+obs_clean_song %>% 
+  filter(Song.Also == "(begging)")
 
 #make a clean song also column
-obs_cleaned <- obs_cleaned %>% 
+obs_clean_song <- obs_clean_song %>% 
   mutate(Song.Also = case_when(
-    Song.Also.Raw %in% c("(begging)",
+    Song.Also %in% c("(begging)",
                      "Call",
                      "n",
                      "no",
@@ -432,7 +560,7 @@ obs_cleaned <- obs_cleaned %>%
                      "N"
                      
     ) ~ "N",
-    Song.Also.Raw %in% c("yes",
+    Song.Also %in% c("yes",
                      "Yes",
                      "y",
                      "yew",
@@ -444,132 +572,171 @@ obs_cleaned <- obs_cleaned %>%
                      "Y"
                      
     ) ~ "Y",
-    Song.Also.Raw == "" & Species != "NOBI" ~ "N",
-    Song.Also.Raw == "" & Species == "NOBI" ~ NA))
+    Song.Also == "" & Species != "NOBI" ~ "N",
+    Song.Also == "" & Species == "NOBI" ~ NA))
 
 #View clean song
-obs_cleaned %>% 
+obs_clean_song %>% 
   dplyr::count(Song.Also) %>% 
   base::print(n = Inf)
 
 #Fix detection type -----------------------------------------
+obs_clean_detc <- obs_clean_song
+
 #View detection type
-obs_cleaned %>% 
-  dplyr::count(How.Detected.Raw) %>% 
-  base::print(n = Inf)
-
-#view specific detections
-obs_cleaned %>% 
-  filter(How.Detected.Raw == "D")
-
-#then clean
-obs_cleaned <- obs_cleaned %>%
-  mutate(How.Detected = case_when(
-    How.Detected.Raw == "OA" ~ "O",
-    How.Detected.Raw == "D" & Species != "NOFL" ~ NA,
-    TRUE ~ as.character(How.Detected.Raw)))
-
-#View clean detection type
-obs_cleaned %>% 
+obs_clean_detc %>% 
   dplyr::count(How.Detected) %>% 
   base::print(n = Inf)
 
-#fix sex ---------------------------------------------
-#view raw sex data
-obs_cleaned %>% 
-  dplyr::count(Sex.Raw) %>% 
+#view specific detections
+obs_clean_detc %>% 
+  filter(How.Detected == "D")
+
+#then clean
+obs_clean_detc <- obs_clean_detc %>%
+  mutate(How.Detected = case_when(
+    How.Detected == "OA" ~ "O",
+    How.Detected == "D" & Species != "NOFL" ~ NA,
+    TRUE ~ as.character(How.Detected)))
+
+#View clean detection type
+obs_clean_detc %>% 
+  dplyr::count(How.Detected) %>% 
   base::print(n = Inf)
 
-#None of these need to be fixed yet
-obs_cleaned <- obs_cleaned %>% 
-  mutate(Sex = Sex.Raw)
+#View the how detected NA's
+obs_clean_detc %>% 
+  filter(is.na(How.Detected))
+
+#fix sex ---------------------------------------------
+obs_clean_sex <- obs_clean_detc
+
+#view raw sex data
+obs_clean_sex %>% 
+  dplyr::count(Sex) %>% 
+  base::print(n = Inf)
+
+#Change the blanks to Unknown
+obs_clean_sex <- obs_clean_sex %>% 
+  mutate(Sex = case_when(Sex == "" ~ "U",
+                         TRUE ~ Sex))
+
+#View again
+obs_clean_sex %>% 
+  dplyr::count(Sex) %>% 
+  base::print(n = Inf)
 
 #fix migration -------------------------------------------------------------------
+obs_clean_mig <- obs_clean_sex
 
 #View raw migration data
-obs_cleaned %>% 
-  dplyr::count(Migrant.Raw) %>% 
+obs_clean_mig %>% 
+  dplyr::count(Migrant) %>% 
   base::print(n = Inf)
 
 #create a clean migrant column
-obs_cleaned <- obs_cleaned %>% 
+obs_clean_mig <- obs_clean_mig %>% 
   mutate(Migrant = case_when(
-    Migrant.Raw == "m" ~ "Y",
-    Migrant.Raw == "Yes" ~ "Y",
-    Migrant.Raw == "" & Species != "NOBI" ~ "N",
-    TRUE ~ NA
+    Migrant == "m" ~ "Y",
+    Migrant == "Yes" ~ "Y",
+    is.na(Migrant) & Species != "NOBI" ~ "N",
+    Migrant == "" & Species != "NOBI" ~ "N",
+    Migrant == "" & Species == "NOBI" ~ NA,
   ))
 
 #View clean migration data
-obs_cleaned %>% 
+obs_clean_mig %>% 
   dplyr::count(Migrant) %>% 
   base::print(n = Inf)
 
 #fix group size -------------------------------------------------------------------------
+obs_clean_grp <- obs_clean_mig
+
 #View raw group size data
-obs_cleaned %>% 
-  dplyr::count(Group.Size.Raw) %>% 
+obs_clean_grp %>% 
+  dplyr::count(Group.Size) %>% 
   base::print(n = Inf)
 
 #clean group size
-obs_cleaned <- obs_cleaned %>% 
-  mutate(Group.Size = case_when(Species.Raw == "10_BRBB's" ~ 10, #Replace wierd observations
-                                Species.Raw == "13_HOLA's" ~ 13,
-                                TRUE ~ as.integer(Group.Size.Raw))) %>%  #default is normal values
+obs_clean_grp <- obs_clean_grp %>% 
+  mutate(Group.Size = case_when(Species == "10_BRBB's" ~ 10, #Replace wierd observations
+                                Species == "13_HOLA's" ~ 13,
+                                TRUE ~ as.integer(Group.Size))) %>%  #default is normal values
   mutate(Group.Size = replace_na(Group.Size, 1)) %>% 
   mutate(Group.Size = case_when(Species == "NOBI" ~ NA, #Replace NOBI obs with na's for this
                                 TRUE ~ Group.Size))
 
 #View clean group size data
-obs_cleaned %>% 
+obs_clean_grp %>% 
   dplyr::count(Group.Size) %>% 
   base::print(n = Inf)
 
-#Fix Visual ID
+#Fix Visual ID -------------------------------------
+obs_clean_vis <- obs_clean_grp
+
 #View raw visual id
-obs_cleaned %>% 
-  dplyr::count(Visual.Raw) %>% 
+obs_clean_grp %>% 
+  dplyr::count(Visual.ID) %>% 
   base::print(n = Inf)
 
 #Change visual
-obs_cleaned <- obs_cleaned %>% 
-  mutate(Visual.ID = case_when(Visual.Raw %in% c("Yes", "v") ~ "Y",
-                              Visual.Raw == "No" ~ "N",
-                              TRUE ~ "UK")) %>%           #The default is we don't know 
+obs_clean_vis <- obs_clean_vis %>% 
+  mutate(Visual.ID = case_when(Visual.ID %in% c("Yes", "v") ~ "Y",
+                              Visual.ID == "No" ~ "N",
+                              TRUE ~ NA)) %>%           #The default is we don't know 
   mutate(Visual.ID = case_when(Species == "NOBI" ~ NA,
                                TRUE ~ Visual.ID)) #whether they saw the bird or not
 
 #View clean visual id
-obs_cleaned %>% 
+obs_clean_vis %>% 
   dplyr::count(Visual.ID) %>% 
   base::print(n = Inf)
 
 #Fix Minute ---------------------------------------
-#View minutes
-obs_cleaned %>%
-  distinct(Minute.Raw)
+obs_clean_min <- obs_clean_vis
 
+#View minutes
+obs_clean_min %>%
+  distinct(Minute)
 
 #they look good, I just need to turn them into characters
-obs_cleaned <- obs_cleaned %>% 
-  mutate(Minute = case_when(Minute.Raw == 1 ~ "01",
-                             Minute.Raw == 2 ~ "02",
-                             Minute.Raw == 3 ~ "03",
-                             Minute.Raw == 4 ~ "04",
-                             Minute.Raw == 5 ~ "05",
-                             Minute.Raw == 6 ~ "06",
-                             is.na(Minute.Raw) ~ NA))
+obs_clean_min <- obs_clean_min %>% 
+  mutate(Minute = case_when(Minute == 1 ~ "01",
+                             Minute == 2 ~ "02",
+                             Minute == 3 ~ "03",
+                             Minute == 4 ~ "04",
+                             Minute == 5 ~ "05",
+                             Minute == 6 ~ "06",
+                             is.na(Minute) ~ NA))
 
 
 #View cleaned minutes
-obs_cleaned %>%
+obs_clean_min %>%
   dplyr::count(Minute)
 
+#View the NA minuutes
+obs_clean_min %>% 
+  filter(is.na(Minute))
+
+#Remove those NOBI's
+obs_clean_min <- obs_clean_min %>% 
+  mutate(Remove = case_when(Species == "NOBI" & is.na(Minute) ~ T,
+                            TRUE ~ F)) %>% 
+  filter(Remove == F) %>% 
+  select(-Remove)
+
+#View the NA minuutes again
+obs_clean_min %>% 
+  filter(is.na(Minute))
+
+#Check the length again
+nrow(obs_clean_min)
+
 #change blank cells to NA and select useful columns ---------------------------------
-observations <- obs_cleaned %>% 
+observations <- obs_clean_min %>% 
   dplyr::select(Species, Distance, Minute, How.Detected, Song.Also, #only keep useful columns
          Direction, Song.Also, Sex, Migrant, Group.Size, Visual.ID,
-         Obs.Date, Obs.Notes, Global.ID.Obs, Global.ID.Point) %>% 
+         Obs.Date, GlobalID.Obs, GlobalID.Point) %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
 
 #View the cleaned data
@@ -581,159 +748,190 @@ glimpse(observations)
 #2022 point data
 points_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_2022_Raw.csv"))
 #2023 point data
-points_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_Raw_2023.csv"))
+points_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_2023_Raw.csv"))
+#2024 point data
+points_24_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_2024_Raw.csv"))
 
-#View the two datasets
+#View the three datasets
 glimpse(points_22_raw)
 glimpse(points_23_raw)
+glimpse(points_24_raw)
 
-#Rename 2022 points
+#Rename 2022 points ----
 #View the 2022 names
 names(points_22_raw)
 
 #object for renaming 2022 points
-points_22_names <- c(Point.Time = "Start.Time.at.Point",
-                     Point.ID.Raw = "Point..",
-                     Cheatgrass = "Cheatgrass.Present.",
-                     Global.ID.Point = "GlobalID",
-                     Global.ID.Survey = "ParentGlobalID")
+points_22_names <- c(GlobalID.Point = "GlobalID",
+                     GlobalID.Survey = "ParentGlobalID",
+                     Point.Time = "Start.Time.at.Point",
+                     Point.ID = "Point.."
+)
 
 #Pull out what I need from the points dataset and rename
 points_22 <- points_22_raw %>% 
   dplyr::rename(all_of(points_22_names)) %>% 
-  dplyr::select(Point.ID.Raw, Point.Time, 
-         Point.Notes, Global.ID.Point, Global.ID.Survey,
+  dplyr::select(Point.ID, Point.Time, 
+         Point.Notes, GlobalID.Point, GlobalID.Survey,
          x, y)
 
 #View the cleaned 2022 point data
 glimpse(points_22)
 
-#rename the 2023 points
+#rename the 2023 points ----
 #view 2023 names
 names(points_23_raw)
 
-#object for renaming 2022 points
-points_23_names <- c(Point.Time = "Start.Time.at.Point",
-                     Point.ID.Raw = "Point..",
-                     Cheatgrass = "Cheatgrass.Present.",
-                     Percent.Area.Burned = "Percent.of.Area.Burned",
-                     Global.ID.Point = "GlobalID",
-                     Global.ID.Survey = "ParentGlobalID")
+#object for renaming 2023 points
+points_23_names <- c(GlobalID.Point = "GlobalID",
+                     GlobalID.Survey = "ParentGlobalID",
+                     Point.Time = "Start.Time.at.Point",
+                     Point.ID = "Point.."
+)
 
 #Pull out what I need from the points dataset and rename
 points_23 <- points_23_raw %>% 
   dplyr::rename(all_of(points_23_names)) %>% 
-  dplyr::select(Point.ID.Raw, Point.Time, 
-         Point.Notes, Global.ID.Point, Global.ID.Survey,#make sure the point id fields match
+  dplyr::select(Point.ID, Point.Time, 
+         Point.Notes, GlobalID.Point, GlobalID.Survey,#make sure the point id fields match
          x, y) %>%  
-  mutate(Point.ID.Raw = as.character(Point.ID.Raw))
+  mutate(Point.ID = as.character(Point.ID))
   
 #View the cleaned 2023 point data
 glimpse(points_23)
 
-#combine the two years of point data
-points_cleaned <- bind_rows(points_22, points_23)
+#rename the 2024 points ----
+#view 2024 names
+names(points_24_raw)
+
+#object for renaming 2024 points
+points_24_names <- c(GlobalID.Point = "GlobalID",
+                     GlobalID.Survey = "ParentGlobalID",
+                     Point.ID = "Point..",
+                     Point.Time = "Start.Time.at.Point",
+                     Shrub.Cover = "Percent.of.the.area.within.50m.covered.by.any.shrub.species",
+                     Shrub.Height = "Average.height.of.shrubs.within.50m.of.the.point..cm.",
+                     Trees.Count = "Count.the.number.of.trees.or.snags.within.50m.of.the.point",
+                     Cheatgrass.Cover = "Percent.of.the.area.within.50m.of.the.point.where.cheatgrass.is.present"
+)
+
+#Pull out what I need from the points dataset and rename
+points_24 <- points_24_raw %>% 
+  dplyr::rename(all_of(points_24_names)) %>% 
+  dplyr::select(Point.ID, Point.Time, 
+                Shrub.Cover, Shrub.Height, Trees.Count, Cheatgrass.Cover,
+                Point.Notes, GlobalID.Point, GlobalID.Survey,#make sure the point id fields match
+                x, y) %>%  
+  mutate(Point.ID = as.character(Point.ID))
+
+#View the cleaned 2024 point data
+glimpse(points_24)
+
+#combine the three years of point data
+points_clean_numb <- bind_rows(points_22, points_23, points_24)
 
 #View the full raw point data
-glimpse(points_cleaned)
+glimpse(points_clean_numb)
 
 #Standardize point numbers -------------------------------
 #view point numbers
-points_cleaned %>% 
-  dplyr::count(Point.ID.Raw) %>% 
+points_clean_numb %>% 
+  dplyr::count(Point.ID) %>% 
   base::print(n = Inf)
 
 #clean point numbers
-points_cleaned <- points_cleaned %>% 
+points_clean_numb <- points_clean_numb %>% 
   mutate(Point.ID = as.character(case_when(
-    Point.ID.Raw == "1" ~ "01",
-    Point.ID.Raw == "2" ~ "02",
-    Point.ID.Raw == "3" ~ "03",
-    Point.ID.Raw == "4" ~ "04",
-    Point.ID.Raw == "5" ~ "05",
-    Point.ID.Raw == "6" ~ "06",
-    Point.ID.Raw == "7" ~ "07",
-    Point.ID.Raw == "8" ~ "08",
-    Point.ID.Raw == "9" ~ "09",
-    Point.ID.Raw == "10" ~ "10",
-    Point.ID.Raw == "11" ~ "11",
-    Point.ID.Raw == "12" ~ "12",
-    Point.ID.Raw == "13" ~ "13",
-    Point.ID.Raw == "14" ~ "14",
-    Point.ID.Raw == "15" ~ "15",
-    Point.ID.Raw == "16" ~ "16", 
-    TRUE ~ Point.ID.Raw
+    Point.ID == "1" ~ "01",
+    Point.ID == "2" ~ "02",
+    Point.ID == "3" ~ "03",
+    Point.ID == "4" ~ "04",
+    Point.ID == "5" ~ "05",
+    Point.ID == "6" ~ "06",
+    Point.ID == "7" ~ "07",
+    Point.ID == "8" ~ "08",
+    Point.ID == "9" ~ "09",
+    Point.ID == "10" ~ "10",
+    Point.ID == "11" ~ "11",
+    Point.ID == "12" ~ "12",
+    Point.ID == "13" ~ "13",
+    Point.ID == "14" ~ "14",
+    Point.ID == "15" ~ "15",
+    Point.ID == "16" ~ "16", 
+    TRUE ~ Point.ID
   )))
 
 #View the clean point id's
-points_cleaned %>% 
+points_clean_numb %>% 
   dplyr::count(Point.ID) %>% 
   base::print(n = Inf)
 
 #Remove the nest points ------------------------------------------
+points_clean_nest <- points_clean_numb
+
 #check how long the point tibble is before the change
 #it should only shrink by 2 rows
-nrow(points_cleaned)
+nrow(points_clean_nest)
 
 #remove nest points
-points_cleaned <- points_cleaned %>% 
+points_clean_nest <- points_clean_nest %>% 
   filter(Point.ID %in% c("01", "02", "03", "04", "05", "06", "07", "08",
                          "09", "10", "11", "12", "13", "14", "15", "16"))
 
 #check length again
-nrow(points_cleaned)
-
+nrow(points_clean_nest)
 
 #Select on the point columns that I will need --------------------------------
-points <- points_cleaned %>% 
-  dplyr::select(Point.ID, Point.Time,
-         Point.Notes, Global.ID.Point, Global.ID.Survey, x, y) %>% 
+points <- points_clean_nest %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
 
 #Final look at the point data
 glimpse(points)
 #Finished cleaning the point data ----------------------------------------------------
 
-#Clean survey data -----------------------------------------------------------
+#Clean survey data ########################################################################
 #Add in survey data
 #2022 survey data
 surveys_22_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Surveys_2022_Raw.csv"))
 #2023 survey data
-surveys_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Surveys_Raw_2023.csv"))
+surveys_23_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Surveys_2023_Raw.csv"))
+#2024 survey data
+surveys_24_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Surveys_2024_Raw.csv"))
 
 #View the two datasets
 glimpse(surveys_22_raw)
 glimpse(surveys_23_raw)
+glimpse(surveys_24_raw)
 
 #rename surveys and combine data ----------------------------------------------------
 #Rename 2022 surveys
 #View the 2022 names
-names(surveys_22_raw)
+glimpse(surveys_22_raw)
 
 #object for renaming 2022 surveys
-surveys_22_names <- c(Route.ID.Raw = "Transect.ID",
-                      Visit.Raw = "Visit..",
-                      Observer.ID.Raw = "Observer.Name",
-                      Temp.Start.Raw = "Start.Temperature",
-                      Temp.End.Raw = "End.Temperature",
-                      Wind.Start.Raw = "Wind.Start",
-                      Wind.End.Raw = "Wind.End",
-                      Sky.Start.Raw = "Sky.Start",
-                      Sky.End.Raw= "Sky.End",
-                      Date.Time.Raw = "Date.and.Start.Time",
-                      Global.ID.Survey = "GlobalID")
+surveys_22_names <- c(Route.ID = "Transect.ID",
+                      Visit = "Visit..",
+                      Observer.ID = "Observer.Name",
+                      Temp.Start = "Start.Temperature",
+                      Temp.End = "End.Temperature",
+                      Wind.Start = "Wind.Start",
+                      Wind.End = "Wind.End",
+                      Sky.Start = "Sky.Start",
+                      Sky.End= "Sky.End",
+                      Date.Time = "Date.and.Start.Time",
+                      GlobalID.Survey = "GlobalID")
 
 #rename and select useful columns
 surveys_22 <- surveys_22_raw %>% 
   dplyr::rename(all_of(surveys_22_names)) %>% 
-  dplyr::select(Route.ID.Raw, Visit.Raw, Date.Time.Raw,
-         Observer.ID.Raw,
-         Sky.Start.Raw, Sky.End.Raw, Temp.Start.Raw, 
-         Temp.End.Raw, Wind.Start.Raw, Wind.End.Raw,
-         Date.Time.Raw, Global.ID.Survey) %>% 
-  mutate_at(c("Visit.Raw", "Sky.Start.Raw", 
-              "Sky.End.Raw", "Wind.Start.Raw", "Wind.End.Raw", 
-              "Temp.Start.Raw", "Temp.End.Raw"), 
+  dplyr::select(Route.ID, Visit, Date.Time,
+         Observer.ID,
+         Sky.Start, Sky.End, Temp.Start, 
+         Temp.End, Wind.Start, Wind.End,
+         Date.Time, GlobalID.Survey) %>% 
+  mutate_at(c("Visit", "Sky.Start", 
+              "Sky.End", "Wind.Start", "Wind.End", 
+              "Temp.Start", "Temp.End"), 
             as.character) #standardize some of the variables
 
 #view the cleaned 2022 surveys
@@ -741,95 +939,122 @@ glimpse(surveys_22)
 
 #Rename 2023 surveys
 #View the 2023 names
-str(surveys_23_raw)
-names(surveys_23_raw)
+glimpse(surveys_23_raw)
 
 #object for renaming 2023 surveys
-surveys_23_names <- c(Route.ID.Raw = "Route.ID",
-                      Year.Raw = "Year",
-                      Visit.Raw = "Visit.Number",
-                      Observer.ID.Raw = "Observer.Name",
-                      Second.Observer.Raw = "Other.Observer.Name",
-                      Temp.Start.Raw = "Start.Temperature..Celcius.",
-                      Temp.End.Raw = "End.Temperature..Celcius.",
-                      Wind.Start.Raw = "Wind.Start",
-                      Wind.End.Raw = "Wind.End",
-                      Sky.Start.Raw = "Sky.Start",
-                      Sky.End.Raw= "Sky.End",
-                      Survey.End.Raw = "End.of.Survey",
-                      Date.Time.Raw = "Date.and.Start.Time",
-                      Global.ID.Survey = "GlobalID")
+surveys_23_names <- c(Route.ID = "Route.ID",
+                      Year = "Year",
+                      Visit = "Visit.Number",
+                      Observer.ID = "Observer.Name",
+                      Second.Observer = "Other.Observer.Name",
+                      Temp.Start = "Start.Temperature..Celcius.",
+                      Temp.End = "End.Temperature..Celcius.",
+                      Wind.Start = "Wind.Start",
+                      Wind.End = "Wind.End",
+                      Sky.Start = "Sky.Start",
+                      Sky.End= "Sky.End",
+                      Date.Time = "Date.and.Start.Time",
+                      GlobalID.Survey = "GlobalID")
 
 #rename and slect useful columns
 surveys_23 <- surveys_23_raw %>% 
   dplyr::rename(all_of(surveys_23_names)) %>% 
-  dplyr::select(Route.ID.Raw, Year.Raw, Visit.Raw, Date.Time.Raw,
-         Observer.ID.Raw, Route.Notes,
-         Sky.Start.Raw, Sky.End.Raw, Temp.Start.Raw, 
-         Temp.End.Raw, Wind.Start.Raw, Wind.End.Raw,
-         Date.Time.Raw, Survey.End.Raw, Global.ID.Survey) %>% 
-  mutate_at(c("Visit.Raw", "Sky.Start.Raw", 
-              "Sky.End.Raw", "Wind.Start.Raw", "Wind.End.Raw", 
-              "Temp.Start.Raw", "Temp.End.Raw"), 
+  dplyr::select(Route.ID, Year, Visit, Date.Time,
+         Observer.ID, Route.Notes,
+         Sky.Start, Sky.End, Temp.Start, 
+         Temp.End, Wind.Start, Wind.End,
+         Date.Time, GlobalID.Survey) %>% 
+  mutate_at(c("Visit", "Sky.Start", 
+              "Sky.End", "Wind.Start", "Wind.End", 
+              "Temp.Start", "Temp.End"), 
               as.character) #standardize some of the variables
 
-#View the 2023 surveys
-str(surveys_23)
+#View the 2023 surveys again
+glimpse(surveys_23)
 
-#Merge the two survey years
-surveys_cleaned <- bind_rows(surveys_22, surveys_23)
+#Rename 2024 surveys
+#View the 2024 names
+glimpse(surveys_24_raw)
+
+#object for renaming 2024 surveys
+surveys_24_names <- c(GlobalID.Survey = "GlobalID",
+                      Observer.ID = "Observer.Name",
+                      Visit = "Visit.Number",
+                      Temp.Start = "Start.Temperature..Celcius.",
+                      Temp.End = "End.Temperature..Celcius.",
+                      Date.Time = "Date.and.Start.Time")
+
+#rename and slect useful columns
+surveys_24 <- surveys_24_raw %>% 
+  dplyr::rename(all_of(surveys_24_names)) %>% 
+  dplyr::select(Route.ID, Year, Visit, Date.Time,
+                Observer.ID, Route.Notes,
+                Sky.Start, Sky.End, Temp.Start, 
+                Temp.End, Wind.Start, Wind.End,
+                Date.Time, GlobalID.Survey) %>% 
+  mutate_at(c("Visit", "Sky.Start", 
+              "Sky.End", "Wind.Start", "Wind.End", 
+              "Temp.Start", "Temp.End"), 
+            as.character) #standardize some of the variables
+
+#View the 2024 surveys
+glimpse(surveys_24)
+
+#Merge the three survey years
+surveys_clean_date <- bind_rows(surveys_22, surveys_23, surveys_24)
 
 #view the full raw surveys
-str(surveys_cleaned)
+glimpse(surveys_clean_date)
 
 #Fix Date ------------------------------------
 #turn the raw date into a ymd object
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Date = str_sub(Date.Time.Raw, start = 1, end = 9)) %>% #pull out the first 9 characters
+surveys_clean_date  <- surveys_clean_date %>% 
+  mutate(Date = str_sub(Date.Time, start = 1, end = 9)) %>% #pull out the first 9 characters
   mutate(Date = str_remove_all(Date, " ")) %>% #Remove the spaces
   mutate(Date = mdy(Date)) #switch it to a date object
 
 #View the new date column
-surveys_cleaned %>% 
+surveys_clean_date %>% 
   dplyr::count(Date) %>% 
   base::print(n= Inf)
 
 #Make an ordinal date column
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Ord.Date = case_when(Date <= ymd("2022-12-31") ~ Date - ymd("2022-01-01"), #for 2022 dates
-                              Date > ymd("2022-12-31") ~ Date - ymd("2023-01-01"))) %>% #for 2023 dates
+surveys_clean_date <- surveys_clean_date %>% 
+  mutate(Ord.Date = case_when(Date <= ymd("2022-12-31") #for 2022 dates
+                              ~ Date - ymd("2022-01-01"), 
+                              Date > ymd("2022-12-31") & Date <= ymd("2023-12-31")#for 2023 dates
+                              ~ Date - ymd("2023-01-01"),
+                              Date > ymd("2023-12-31") #for 2024 dates
+                              ~ Date - ymd("2024-01-01")
+                              )) %>% 
   mutate(Ord.Date = as.numeric(Ord.Date)) #switch ordinal date to just the number
 
 #view the new ordinal date
-str(surveys_cleaned)
+glimpse(surveys_clean_date)
+surveys_clean_date %>% 
+  count(Ord.Date) %>% 
+  print(n = Inf)
 
 #Fix Temp --------------------------------------------------------
+surveys_clean_temp <- surveys_clean_date
+
 #view start temp
-surveys_cleaned %>% 
-  distinct(Temp.Start.Raw) %>% 
+surveys_clean_temp %>% 
+  distinct(Temp.Start) %>% 
   base::print(n = Inf)
 #view end temp
-surveys_cleaned %>% 
-  distinct(Temp.Start.Raw) %>% 
+surveys_clean_temp %>% 
+  distinct(Temp.End) %>% 
   base::print(n = Inf)
 
 #Switch temp to numeric
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Temp.Start = as.numeric(Temp.Start.Raw)) %>% 
-  mutate(Temp.End = as.numeric(Temp.End.Raw))
-
-#View what was lost in start temp
-surveys_cleaned %>% 
-  filter(! c(Temp.Start.Raw %in% Temp.Start))
-
-#View what was lost in end temp
-surveys_cleaned %>% 
-  dplyr::select(Route.ID.Raw, Temp.End.Raw, Temp.End) %>% 
-  filter(! c(Temp.End.Raw %in% Temp.End))
+surveys_clean_temp <- surveys_clean_temp %>% 
+  mutate(Temp.Start = as.numeric(Temp.Start)) %>% 
+  mutate(Temp.End = as.numeric(Temp.End))
 #idk what the h was supposed  to be so I am okay with it
 
 #View a plot of starting and ending temperatures
-# surveys_cleaned %>%
+# surveys_clean_temp %>%
 #   dplyr::select(Temp.Start, Temp.End) %>% 
 #   pivot_longer(cols = c(Temp.Start, Temp.End),
 #     names_to = "Time") %>% 
@@ -839,158 +1064,186 @@ surveys_cleaned %>%
 #people probably recorded them in F not C
 
 #view all the start temps
-surveys_cleaned %>% 
+surveys_clean_temp %>% 
   dplyr::count(Temp.Start) %>% 
   base::print(n = Inf)
 
 #View all the end temps
-surveys_cleaned %>% 
+surveys_clean_temp %>% 
   dplyr::count(Temp.End) %>% 
   base::print(n = Inf)
 #I'll probably have to link climate data instead of using these
 #I'm not sure how to piece apart the real C's from the fake ones
 
 #Fix Wind ---------------------------------------------------------
+surveys_clean_wind <- surveys_clean_temp
+
 #view start wind
-surveys_cleaned %>% distinct(Wind.Start.Raw)
+surveys_clean_wind %>% distinct(Wind.Start)
 
 #view end wind
-surveys_cleaned %>% distinct(Wind.Start.Raw)
+surveys_clean_wind %>% distinct(Wind.Start)
 
 #Recod wind based on how it was in survey123
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Wind.Start = case_when(Wind.Start.Raw == 0 ~ "<1 mph",
-                                Wind.Start.Raw == 1 ~ "1-3 mph",
-                                Wind.Start.Raw == 2 ~ "4-7 mph",
-                                Wind.Start.Raw == 3 ~ "8-12 mph",
-                                Wind.Start.Raw == 4 ~ "13-18 mph",
-                                TRUE ~ as.character(Wind.Start.Raw))) %>% 
-  mutate(Wind.End = case_when(Wind.End.Raw == 0 ~ "<1 mph",
-                              Wind.End.Raw == 1 ~ "1-3 mph",
-                              Wind.End.Raw == 2 ~ "4-7 mph",
-                              Wind.End.Raw == 3 ~ "8-12 mph",
-                              Wind.End.Raw == 4 ~ "13-18 mph",
-                              TRUE ~ as.character(Wind.End.Raw)))
+surveys_clean_wind <- surveys_clean_wind %>% 
+  mutate(Wind.Start = case_when(Wind.Start == 0 ~ "<1 mph",
+                                Wind.Start == 1 ~ "1-3 mph",
+                                Wind.Start == 2 ~ "4-7 mph",
+                                Wind.Start == 3 ~ "8-12 mph",
+                                Wind.Start == 4 ~ "13-18 mph",
+                                TRUE ~ as.character(Wind.Start))) %>% 
+  mutate(Wind.End = case_when(Wind.End == 0 ~ "<1 mph",
+                              Wind.End %in% c(1,
+                                              "3-4") ~ "1-3 mph",
+                              Wind.End %in% c(2, 
+                                              5) ~ "4-7 mph",
+                              Wind.End == 3 ~ "8-12 mph",
+                              Wind.End == 4 ~ "13-18 mph",
+                              Wind.End == "g" ~ NA,
+                              TRUE ~ as.character(Wind.End)))
 
 #view start wind after the fix
-surveys_cleaned %>% distinct(Wind.Start)
+surveys_clean_wind %>% 
+  count(Wind.Start)
 
 #view end wind after the fix
-surveys_cleaned %>% distinct(Wind.Start)
+surveys_clean_wind %>% 
+  count(Wind.End)
 
 #Fix sky ---------------------------------------------------------
+surveys_clean_sky <- surveys_clean_wind
+
 #view start sky
-surveys_cleaned %>% distinct(Sky.Start.Raw)
+surveys_clean_sky %>% 
+  count(Sky.Start)
 
 #view end sky
-surveys_cleaned %>% distinct(Sky.Start.Raw)
+surveys_clean_sky %>% 
+  count(Sky.End)
 
-#Recod sky based on how it was in survey123
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Sky.Start = case_when(Sky.Start.Raw == 0 ~ "Clear",
-                                Sky.Start.Raw == 1 ~ "Partly Cloudy",
-                                Sky.Start.Raw == 2 ~ "Cloudy",
-                                Sky.Start.Raw == 3 ~ "Fog or Smoke",
-                                Sky.Start.Raw == 4 ~ "Drizzle",
-                               TRUE ~ as.character(Sky.Start.Raw))) %>% 
-  mutate(Sky.End = case_when(Sky.End.Raw == 0 ~ "Clear",
-                              Sky.End.Raw == 1 ~ "Partly Cloudy",
-                              Sky.End.Raw == 2 ~ "Cloudy",
-                              Sky.End.Raw == 3 ~ "Fog or Smoke",
-                              Sky.End.Raw == 4 ~ "Drizzle",
-                             TRUE ~ as.character(Sky.End.Raw)))
+#Recode sky based on how it was in survey123
+surveys_clean_sky <- surveys_clean_sky %>% 
+  mutate(Sky.Start = case_when(Sky.Start == 0 ~ "Clear",
+                               Sky.Start == 1 ~ "Partly Cloudy",
+                               Sky.Start == 2 ~ "Cloudy",
+                               Sky.Start == 3 ~ "Fog or Smoke",
+                               Sky.Start == 4 ~ "Precip",
+                               Sky.Start == "Showers" ~ "Precip",
+                               TRUE ~ as.character(Sky.Start))) %>% 
+  mutate(Sky.End = case_when(Sky.End == 0 ~ "Clear",
+                             Sky.End == "0 " ~ "Clear",
+                             Sky.End == 1 ~ "Partly Cloudy",
+                             Sky.End == 2 ~ "Cloudy",
+                             Sky.End == 3 ~ "Fog or Smoke",
+                             Sky.End == 4 ~ "Precip",
+                             Sky.End == 5 ~ "Precip",
+                             Sky.End == 6 ~ "Precip",
+                             Sky.End == "Drizzle" ~ "Precip",
+                             Sky.End == "h" ~ NA,
+                             TRUE ~ as.character(Sky.End)))
 
 #view start sky after the fix
-surveys_cleaned %>% distinct(Sky.Start)
+surveys_clean_sky %>% 
+   count(Sky.Start)
 
 #view end sky after the fix
-surveys_cleaned %>% distinct(Sky.Start)
+surveys_clean_sky %>% 
+  count(Sky.End)
 
 #Fix Year ---------------------------------------------------------
-surveys_cleaned %>% 
-  dplyr::count(Year.Raw) %>% 
+surveys_clean_year <- surveys_clean_sky
+
+#View years
+surveys_clean_year %>% 
+  dplyr::count(Year) %>% 
   base::print(n = Inf)
 
 #Why are there three blanks in year?
-surveys_cleaned %>% 
-  filter(Year.Raw == "")
+surveys_clean_year %>% 
+  filter(Year == "")
 #They're all y2
 
 #Where are the NA's?
-surveys_cleaned %>% 
-  filter(is.na(Year.Raw)) %>%  
-  dplyr::select(Route.ID.Raw, Date, Year.Raw) %>% 
+surveys_clean_year %>% 
+  filter(is.na(Year)) %>%  
+  dplyr::select(Route.ID, Date, Year) %>% 
   arrange(Date) %>% 
   base::print(n = Inf)
 #All 2022's
 
 #Make a new Year column
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Year = case_when(Year.Raw %in% c("", "y2") ~ "Y2",
-                          is.na(Year.Raw) ~ "Y1",
-                          TRUE ~ NA))
+surveys_clean_year <- surveys_clean_year %>% 
+  mutate(Year = case_when(Date <= ymd("2022-12-31") #for 2022 dates
+                              ~ "Y1", 
+                              Date > ymd("2022-12-31") & Date <= ymd("2023-12-31")#for 2023 dates
+                              ~ "Y2",
+                              Date > ymd("2023-12-31") #for 2024 dates
+                              ~ "Y3"
+  ))
 
 #View the clean year
-surveys_cleaned %>% 
+surveys_clean_year %>% 
   dplyr::select(Year, Date) %>% 
   base::print(n = Inf)
 
 #Fix route ID's -------------------------------------------------
+surveys_clean_route <- surveys_clean_year
+
 #view all the route id's
-surveys_cleaned %>% 
-  dplyr::count(Route.ID.Raw) %>% 
+surveys_clean_route %>% 
+  dplyr::count(Route.ID) %>% 
   base::print(n = Inf)
 
 #View a specific route id
-surveys_cleaned %>% 
-  filter(Route.ID.Raw == "B-4")
+surveys_clean_route %>% 
+  filter(Route.ID == "B-4")
 
 #Clean up transect codes
-surveys_cleaned <- surveys_cleaned %>%
+surveys_clean_route <- surveys_clean_route %>%
   mutate(Route.ID = case_when( 
-    Route.ID.Raw %in% c("UT-B1", "B1", "UT-B01") ~ "UT-B01", #some of these came from
-    Route.ID.Raw %in% c("UT-C1", "UT-C01") ~ "UT-C01",       #ruling out other possibilities in
-    Route.ID.Raw %in% c("UT-B2", "UT-B02") ~ "UT-B02",       #the dataset. Others came from
-    Route.ID.Raw %in% c("UT-C2", "C2") ~ "UT-C02",       #looking at coordinates in arc
-    Route.ID.Raw %in% c("UT-B5", "B5") ~ "UT-B05",
-    Route.ID.Raw %in% c("UT-C5", "C5") ~ "UT-C05",
-    Route.ID.Raw %in% c("UT-B6", "UT-B6-P1") ~ "UT-B06",
-    Route.ID.Raw %in% c("UT-C6", "UT-C06") ~ "UT-C06",
-    Route.ID.Raw %in% c("UT-B8") ~ "UT-B08",
-    Route.ID.Raw %in% c("UT-C8", "C8", "UT-C08") ~ "UT-C08",
-    Route.ID.Raw %in% c("B27") ~ "UT-B27",
-    Route.ID.Raw %in% c("UT_C15") ~ "UT-C15",
-    Route.ID.Raw %in% c("B15") ~ "UT-B15",
-    Route.ID.Raw %in% c("UT_C16") ~ "UT-C16",
-    Route.ID.Raw %in% c("B16") ~ "UT-B16",
-    Route.ID.Raw %in% c("B17") ~ "UT-B17",
-    Route.ID.Raw %in% c("UT-C") ~ "UT-C19",
-    Route.ID.Raw %in% c("B19") ~ "UT-B19",
-    Route.ID.Raw %in% c("B22") ~ "UT-B22",
-    Route.ID.Raw %in% c("C24") ~ "UT-C24",
-    Route.ID.Raw %in% c("UT_C25") ~ "UT-C25",
-    Route.ID.Raw %in% c("ID-B3", "ID_B3") ~ "ID-B03",
-    Route.ID.Raw %in% c("ID-C3", "ID_C3", "C3") ~ "ID-C03",
-    Route.ID.Raw %in% c("ID-B4") ~ "ID-B04",
-    Route.ID.Raw %in% c("ID-C4", "C4", "B-4") ~ "ID-C04", #The B-4 obs was incorrectly labeled
-    Route.ID.Raw %in% c("ID-B7") ~ "ID-B07",
-    Route.ID.Raw %in% c("ID-C7", "ID C7") ~ "ID-C07",
-    Route.ID.Raw %in% c("ID-B9") ~ "ID-B09",
-    Route.ID.Raw %in% c("ID-C9") ~ "ID-C09",
-    Route.ID.Raw %in% c("ID_B19") ~ "ID-B19",
-    Route.ID.Raw %in% c("ID_B21") ~ "ID-B21",
-    Route.ID.Raw %in% c("ID_B26") ~ "ID-B26",
-    Route.ID.Raw %in% c("ID_B28") ~ "ID-C07",
-    Route.ID.Raw %in% c("ID_C12") ~ "ID-C12",
-    Route.ID.Raw %in% c("ID_C15") ~ "ID-C15",
-    Route.ID.Raw %in% c("ID_C19") ~ "ID-C19",
-    Route.ID.Raw %in% c("ID_C26") ~ "ID-C26",
-    Route.ID.Raw %in% c("ID_") ~ "ID-B19",
-    TRUE ~ as.character(Route.ID.Raw)
+    Route.ID %in% c("UT-B1", "B1", "UT-B01") ~ "UT-B01", #some of these came from
+    Route.ID %in% c("UT-C1", "UT-C01") ~ "UT-C01",       #ruling out other possibilities in
+    Route.ID %in% c("UT-B2", "UT-B02") ~ "UT-B02",       #the dataset. Others came from
+    Route.ID %in% c("UT-C2", "C2") ~ "UT-C02",       #looking at coordinates in arc
+    Route.ID %in% c("UT-B5", "B5") ~ "UT-B05",
+    Route.ID %in% c("UT-C5", "C5") ~ "UT-C05",
+    Route.ID %in% c("UT-B6", "UT-B6-P1") ~ "UT-B06",
+    Route.ID %in% c("UT-C6", "UT-C06") ~ "UT-C06",
+    Route.ID %in% c("UT-B8") ~ "UT-B08",
+    Route.ID %in% c("UT-C8", "C8", "UT-C08") ~ "UT-C08",
+    Route.ID %in% c("B27") ~ "UT-B27",
+    Route.ID %in% c("UT_C15") ~ "UT-C15",
+    Route.ID %in% c("B15") ~ "UT-B15",
+    Route.ID %in% c("UT_C16") ~ "UT-C16",
+    Route.ID %in% c("B16") ~ "UT-B16",
+    Route.ID %in% c("B17") ~ "UT-B17",
+    Route.ID %in% c("UT-C") ~ "UT-C19",
+    Route.ID %in% c("B19") ~ "UT-B19",
+    Route.ID %in% c("B22") ~ "UT-B22",
+    Route.ID %in% c("C24") ~ "UT-C24",
+    Route.ID %in% c("UT_C25") ~ "UT-C25",
+    Route.ID %in% c("ID-B3", "ID_B3") ~ "ID-B03",
+    Route.ID %in% c("ID-C3", "ID_C3", "C3") ~ "ID-C03",
+    Route.ID %in% c("ID-B4") ~ "ID-B04",
+    Route.ID %in% c("ID-C4", "C4", "B-4") ~ "ID-C04", #The B-4 obs was incorrectly labeled
+    Route.ID %in% c("ID-B7") ~ "ID-B07",
+    Route.ID %in% c("ID-C7", "ID C7") ~ "ID-C07",
+    Route.ID %in% c("ID-B9") ~ "ID-B09",
+    Route.ID %in% c("ID-C9") ~ "ID-C09",
+    Route.ID %in% c("ID_B19") ~ "ID-B19",
+    Route.ID %in% c("ID_B21") ~ "ID-B21",
+    Route.ID %in% c("ID_B26") ~ "ID-B26",
+    Route.ID %in% c("ID_B28") ~ "ID-B28",
+    Route.ID %in% c("ID_C12") ~ "ID-C12",
+    Route.ID %in% c("ID_C15") ~ "ID-C15",
+    Route.ID %in% c("ID_C19") ~ "ID-C19",
+    Route.ID %in% c("ID_C26") ~ "ID-C26",
+    Route.ID %in% c("ID_") ~ "ID-B19",
+    TRUE ~ as.character(Route.ID)
   ))
 
 #view cleaned route id's
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   dplyr::count(Route.ID) %>% 
   base::print(n = Inf)
 #There are a couple incorrect routes
@@ -998,86 +1251,89 @@ surveys_cleaned %>%
 #Fix plots where Plot ID doesn't line up with plot type ---------------------------------------------
 
 #Start changing the incorrect routes or visits one by one
-#First ID-B04
-#Look at specific surveys
-surveys_cleaned %>%
-  filter(Route.ID == "UT-C24") %>% #Only care about the one route
-  dplyr::select(Observer.ID.Raw, Date.Time.Raw, Visit.Raw, Route.ID) # only need a few columns
+#Look at specific surveys ##############
+surveys_clean_route %>%
+  filter(Route.ID == "ID-B19") %>% #Only care about the one route
+  dplyr::select(Observer.ID, Date, Visit, Route.ID) # only need a few columns
 
 #One of that route's observations was labeled ID-B24
-#I know from arc that the 6/28 one is incrrectly labeled
-surveys_cleaned <- surveys_cleaned %>%
-  mutate(Route.ID = case_when(Route.ID == "ID-B24" & Date.Time.Raw == "6/28/2022 12:38:00 PM"
+#I know from arc that the 6/28 one is incorrectly labeled
+surveys_clean_route <- surveys_clean_route %>%
+  mutate(Route.ID = case_when(Route.ID == "ID-B24" & Date.Time == "6/28/2022 12:38:00 PM"
                               ~ "ID-B04",
                                      TRUE ~ as.character(Route.ID)))
-#view cleaned route id's
-surveys_cleaned %>% 
-  dplyr::count(Route.ID) %>% 
-  base::print(n = Inf)
-#Those two routes look good
 
 #View UT-B01
-surveys_cleaned %>%
+surveys_clean_route %>%
   filter(Route.ID == "UT-B01" & Year == "Y1") #Only care about the one route
 #I will treat everything on 6/2/2022 as training. I am removing those 
 
 #make sure nothing else happened on 6/2/2022
-surveys_cleaned %>%
-  filter(Date == '2022-06-2')
+surveys_clean_route %>%
+  filter(Date == 2022-06-2)
 
 #View surveys before the change
-nrow(surveys_cleaned)
+nrow(surveys_clean_route)
 
 #Remove the surveys from training days
-surveys_cleaned <- surveys_cleaned %>%
+surveys_clean_route <- surveys_clean_route %>%
   filter(Date != '2022-06-2')
 #I will treat everything on 6/2/2022 as training. I am removing those 
 
 #View surveys after the change
-nrow(surveys_cleaned)
+nrow(surveys_clean_route)
 
 #Fix UT-C24
-surveys_cleaned %>%
+surveys_clean_route %>%
   filter(Route.ID == "UT-C24") %>% #View UT-B24 routes
-  dplyr::select(Observer.ID.Raw, Date.Time.Raw, Visit.Raw, Route.ID) # only need a few columns
+  dplyr::select(Observer.ID, Date.Time, Visit, Route.ID) # only need a few columns
 #Austin's UT-B24 survey should be UT-C24
 
 #Make sure nothing else had that start time
-surveys_cleaned %>% 
-  filter(Date.Time.Raw == "6/10/2022 12:29:00 PM")
+surveys_clean_route %>% 
+  filter(Date.Time == "6/10/2022 12:29:00 PM")
 
 #change that observation
-surveys_cleaned <- surveys_cleaned %>%
-  mutate(Route.ID = case_when(Date.Time.Raw == "6/10/2022 12:29:00 PM" ~ "UT-C24",
+surveys_clean_route <- surveys_clean_route %>%
+  mutate(Route.ID = case_when(Date.Time == "6/10/2022 12:29:00 PM" ~ "UT-C24",
                               TRUE ~ Route.ID))
 
+#Emily's UT-C16 survey on June 14th and Ben/Aidan's ID-C09 survey on May 24th should be removed
+#Define and remove those surveys
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Remove = case_when(Route.ID == "ID-B09" & Date == ymd("2024-05-24") ~ T,
+                            Route.ID == "UT-C16" & Date == ymd("2024-06-14") ~ T,
+                            TRUE ~ F)) %>% 
+  filter(Remove == F) %>% 
+  select(-Remove)
+
 #View surveys after the change
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   dplyr::count(Route.ID) %>% 
   base::print(n = Inf)
 
 #Fix UT-B24
 #One is recorded as UT-B08, the other as UT-B25
 #View those routes
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   filter(Route.ID == "UT-B08" | 
            Route.ID == "UT-B25") %>% 
-  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time, Observer.ID)
 
 #View the date and time of the incrrect ones
-surveys_cleaned %>% 
-  filter(Date.Time.Raw == "6/10/2022 1:00:00 PM" | 
-           Date.Time.Raw == "5/25/2023 11:58:00 AM") %>% 
-  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+surveys_clean_route %>% 
+  filter(Date.Time == "6/10/2022 1:00:00 PM" | 
+           Date.Time == "5/25/2023 11:58:00 AM") %>% 
+  dplyr::select(Route.ID, Date.Time, Observer.ID)
 
 #switch those over to the correct route
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Route.ID = case_when(Date.Time.Raw == "6/10/2022 1:00:00 PM" ~ "UT-B24",
-           Date.Time.Raw == "5/25/2023 11:58:00 AM"~ "UT-B24",
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Date.Time == "6/10/2022 1:00:00 PM" ~ "UT-B24",
+           Date.Time == "5/25/2023 11:58:00 AM"~ "UT-B24",
            TRUE ~ Route.ID))
 
 #View surveys after the change
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   dplyr::count(Route.ID) %>% 
   base::print(n = Inf)
 #looks good 
@@ -1085,23 +1341,23 @@ surveys_cleaned %>%
 #Fix UT-B08
 #One of the UT-B08's is labeled UT-C08
 #View those routes
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   filter(Route.ID == "UT-B08" | 
            Route.ID == "UT-C08") %>% 
-  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+  dplyr::select(Route.ID, Date.Time, Observer.ID)
 
 #View the date and time of the incorrect one
-surveys_cleaned %>% 
-  filter(Date.Time.Raw == "6/10/2022 1:43:00 PM") %>% 
-  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+surveys_clean_route %>% 
+  filter(Date.Time == "6/10/2022 1:43:00 PM") %>% 
+  dplyr::select(Route.ID, Date.Time, Observer.ID)
 
 #switch those over to the correct route
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Route.ID = case_when(Date.Time.Raw == "6/10/2022 1:43:00 PM" ~ "UT-B08",
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Date.Time == "6/10/2022 1:43:00 PM" ~ "UT-B08",
                               TRUE ~ Route.ID))
 
 #View surveys after the change
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   dplyr::count(Route.ID) %>% 
   base::print(n = Inf) 
 #looks good 
@@ -1109,19 +1365,19 @@ surveys_cleaned %>%
 #Fix UT-C16
 #One of the UT-C16's is labeled UT-C30
 #View the date and time of the incorrect one
-surveys_cleaned %>% 
-  filter(Date.Time.Raw == "7/12/2022 1:08:00 PM") %>% 
-  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+surveys_clean_route %>% 
+  filter(Date.Time == "7/12/2022 1:08:00 PM") %>% 
+  dplyr::select(Route.ID, Date.Time, Observer.ID)
 #There are two with this date and time
 
 #switch one over to the correct route
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Route.ID = case_when(Date.Time.Raw == "7/12/2022 1:08:00 PM" &
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Date.Time == "7/12/2022 1:08:00 PM" &
                                 Route.ID == "UT-C30" ~ "UT-C16",
                               TRUE ~ Route.ID))
 
 #View surveys after the change
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   dplyr::count(Route.ID) %>% 
   base::print(n = Inf) 
 
@@ -1129,98 +1385,202 @@ surveys_cleaned %>%
 #One of the surveys is labeled ID-C22
 
 #View the incorrect survey
-surveys_cleaned %>% 
-  filter(Date.Time.Raw == "6/12/2023 12:22:00 PM") %>% 
-  dplyr::select(Route.ID, Date.Time.Raw, Observer.ID.Raw)
+surveys_clean_route %>% 
+  filter(Date.Time == "6/12/2023 12:22:00 PM") %>% 
+  dplyr::select(Route.ID, Date.Time, Observer.ID)
 
 #switch it over to the correct route
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Route.ID = case_when(Date.Time.Raw == "6/12/2023 12:22:00 PM" ~ "UT-C22",
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Date.Time == "6/12/2023 12:22:00 PM" ~ "UT-C22",
                               TRUE ~ Route.ID))
 
 #View surveys after the change
-surveys_cleaned %>% 
+surveys_clean_route %>% 
   dplyr::count(Route.ID) %>% 
   base::print(n = Inf) 
 
+#There are too many ID-B19's. View them 
+surveys_clean_route %>% 
+  distinct(Observer.ID, Route.ID, Date) %>% 
+  filter(Route.ID == "ID-B19")
+
+#Change Holden's ID-B19 to UT-B19
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Route.ID == "ID-B19" & Date == 20240610 
+                              ~ "UT-B19",
+                              TRUE ~ Route.ID))
+
+#There are too many ID-C24's in Y3. View them 
+surveys_clean_route %>% 
+  distinct(Observer.ID, Route.ID, Visit, Date) %>% 
+  filter(Route.ID == "ID-C24")
+
+
+#Change V1 ID-C24 to UT-C24
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Observer.ID == "Ben Zimmermann" & Date == 20240516 
+                              ~ "UT-C24",
+                              TRUE ~ Route.ID
+  ))
+
+#There are too many ID-B19's. View them 
+surveys_clean_route %>% 
+  distinct(Observer.ID, Route.ID, Date) %>% 
+  filter(Route.ID == "ID-B19")
+
+#Change Holden's ID-B19 to UT-B19
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Route.ID == "ID-B19" & Date == ymd("2024-06-10") 
+                              ~ "UT-B19",
+                              TRUE ~ Route.ID))
+
+#There are too many ID-C24's. View them 
+surveys_clean_route %>% 
+  distinct(Observer.ID, Route.ID, Visit, Date) %>% 
+  filter(Route.ID == "ID-C24")
+
+#Change V1 ID-C24 to UT-C24
+surveys_clean_route <- surveys_clean_route %>% 
+  mutate(Route.ID = case_when(Route.ID == "ID-C24" & Date == ymd("20240516")
+                              ~ "UT-C24",
+                              TRUE ~ Route.ID
+  ))
+
+#view cleaned route id's
+surveys_clean_route %>% 
+  dplyr::count(Route.ID) %>% 
+  base::print(n = Inf)
+
 #That's all of the ones that I know how to fix
-#IT-C11 and ID-C22 might just only have three surveys and that's okay
+#ID-C11 and ID-C22 might just only have three surveys and that's okay
+
+#Fix 2024 observer names -----------------------------
+surveys_clean_obs <- surveys_clean_route
+
+#Combine route ID and visit number
+surveys_clean_obs <- surveys_clean_obs %>% 
+  mutate(Visit.ID = paste0(Route.ID, "-", Visit))
+#...and view
+glimpse(surveys_clean_obs)
+
+#List all of Aidan's surveys
+aidan_surveys <- c('ID-B26-V1',
+                   'ID-B07-V2',
+                   'ID-B09-V2',
+                   'ID-C19-V2',
+                   'ID-C04-V2',
+                   'UT-C05-V2',
+                   'UT-C08-V2',
+                   'UT-B15-V2',
+                   'UT-C19-V2')
+
+#List both of Alex's surveys
+alex_surveys <- c('ID-C26-V2',
+                  'UT-C15-V2')
+
+#Update the observer ID's including Emily's last name
+surveys_clean_obs <- surveys_clean_obs %>% 
+  mutate(Observer.ID = case_when(Visit.ID %in% aidan_surveys ~ "Aidan",
+                                 Visit.ID %in% alex_surveys ~ "Alex",
+                                 TRUE ~ Observer.ID)) %>% 
+  select(-Visit.ID) #I no longer need this column
+
+#View observer ID after the change
+surveys_clean_obs %>%
+  count(Observer.ID) %>% 
+  print(n = Inf)
 
 #fix observer name ----------------------------------------------------------
 #observer name
-surveys_cleaned %>%
-  distinct(Observer.ID.Raw)
+surveys_clean_obs %>%
+  distinct(Observer.ID)
 
-surveys_cleaned <- surveys_cleaned %>%
+surveys_clean_obs <- surveys_clean_obs %>%
   mutate(Observer.ID = case_when( 
-    Observer.ID.Raw == "thea_mills" ~ "Thea Mills",
-    Observer.ID.Raw == "devon_erwin" ~ "Devin Erwin",
-    Observer.ID.Raw %in% c("Austin_Heitzman", 
-                           "Austin") ~ "Austin Heitzman",
-    Observer.ID.Raw == "will_harrod" ~ "Will Harrod",
-    Observer.ID.Raw == "andrew_zilka" ~ "Andrew Zilka",
-    Observer.ID.Raw %in% c("Eoin_Ohearn", 
-                           "Eoin") ~ "Eoin Ohearn",
-    Observer.ID.Raw == "anna_mumford" ~ "Anna Mumford",
-    Observer.ID.Raw == "trey_mccuen" ~ "Trey Mccuen",
-    Observer.ID.Raw %in% c("Eliza_Wesemann", 
+    Observer.ID == "thea_mills" ~ "Thea",
+    Observer.ID == "devon_erwin" ~ "Devin",
+    Observer.ID %in% c("Austin_Heitzman", 
+                           "Austin") ~ "Austin",
+    Observer.ID %in% c("will_harrod",
+                       "Will Harrod") ~ "Will",
+    Observer.ID == "andrew_zilka" ~ "Andrew",
+    Observer.ID %in% c("Eoin_Ohearn", 
+                           "Eoin") ~ "Eoin",
+    Observer.ID == "anna_mumford" ~ "Anna",
+    Observer.ID == "trey_mccuen" ~ "Trey",
+    Observer.ID %in% c("Eliza_Wesemann", 
                          "Eliza_Wesemann ",
                          "eliza wesemann ",
                          "eliza wesemann",
-                         "Eliza wesemann") ~ "Eliza Wesemann",
-    Observer.ID.Raw %in% c("Rory_Eggleston",
-                         "rory_eggleston") ~ "Rory Eggleston",
-    Observer.ID.Raw %in% c("Ruger_Carter",
-                         "ruger_carter") ~ "Ruger Carter",
-    Observer.ID.Raw %in% c("Keramie_Hamby_",
-                         "Keramie_Hamby",
-                         "keramie_hamby",
-                         "Keramie Hamby ") ~ "Keramie Hamby",
-    TRUE ~ as.character(Observer.ID.Raw)
+                         "Eliza wesemann",
+                       "Eliza Wesemann") ~ "Eliza",
+    Observer.ID %in% c("Rory_Eggleston",
+                        "rory_eggleston",
+                       "Rory Eggleston") ~ "Rory",
+    Observer.ID %in% c("Ruger_Carter",
+                       "ruger_carter",
+                       "Ruger Carter") ~ "Ruger",
+    Observer.ID %in% c("Keramie_Hamby_",
+                       "Keramie_Hamby",
+                       "keramie_hamby",
+                       "Keramie Hamby ",
+                       "Keramie Hamby") ~ "Keramie",
+    Observer.ID == "Emily Hughie" ~ "Emily",
+    Observer.ID == "Ben Zimmermann" ~ "Ben",
+    Observer.ID == "Thomas Kroot" ~ "Thomas",
+    Observer.ID == "Holden Jackovich" ~ "Holden",
+    TRUE ~ as.character(Observer.ID)
   ))
 
 #View observer ID after the change
-surveys_cleaned %>%
-  distinct(Observer.ID)
+surveys_clean_obs %>%
+  count(Observer.ID) %>% 
+  print(n = Inf)
 
 #Add a column for plot type ------------------------------------------------------------
-surveys_cleaned <- surveys_cleaned %>% 
+surveys_clean_burn <- surveys_clean_obs
+
+#classify burned and unburned 
+surveys_clean_burn <- surveys_clean_burn %>% 
   mutate(Route.Type = case_when(str_detect(Route.ID, "C") ~ "R",
                                 str_detect(Route.ID, "B") ~ "B",
                                 TRUE ~ NA))
 
 #Make sure it worked
-surveys_cleaned %>% 
+surveys_clean_burn %>% 
   dplyr::select(Route.ID, Route.Type) %>% 
   base::print(n = Inf)
 
 #Fix Visit Number ------------------------------------------------------------------------
-surveys_cleaned %>%
-  dplyr::count(Visit.Raw)
+surveys_clean_visit <- surveys_clean_burn
+
+#View visits
+surveys_clean_visit %>%
+  dplyr::count(Visit)
 
 #View the V3's
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID %in% c("UT-C24", "UT-C08")) %>% 
-  dplyr::select(Route.ID, Visit.Raw, Date) %>% 
+  dplyr::select(Route.ID, Visit, Date) %>% 
   arrange(Route.ID)
 #Not sure why they're here
 
 #Standardize visit number 
-surveys_cleaned <- surveys_cleaned %>%
+surveys_clean_visit <- surveys_clean_visit %>%
   mutate (Visit = case_when(
-    Visit.Raw %in% c("1", "01", "V1") ~ "V1",
-    Visit.Raw %in% c("2", "02", "V2") ~ "V2",
-    Visit.Raw == "3" ~ "V3",
-    TRUE ~ Visit.Raw))
+    Visit %in% c("1", "01", "V1") ~ "V1",
+    Visit %in% c("2", "02", "V2") ~ "V2",
+    Visit == "3" ~ "V3",
+    TRUE ~ Visit))
 
 #View the cleaned visit number 
-surveys_cleaned %>%
+surveys_clean_visit %>%
   group_by(Year, Visit) %>% 
   dplyr::summarise(Count = n()) %>% 
   ungroup()
 
 #How many of each visit did each route get
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
@@ -1228,185 +1588,193 @@ surveys_cleaned %>%
 
 #Fix individual Visits -------------------------------------------------------
 #ID-B04 had 2 V2's and no V1 in Y2--
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-B04") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
 
 #Update the 2nd visit from Y2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/8/2023 12:10:00 PM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/8/2023 12:10:00 PM"
                            & Route.ID == "ID-B04" ~ "V1", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-B11 had 2 V1's in Y2--
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-B11") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 1st visit from Y2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 12:47:00 PM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/6/2023 12:47:00 PM"
                            & Route.ID == "ID-B11" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-B12 had 2 V1's in Y2--
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-B12") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Update the 2nd visit from Y2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/12/2023 11:50:00 AM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/12/2023 11:50:00 AM"
                            & Route.ID == "ID-B12" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-B19 had 2 V1's in Y1--
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-B19") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Those are true V1's no need to change anything
 
 #ID-C07 had 2 V1's in Y2 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-C07") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 2nd visit from Y2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 12:44:00 PM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/6/2023 12:44:00 PM"
                            & Route.ID == "ID-C07" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-C09 had 3 V2's in Y2 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-C09") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 1st visit from Y2
 #The other is a real second V2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/19/2023 12:20:00 PM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/19/2023 12:20:00 PM"
                            & Route.ID == "ID-C09" ~ "V1", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-C11 had 2 V1's in Y2 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-C11") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 2nd visit from Y2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 12:38:00 PM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/6/2023 12:38:00 PM"
                            & Route.ID == "ID-C11" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #UT-B15 had 2 V2's in Y1 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "UT-B15") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #There were two V2's so no need to change anything
 
 #UT-B16 had 2 V2's in Y2 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "UT-B16") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #The extra Y1 visit is a real extra visit
 #Update the first visit from Y2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/9/2023 12:37:00 PM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/9/2023 12:37:00 PM"
                            & Route.ID == "UT-B16" ~ "V1", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #UT-B30 had 2 V2's in Y1 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "UT-B30") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #The extra Y2 visit is a real extra visit
 
 #UT-C19 had 3 V1's in Y2 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "UT-C19") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #There were two V2's in Y2 but they were both labeled V1
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw %in% c("6/6/2023 11:42:00 AM", 
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time %in% c("6/6/2023 11:42:00 AM", 
                                                 "6/6/2023 11:45:00 AM") 
                            & Route.ID == "UT-C19" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #UT-C30 had 2 V1's in Y2 --
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "UT-C30") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Switch the second visit in Y2 to V2
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw == "6/6/2023 11:30:00 AM"
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time == "6/6/2023 11:30:00 AM"
                            & Route.ID == "UT-C30" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-C07 has an extra Y1 V1
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   filter(Route.ID == "ID-C07") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time.Raw)
+  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Fix the incorrect one
-surveys_cleaned <- surveys_cleaned %>% 
-  mutate(Visit = case_when(Date.Time.Raw %in% c("6/27/2022 12:57:00 PM", 
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Date.Time %in% c("6/27/2022 12:57:00 PM", 
                                                 "6/27/2022 1:01:00 PM") 
                            & Route.ID == "ID-C07" ~ "V2", 
                            TRUE ~ Visit))
 
+#I recorded ID-B22's Y3-V1 as V2, same with ID-C09
+surveys_clean_visit <- surveys_clean_visit %>% 
+  mutate(Visit = case_when(Route.ID == "ID-B22" & Observer.ID == "Will" 
+                           ~ "V1",
+                           Route.ID == "ID-C09" & Observer.ID == "Will" 
+                           ~ "V1",
+                           TRUE ~ Visit))
+
 #Make sure I didn't miss anything
 #Do they all have the right number of unique visits?
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
@@ -1415,31 +1783,32 @@ surveys_cleaned %>%
 
 #How many visits are doubled?
 #All doubbles 
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
   filter(Visit.Count != 1) %>% 
   base::print(n = Inf)
 #Date doubles
-surveys_cleaned %>% 
+surveys_clean_visit %>% 
   group_by(Route.ID, Year, Visit, Date) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
   filter(Visit.Count != 1) %>% 
   base::print(n = Inf)
-#Those are all real doubles
+#Those are all real doubles except possible Y3-V1 ID-C16
 
 #Pull out only the columns that I will need
-names(surveys_cleaned)
-surveys <- surveys_cleaned %>% 
+names(surveys_clean_visit)
+surveys <- surveys_clean_visit %>% 
   dplyr::select(Route.ID, Route.Type, Year, Visit, Date, Ord.Date, Observer.ID, 
          Temp.Start, Temp.End, Sky.Start, Sky.End, Wind.Start, Wind.End,
-         Route.Notes, Global.ID.Survey) %>% 
+         Route.Notes, GlobalID.Survey) %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
 
 #View the survey data one last time
 glimpse(surveys)
+
 #Finished cleaning the survey data -----------------------------------------
 
 #join surveys and points, then export --------------------------------------------
@@ -1448,53 +1817,53 @@ glimpse(points)
 
 #join points with surveys
 survey_points <- surveys %>% #start with surveys
-  full_join(points, by = "Global.ID.Survey")  
+  full_join(points, by = "GlobalID.Survey")  
 
 #View joined survey points
 glimpse(survey_points)
 
-#Export for Arc cleaning --------------------------------
-survey_points %>% 
-  mutate(Full.Point.ID = paste0(Route.ID, "-", "P", Point.ID),
-         Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-"),
-         Time.Stamp = paste(Point.ID, Visit, Point.Time, sep = "-")) %>% 
-  write.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\surveyed_points.csv")
+# #Export for Arc cleaning --------------------------------
+# survey_points %>% 
+#   mutate(Full.Point.ID = paste0(Route.ID, "-", "P", Point.ID),
+#          Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-"),
+#          Time.Stamp = paste(Point.ID, Visit, Point.Time, sep = "-")) %>% 
+#   write.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\surveyed_points.csv")
 
 #Add Observation data
-sobs <- survey_points %>% 
-  left_join(observations, by = "Global.ID.Point")
+sobs_first_clean <- survey_points %>% 
+  left_join(observations, by = "GlobalID.Point")
 
 #View the full joined data
-glimpse(sobs)
+glimpse(sobs_first_clean)
 
 #How many times was each route surveyed in the final dataset
-sobs %>% 
+sobs_first_clean %>% 
   dplyr::count(Route.ID, Year, Visit) %>% 
-  dplyr::count(Route.ID, Year, Visit) %>% 
+  dplyr::count(Route.ID, Year, Visit) %>%  
   base::print(n = Inf)
 
 #View the route NA
-sobs %>% 
+sobs_first_clean %>% 
   filter(is.na(Route.ID))
 
 #Can drop this 
-sobs <- sobs %>% 
+sobs_first_clean <- sobs_first_clean %>% 
   drop_na(Route.ID)
 #...and view
-glimpse(sobs)
+glimpse(sobs_first_clean)
 
 #Make a new column that combines point id and route id
-sobs <- sobs %>% 
+sobs_first_clean <- sobs_first_clean %>% 
   mutate(Full.Point.ID = paste(Route.ID, "-", "P", Point.ID, sep = ""))
 
 #View it to make sure the data frame looks good
-glimpse(sobs)
+glimpse(sobs_first_clean)
 
 #141 observations were lost
-sobs %>% distinct(Full.Point.ID) %>% base::print(n = Inf)
+sobs_first_clean %>% distinct(Full.Point.ID) %>% base::print(n = Inf)
 
 #How many times does each point appear on each route?
-visit_count <- sobs %>% 
+visit_count <- sobs_first_clean %>% 
   filter(Visit %in% c("V1", "V2")) %>% 
   group_by(Full.Point.ID, Route.ID, Year, Visit) %>% 
   dplyr::summarise(Observations = n()) %>% 
@@ -1508,37 +1877,38 @@ visit_count <- sobs %>%
 head(visit_count, n = 20)
 
 #Combine Notes
-sobs <- sobs %>% 
-  mutate(Notes = paste(Route.Notes, Point.Notes, Obs.Notes, sep = " ")) %>% 
+sobs_first_clean <- sobs_first_clean %>% 
+  mutate(Notes = paste(Route.Notes, Point.Notes, sep = " ")) %>% 
   mutate(Notes = str_remove_all(Notes, "NA")) %>% 
   mutate(Notes = case_when(Notes %in% c("", " ", "  ", "   ") ~ NA,
                            TRUE ~ Notes)) %>% 
   mutate(Notes = str_replace_all(Notes, "_", " "))
 
 #View the updated notes
-glimpse(sobs)
-sobs %>% 
+glimpse(sobs_first_clean)
+sobs_first_clean %>% 
   dplyr::distinct(Notes)
 
 #Pull out the columns that I will actually need
 #I will probably end up tweaking which of these are included
-names(sobs)
-sobs <- sobs %>% 
+names(sobs_first_clean)
+sobs_first_clean <- sobs_first_clean %>% 
   dplyr::select(Species, Distance, Minute, Direction, How.Detected, Song.Also, Group.Size,
          Sex, Visual.ID, Route.ID, Route.Type, Full.Point.ID, Year, Visit,  
          Date, Ord.Date, Point.Time, Point.ID, Observer.ID, 
+         Shrub.Cover, Shrub.Height, Cheatgrass.Cover, Trees.Count, 
          Temp.Start, Sky.Start, Wind.Start, Temp.End, Sky.End, Wind.End,
          Notes)
 
 #View the new sobs data
-glimpse(sobs)
+glimpse(sobs_first_clean)
 
 ##########################################################################################
-sobs_point_fix <- sobs 
+sobs_clean_point <- sobs_first_clean
 
 #Fix the incorrect point names
 #The naming systems for the first year was different 
-sobs_temp <- sobs_point_fix %>% 
+sobs_clean_point <- sobs_clean_point %>% 
   mutate(Full.Point.ID = case_when(#ID-B13-V1
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P10"
                                    ~ "ID-B13-P01",
@@ -3687,19 +4057,92 @@ sobs_temp <- sobs_point_fix %>%
 
 
 #View the UT-B25 points
-glimpse(sobs_temp)
-sobs_temp %>% 
+glimpse(sobs_clean_point)
+sobs_clean_point %>% 
   filter(Route.ID == "UT-B25") %>% 
+  distinct(Full.Point.ID, Year, Visit) %>% 
   dplyr::count(Full.Point.ID)
 
 #Fix UT-B25. It has one extra point (now P15)
-sobs_temp <- sobs_temp %>% 
+sobs_clean_point <- sobs_clean_point %>% 
   filter(Full.Point.ID != "UT-B25-P15") %>% 
   #IDK what to do with the V3's so I'm dropping them
   filter(Visit %in% c("V1", "V2"))
 
+#Change the points on a few of my surveys from year three. First I need to see them
+sobs_clean_point %>% 
+  filter(Observer.ID == "Will" &
+           Route.ID %in% c("ID-C09", "ID-B22", "ID-C28", "UT-B08", "UT-C25")) %>% 
+  distinct(Route.ID, Point.ID, Point.Time) %>% 
+  print(n = Inf)
+
+#Change the wrong points that I put down
+sobs_clean_point <- sobs_clean_point %>% 
+  mutate(Point.ID = case_when(Observer.ID == "Will" & 
+                                Year == "Y3" &
+                                Route.ID == "ID-B22" & 
+                                Point.Time == "07:23" 
+                              ~ "11",
+                              Observer.ID == "Will" & 
+                                Year == "Y3" &
+                                Route.ID == "ID-B22" & 
+                                Point.Time == "07:52" 
+                              ~ "04",
+                              Observer.ID == "Will" & 
+                                Year == "Y3" &
+                                Route.ID == "UT-B08" & 
+                                Point.Time == "07:05" 
+                              ~ "12",
+                              Observer.ID == "Will" & 
+                                Year == "Y3" &
+                                Route.ID == "ID-C28" & 
+                                Point.Time == "06:01" 
+                              ~ "16",
+                              Observer.ID == "Will" & 
+                                Year == "Y3" &
+                                Route.ID == "ID-C28" & 
+                                Point.Time == "08:50" 
+                              ~ "13",
+                              Observer.ID == "Will" &
+                                Year == "Y3" &
+                                Route.ID == "UT-C25" & 
+                                Point.Time == "08:37" 
+                              ~ "14",
+                              Observer.ID == "Will" &
+                                Year == "Y3" &
+                                Route.ID == "UT-C25" & 
+                                Point.Time == "07:03"
+                              ~ "01",
+                              TRUE ~ Point.ID)) %>% 
+  mutate(Visit = case_when(Route.ID == "ID-B22" & Observer.ID == "Will" 
+                           ~ "V1",
+                           Route.ID == "ID-C09" & Observer.ID == "Will" 
+                           ~ "V1",
+                           TRUE ~ Visit))
+#and view
+sobs_clean_point %>% 
+  distinct(Route.ID, Visit, Date, Observer.ID, Point.ID) %>% 
+  group_by(Route.ID, Visit, Date, Observer.ID) %>% 
+  reframe(Route.ID, Visit, Date, Observer.ID, Points.Surveyed = n()) %>% 
+  distinct(Route.ID, Visit, Date, Observer.ID, Points.Surveyed) %>% 
+  arrange(Route.ID, Visit) %>% 
+  filter(Observer.ID == "Will") %>% 
+  print(n = Inf)
+
+#Hoolden recorded a non-existant UT-B02-P11. What is it?
+sobs_clean_point %>% 
+  filter(Year == "Y3" & Route.ID == "UT-B02" & Observer.ID == "Holden") %>% 
+  distinct(Full.Point.ID, Point.Time) %>% 
+  arrange(Full.Point.ID)
+
+#Swap it to P10
+sobs_clean_point <- sobs_clean_point %>% 
+  mutate(Full.Point.ID = case_when(Year == "Y3" & Observer.ID == "Holden" & Full.Point.ID == "UT-B02-P11"
+                                   ~ "UT-B02-P10",
+                                   TRUE ~ Full.Point.ID))
+
 #View how many of each point we have after the fix
-sobs_temp %>% 
+sobs_clean_point %>% 
   mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   distinct(Full.Point.ID, Visit.ID) %>% 
   count(Full.Point.ID, Visit.ID) %>% 
@@ -3707,22 +4150,30 @@ sobs_temp %>%
   pivot_wider(names_from = Visit.ID, values_from = n) %>% 
   print(n = Inf)
 
-#Now in a more condenced format
-sobs_temp %>% 
+#Now in a more condensed format
+sobs_clean_point %>% 
   distinct(Full.Point.ID, Year, Visit) %>% 
   count(Full.Point.ID) %>% 
   arrange(Full.Point.ID) %>% 
   print(n = Inf)
 
+#And condensed again differently
+sobs_clean_point %>% 
+  distinct(Route.ID, Full.Point.ID, Visit, Year, Date) %>% 
+  group_by(Route.ID, Year, Visit, Date) %>% 
+  reframe(Route.ID, Year, Visit, Date, Points.Surveyed = n()) %>% 
+  distinct(Route.ID, Year, Visit, Date, Points.Surveyed ) %>% 
+  print(n = Inf)
+
 #View the dataset to make sure everything looks good
-glimpse(sobs_temp)
+glimpse(sobs_clean_point)
 
 
 #After learning more about fire history in this area I have realized that 
 #UT-C24 and UT-C25 burned in 1999 and ID-B03 did not burn
 
 #Redefine the incorrect route types
-sobs<- sobs_temp %>% 
+sobs_clean_nobi <- sobs_clean_point %>% 
   mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
                                 Route.ID == "UT-C25" ~ "B",
                                 Route.ID == "UT-C30" ~ "R",
@@ -3732,12 +4183,12 @@ sobs<- sobs_temp %>%
 #Many of the counts do not have NOBI for minutes where no birds were detected
 #Add in NOBI Observations ---------------------------------------------------
 #View some example NOBI observations
-sobs %>% 
+sobs_clean_nobi %>% 
   filter(Species == "NOBI") %>% 
   glimpse()
 
 #make an object of all NOBI observations
-nobi <- sobs %>% 
+nobi <- sobs_clean_nobi %>% 
   expand(nesting(Route.ID, Route.Type, Full.Point.ID, Observer.ID, #Nested variables at the 
                  Year, Visit, Date, Ord.Date, Temp.Start, Wind.Start,
                  Sky.Start, Temp.End, Wind.End, Sky.End, Notes),  #point or route level
@@ -3747,7 +4198,7 @@ nobi <- sobs %>%
 glimpse(nobi)
 
 #Join the two and delete duplicates
-sobs_nobi <- sobs %>%  
+sobs_clean_nobi <- sobs_clean_nobi %>%  
   bind_rows(nobi) %>% 
   mutate(Sort = case_when(Species == "NOBI" ~ 2,
                           TRUE ~ 1)) %>% 
@@ -3756,33 +4207,33 @@ sobs_nobi <- sobs %>%
   filter(!is.na(Minute))
 
 #Viw the combined results and compare to the original
-glimpse(sobs_nobi)
-base::print(sobs_nobi, n = 400)
+glimpse(sobs_clean_nobi)
+base::print(sobs_clean_nobi, n = 400)
 
 #Don't remove the first row
-sobs_nobi$Remove[1] <- F 
+sobs_clean_nobi$Remove[1] <- F 
 #For loop to remove duplicates and NOBI's on rows that 
-for(i in 2:nrow(sobs_nobi)) {
-  sobs_nobi$Remove[i] <- ifelse(sobs_nobi$Species[i] == "NOBI" &
-                                  sobs_nobi$Minute[i] == sobs_nobi$Minute[i - 1],
+for(i in 2:nrow(sobs_clean_nobi)) {
+  sobs_clean_nobi$Remove[i] <- ifelse(sobs_clean_nobi$Species[i] == "NOBI" &
+                                  sobs_clean_nobi$Minute[i] == sobs_clean_nobi$Minute[i - 1],
                                 T, F)
 }
 
 #And view
-glimpse(sobs_nobi)
-sobs_nobi %>% 
+glimpse(sobs_clean_nobi)
+sobs_clean_nobi %>% 
   dplyr::select(Full.Point.ID, Species, Distance, Minute, Remove, Sort, Date,
                 Ord.Date, Temp.Start, Wind.Start, Sky.Start, 
                 Temp.End, Wind.End, Sky.End, Notes) %>% 
   base::print(n = 200)
 
 #remove the tagged rows
-sobs <- sobs_nobi %>% 
+sobs_clean_coords <- sobs_clean_nobi %>% 
   filter(Remove == F) %>% 
   dplyr::select(- Remove, - Sort)  
 
 #view
-glimpse(sobs)
+glimpse(sobs_clean_coords)
 
 #Add in point coordinates --------------------------------------------
 #Convert coordinates to numeric
@@ -3857,7 +4308,7 @@ coords_tbl <- point_cords %>%
   dplyr::count(Route.ID)
 
 #observations
-surveys_tbl <- sobs %>% 
+surveys_tbl <- sobs_clean_coords %>% 
   dplyr::count(Route.ID, Full.Point.ID) %>% 
   dplyr::count(Route.ID)
 
@@ -3872,19 +4323,20 @@ point_cords <- point_cords %>%
   dplyr::select(Full.Point.ID, UTM.X, UTM.Y, Geo.X, Geo.Y)
 
 #Join coordinates to point count data
-sobs <- sobs %>% 
+sobs_clean_coords <- sobs_clean_coords %>% 
   as_tibble() %>% 
   left_join(point_cords, by = "Full.Point.ID")
 
 #View updated point count data
-glimpse(sobs)
-sobs %>% 
+glimpse(sobs_clean_coords)
+sobs_clean_coords %>% 
   distinct(Full.Point.ID, UTM.X, UTM.Y)
 
 #A lot of the temps were recorded in Fahrenheit instead of Celsius -------------------------
+sobs_clean_temp <- sobs_clean_coords
 
 #View all start temps
-sobs %>% 
+sobs_clean_temp %>% 
   distinct(Full.Point.ID, Visit, Year, Temp.Start) %>% 
   arrange(Temp.Start) %>% 
   group_by(Temp.Start) %>% 
@@ -3895,7 +4347,7 @@ sobs %>%
   geom_text(aes(label = Temp.Start))
 
 #View all the end temps
-sobs %>% 
+sobs_clean_temp %>% 
   distinct(Full.Point.ID, Visit, Year, Temp.End) %>% 
   arrange(Temp.End) %>% 
   group_by(Temp.End) %>% 
@@ -3906,13 +4358,13 @@ sobs %>%
   geom_text(aes(label = Temp.End))
 
 #View the NA's
-sobs %>% 
+sobs_clean_temp %>% 
   select(Full.Point.ID, Year, Visit, Observer.ID, Temp.Start, Temp.End) %>% 
   filter(is.na(Temp.Start) | is.na(Temp.End)) %>% 
   print(n = 250)
 
 #I'll use 20 for the start temp cutoff and 40 for the end temp cutoff
-sobs <- sobs %>% 
+sobs_clean_temp <- sobs_clean_temp %>% 
   mutate(Temp.Start = case_when(Temp.Start > 20 & Temp.Start <= 100 ~ floor((Temp.Start -32) / 1.8),
                                 Temp.Start > 100 ~ NA,
                                 TRUE ~ Temp.Start)) %>% 
@@ -3920,7 +4372,7 @@ sobs <- sobs %>%
                                 TRUE ~ Temp.End))
 
 #View all start temps after the fix
-sobs %>% 
+sobs_clean_temp %>% 
   distinct(Full.Point.ID, Visit, Year, Temp.Start) %>% 
   arrange(Temp.Start) %>% 
   group_by(Temp.Start) %>% 
@@ -3931,7 +4383,7 @@ sobs %>%
   geom_text(aes(label = Temp.Start))
 
 #View all the end temps after the fix
-sobs %>% 
+sobs_clean_temp %>% 
   distinct(Full.Point.ID, Visit, Year, Temp.End) %>% 
   arrange(Temp.End) %>% 
   group_by(Temp.End) %>% 
@@ -3943,13 +4395,19 @@ sobs %>%
 #Looks good :)
 
 #calculate minutes after sunrise ------------------------------------------------
+sobs_clean_time <- sobs_clean_temp
 
 #Install bioRAD package for working with sunrises
 #install.packages("bioRad")
 library(bioRad)
 
+#View the NA coords
+sobs_clean_time %>% 
+  distinct(Full.Point.ID, Year, Visit, Observer.ID, Geo.X, Geo.Y) %>% 
+  filter(is.na(Geo.X) | is.na(Geo.Y))
+
 #claculate minutes after sunrise (MAS)
-sobs <- sobs %>% 
+sobs_clean_time <- sobs_clean_time %>% 
   mutate(Loc.SunR = sunrise(date = Date, #Date comes from the date column and is already read a a date
                             lon = Geo.X, #The decimal degrees longitude
                             lat = Geo.Y, #the decimal degrees latitude
@@ -3967,31 +4425,31 @@ sobs <- sobs %>%
   drop_na(MAS)
 
 #View the data after the calculation
-glimpse(sobs)
-sobs %>% 
+glimpse(sobs_clean_time)
+sobs_clean_time %>% 
   dplyr::select(Full.Point.ID, Time.lbr, Loc.SunR, MAS) %>% 
   head(n = 6)
 
 #view the NA's for MAS
-sobs %>% 
+sobs_clean_time %>% 
   filter(is.na(MAS)) %>% 
   dplyr::select(Species, Full.Point.ID, Time.lbr, Loc.SunR, MAS)
-#there are none
+#there are none! :)
 
-#view the points that are more than 5.5 hours after sunrise
-sobs %>% 
+#view the points that are more than 5 hours after sunrise
+sobs_clean_time %>% 
   dplyr::select(Full.Point.ID, Date, Point.Time, Time.lbr, Loc.SunR, MAS) %>% 
-  filter(MAS > 330) %>% 
+  filter(MAS > 300) %>% 
   base::print(n = 50)
 
 #View the points that were more than 30 minutes before sunrise'
-sobs %>% 
+sobs_clean_time %>% 
   dplyr::select(Full.Point.ID, Observer.ID, Visit, Date, Time.lbr, Loc.SunR, MAS) %>% 
   filter(MAS < 0) %>% 
   base::print(n = 50)
 
 #Remove excess columns and reorder everything
-sobs <- sobs %>% 
+sobs_clean_time <- sobs_clean_time %>% 
    dplyr::select(Species, Distance, Minute, How.Detected, 
           # Song.Also, Group.Size, Sex, 
           Visual.ID,
@@ -4000,11 +4458,14 @@ sobs <- sobs %>%
           Point.Time, MAS,
           Temp.Start, Wind.Start, Sky.Start, 
           Temp.End, Wind.End, Sky.End,
+          # Shrub.Cover, Shrub.Height, Cheatgrass.Cover, Trees.Count,
           Notes, UTM.X, UTM.Y, Geo.X, Geo.Y) %>% 
   arrange(by = Date)
-glimpse(sobs)
+glimpse(sobs_clean_time)
 
 #Last check ----------------------------------------------------------
+sobs <- sobs_clean_time
+
 #View one last time
 glimpse(sobs)
 base::print(sobs, n = 200)
