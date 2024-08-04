@@ -1903,17 +1903,17 @@ sobs_first_clean <- sobs_first_clean %>%
 #View the new sobs data
 glimpse(sobs_first_clean)
 
-##########################################################################################
+#Fix Individual Points #########################################################################################
 sobs_clean_point <- sobs_first_clean
 
 #Fix the incorrect point names
 #The naming systems for the first year was different 
 sobs_clean_point <- sobs_clean_point %>% 
-  mutate(Full.Point.ID = case_when(#ID-B13-V1
+  mutate(New.Point.ID = case_when(#ID-B13-V1
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P10"
-                                   ~ "ID-B13-P01",
+                                   ~ "ID-B13-X01",
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P11"
-                                   ~ "ID-B13-P02", 
+                                   ~ "ID-B13-X02", 
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P14"
                                    ~ "ID-B13-P03",
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P15"
@@ -2062,6 +2062,8 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B19-P15"
                                    ~ "ID-B19-P08",
                                    #ID-B19-V2
+                                   Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P01"
+                                   ~ "ID-B19-P01",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P02"
                                    ~ "ID-B19-P05",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P03"
@@ -2069,12 +2071,18 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P04"
                                    ~ "ID-B19-P13",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P05"
-                                   ~ "ID-B19-P13",
+                                   ~ "ID-B19-P14",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P06"
                                    ~ "ID-B19-P10",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P07"
                                    ~ "ID-B19-P06",
+                                   Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P08"
+                                   ~ "ID-B19-P02",
+                                   Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P09"
+                                   ~ "ID-B19-P03",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P10"
+                                   ~ "ID-B19-P07",
+                                   Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P11"
                                    ~ "ID-B19-P11",
                                    Year == "Y1" & Visit == "V2" & Full.Point.ID == "ID-B19-P12"
                                    ~ "ID-B19-P15",
@@ -2102,7 +2110,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Full.Point.ID == "ID-C19-P08"
                                    ~ "ID-C19-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-C19-P09"
-                                   ~ "ID-C19-P14",
+                                   ~ "ID-C19-P15",
                                    Year == "Y1" & Full.Point.ID == "ID-C19-P10"
                                    ~ "ID-C19-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-C19-P11"
@@ -2120,12 +2128,10 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B16-P16",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P02"
                                    ~ "ID-B16-P15",
-                                   Year == "Y1" & Full.Point.ID == "ID-B16-P03" & Point.Time == "07:39"
+                                   Year == "Y1" & Point.Time %in% c("07:27", "10:36")
                                    ~ "ID-B16-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P03" & Point.Time == "10:22"
                                    ~ "ID-B16-P13",
-                                   Year == "Y1" & Full.Point.ID == "ID-B16-P03" & Point.Time == "10:36"
-                                   ~ "ID-B16-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P04"
                                    ~ "ID-B16-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P05"
@@ -2190,9 +2196,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C26-P01",
                                    Year == "Y1" & Full.Point.ID == "ID-C26-P02"
                                    ~ "ID-C26-P05",
-                                   Year == "Y1" & Full.Point.ID == "ID-C26-P03"
-                                   ~ "ID-C26-P04",
-                                   Year == "Y1" & Full.Point.ID == "ID-C26-P04"
+                                   Year == "Y1" & Route.ID == "ID-C26" & Point.Time %in% c("06:48", "07:58")
+                                   ~ "ID-C26-P09",
+                                   Year == "Y1" & Route.ID == "ID-C26" & Point.Time %in% c("07:05", "08:08")
                                    ~ "ID-C26-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C26-P05"
                                    ~ "ID-C26-P14",
@@ -2224,7 +2230,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Full.Point.ID == "ID-C15-P02"
                                    ~ "ID-C15-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-C15-P03"
-                                   ~ "ID-C15-P03",
+                                   ~ "ID-C15-P02",
                                    Year == "Y1" & Full.Point.ID == "ID-C15-P04"
                                    ~ "ID-C15-P01",
                                    Year == "Y1" & Full.Point.ID == "ID-C15-P05"
@@ -2251,10 +2257,10 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C15-P12",
                                    Year == "Y1" &  Full.Point.ID == "ID-C15-P16"
                                    ~ "ID-C15-P08",
-                                   #ID-C12-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P01" & Point.Time == "06:59"
+                                   #ID-C12-Y1-V1
+                                   Year == "Y1" & Point.Time == "06:59" & Visit == "V1"
                                    ~ "ID-C12-P14",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P01" & Point.Time == "08:12"
+                                   Year == "Y1" & Point.Time == "08:12" & Visit == "V1"
                                    ~ "ID-C12-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P02" & Visit == "V1"
                                    ~ "ID-C12-P15",
@@ -2275,7 +2281,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P11" & Visit == "V1"
                                    ~ "ID-C12-P06",
                                    Year == "Y1" &  Full.Point.ID == "ID-C12-P12" & Visit == "V1"
-                                   ~ "ID-C12-P06",
+                                   ~ "ID-C12-P07",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P13" & Visit == "V1"
                                    ~ "ID-C12-P11",
                                    Year == "Y1" &  Full.Point.ID == "ID-C12-P14" & Visit == "V1"
@@ -2284,104 +2290,148 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C12-P09",
                                    Year == "Y1" &  Full.Point.ID == "ID-C12-P16" & Visit == "V1"
                                    ~ "ID-C12-P13",
-                                   #ID-C12-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P01" & Point.Time == "06:23"
+                                   #ID-C12-Y1-V2
+                                   Year == "Y1" & Route.ID == "ID-C12" & Visit == "V2" & Point.Time == "06:23"
                                    ~ "ID-C12-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P02" & Visit == "V2"
-                                   ~ "ID-C12-P09",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P03" & Visit == "V2"
-                                   ~ "ID-C12-P05",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P04" & Visit == "V2"
-                                   ~ "ID-C12-P01",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P05" & Visit == "V2"
-                                   ~ "ID-C12-P02",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P06" & Visit == "V2"
-                                   ~ "ID-C12-P03",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P07" & Visit == "V2"
-                                   ~ "ID-C12-P04",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P08" & Visit == "V2"
-                                   ~ "ID-C12-P08",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P09" & Visit == "V2"
-                                   ~ "ID-C12-P12",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P10" & Visit == "V2"
-                                   ~ "ID-C12-P16",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P11" & Visit == "V2"
                                    ~ "ID-C12-P15",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P12" & Visit == "V2"
-                                   ~ "ID-C12-P11",
-                                   Year == "Y1" & Full.Point.ID == "ID-C12-P13" & Visit == "V2"
-                                   ~ "ID-C12-P07",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P14" & Visit == "V2"
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P03" & Visit == "V2"
+                                   ~ "ID-C12-P16",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P04" & Visit == "V2"
+                                   ~ "ID-C12-P12",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P05" & Visit == "V2"
+                                   ~ "ID-C12-P08",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P06" & Visit == "V2"
+                                   ~ "ID-C12-P04",
+                                   Year == "Y1" & Route.ID == "ID-C12" & Visit == "V2" & Point.Time == "07:14"
+                                   ~ "ID-C12-P03",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P08" & Visit == "V2"
+                                   ~ "ID-C12-P02",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P09" & Visit == "V2"
+                                   ~ "ID-C12-P01",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P10" & Visit == "V2"
+                                   ~ "ID-C12-P05",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P11" & Visit == "V2"
                                    ~ "ID-C12-P06",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P15" & Visit == "V2"
+                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P12" & Visit == "V2"
+                                   ~ "ID-C12-P07",
+                                   Year == "Y1" & Full.Point.ID == "ID-C12-P13" & Visit == "V2"
+                                   ~ "ID-C12-P11",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P14" & Visit == "V2"
                                    ~ "ID-C12-P10",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P16" & Visit == "V2"
-                                   ~ "ID-C12-P14",
-                                   #ID-B12-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P01" 
-                                   ~ "ID-B12-P01",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P02" 
+                                   Year == "Y1" &  Full.Point.ID == "ID-C12-P15" & Visit == "V2"
+                                   ~ "ID-C12-P09",
+                                   Year == "Y1" & Route.ID == "ID-C12" & Visit == "V2" & Point.Time == "08:45"
+                                   ~ "ID-C12-P13",
+                                   #ID-B12-Y1-V1
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P16" & Visit == "V1"
                                    ~ "ID-B12-P02",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P03" 
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P15" & Visit == "V1"
                                    ~ "ID-B12-P03",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P04"
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P14" & Visit == "V1"
                                    ~ "ID-B12-P04",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P05"
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P13" & Visit == "V1"
                                    ~ "ID-B12-P08",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P06"
-                                   ~ "ID-B12-P12",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P07"
-                                   ~ "ID-B12-P16",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P08"
-                                   ~ "ID-B12-P15",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P09"
-                                   ~ "ID-B12-P14",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P10"
-                                   ~ "ID-B12-P13",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P11" 
-                                   ~ "ID-B12-P09",
-                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P12"
-                                   ~ "ID-B12-P10",
-                                   Year == "Y1" & Full.Point.ID == "ID-B12-P13" 
-                                   ~ "ID-B12-P10",
-                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P14"
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P12" & Visit == "V1"
                                    ~ "ID-B12-P07",
-                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P15"
+                                   #ID-B12-Y1-V2
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P01" & Visit == "V2"
+                                   ~ "ID-B12-P01",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P16" & Visit == "V2"
+                                   ~ "ID-B12-P02",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P15" & Visit == "V2"
+                                   ~ "ID-B12-P03",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P14" & Visit == "V2"
+                                   ~ "ID-B12-P04",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P13" & Visit == "V2"
+                                   ~ "ID-B12-P08",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P12" & Visit == "V2"
+                                   ~ "ID-B12-P07",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P11" & Visit == "V2"
                                    ~ "ID-B12-P06",
-                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P16"
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P10" & Visit == "V2"
+                                   ~ "ID-B12-P10",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P09" & Visit == "V2"
+                                   ~ "ID-B12-P11",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P08" & Visit == "V2"
+                                   ~ "ID-B12-P12",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P07" & Visit == "V2" 
+                                   ~ "ID-B12-P16",
+                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P06" & Visit == "V2"
+                                   ~ "ID-B12-P15",
+                                   Year == "Y1" & Full.Point.ID == "ID-B12-P05" & Visit == "V2" 
+                                   ~ "ID-B12-P14",
+                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P04" & Visit == "V2"
+                                   ~ "ID-B12-P13",
+                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P03" & Visit == "V2"
+                                   ~ "ID-B12-P09",
+                                   Year == "Y1" &  Full.Point.ID == "ID-B12-P02" & Visit == "V2"
                                    ~ "ID-B12-P05",
-                                   #ID-C09-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P01" 
+                                   #ID-C09-Y1-V1
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P01" & Visit == "V1" 
                                    ~ "ID-C09-P01",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P02" 
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P02" & Visit == "V1" 
                                    ~ "ID-C09-P02",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P03" 
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P03" & Visit == "V1" 
                                    ~ "ID-C09-P03",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P04"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P04" & Visit == "V1" 
                                    ~ "ID-C09-P04",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P05"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P05" & Visit == "V1"
                                    ~ "ID-C09-P08",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P06"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P06" & Visit == "V1"
                                    ~ "ID-C09-P12",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P07"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P07" & Visit == "V1"
                                    ~ "ID-C09-P16",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P08"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P08" & Visit == "V1"
                                    ~ "ID-C09-P15",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P09"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P09" & Visit == "V1"
                                    ~ "ID-C09-P14",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P10"
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P10" & Visit == "V1"
                                    ~ "ID-C09-P13",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P11" 
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P11"  & Visit == "V1"
                                    ~ "ID-C09-P09",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P12"
+                                   Year == "Y1" & Point.Time == "09:50" & Visit == "V1"
                                    ~ "ID-C09-P10",
-                                   Year == "Y1" & Full.Point.ID == "ID-C09-P13" 
-                                   ~ "ID-C09-P10",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P14"
+                                   Year == "Y1" & Point.Time == "10:00" & Visit == "V1"
+                                   ~ "ID-C09-P11",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P14" & Visit == "V1"
                                    ~ "ID-C09-P07",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P15"
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P15" & Visit == "V1"
                                    ~ "ID-C09-P06",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P16"
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P16" & Visit == "V1"
+                                   ~ "ID-C09-P05",
+                                   #ID-C09-Y1-V2
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P01" & Visit == "V2" 
+                                   ~ "ID-C09-P01",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P02" & Visit == "V2" 
+                                   ~ "ID-C09-P02",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P03" & Visit == "V2" 
+                                   ~ "ID-C09-P03",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P04" & Visit == "V2" 
+                                   ~ "ID-C09-P04",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P05" & Visit == "V2"
+                                   ~ "ID-C09-P08",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P06" & Visit == "V2"
+                                   ~ "ID-C09-P12",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P07" & Visit == "V2"
+                                   ~ "ID-C09-P16",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P08" & Visit == "V2"
+                                   ~ "ID-C09-P15",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P09" & Visit == "V2"
+                                   ~ "ID-C09-P14",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P10" & Visit == "V2"
+                                   ~ "ID-C09-P13",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P11"  & Visit == "V2"
+                                   ~ "ID-C09-P09",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P12" & Visit == "V2"
+                                   ~ "ID-C09-P10",
+                                   Year == "Y1" & Full.Point.ID == "ID-C09-P13"  & Visit == "V2"
+                                   ~ "ID-C09-P11",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P14" & Visit == "V2"
+                                   ~ "ID-C09-P07",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P15" & Visit == "V2"
+                                   ~ "ID-C09-P06",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C09-P16" & Visit == "V2"
                                    ~ "ID-C09-P05",
                                    #ID-B09-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "ID-B09-P01" 
@@ -2402,9 +2452,13 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B09-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-B09-P09"
                                    ~ "ID-B09-P02",
-                                   Year == "Y1" & Full.Point.ID == "ID-B09-P10"
+                                   Year == "Y1" & Point.Time == "10:49" 
                                    ~ "ID-B09-P06",
-                                   Year == "Y1" & Full.Point.ID == "ID-B09-P11" 
+                                   Year == "Y1" & Visit == "V1" & Point.Time == "08:52"
+                                   ~ "ID-B09-P06",
+                                   Year == "Y1" & Visit == "V1" & Point.Time == "09:05"
+                                   ~ "ID-B09-P10",
+                                   Year == "Y1" & Visit == "V2" & Point.Time == "10:39"
                                    ~ "ID-B09-P10",
                                    Year == "Y1" &  Full.Point.ID == "ID-B09-P12"
                                    ~ "ID-B09-P14",
@@ -2450,8 +2504,10 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-B28-P16"
                                    ~ "ID-B28-P01",
                                    #ID-C07-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-C07-P01"
+                                   Year == "Y1" & Point.Time %in% c("10:13", "10:18")
                                    ~ "ID-C07-P16",
+                                   Year == "Y1" & Point.Time %in% c("09:38", "07:10")
+                                   ~ "ID-C07-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C07-P02" 
                                    ~ "ID-C07-P09",
                                    Year == "Y1" & Full.Point.ID == "ID-C07-P03" 
@@ -2490,7 +2546,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Full.Point.ID == "ID-C11-P03" 
                                    ~ "ID-C11-P02",
                                    Year == "Y1" & Full.Point.ID == "ID-C11-P04"
-                                   ~ "ID-C11-P04",
+                                   ~ "ID-C11-P01",
                                    Year == "Y1" & Full.Point.ID == "ID-C11-P05"
                                    ~ "ID-C11-P05",
                                    Year == "Y1" & Full.Point.ID == "ID-C11-P06"
@@ -2582,7 +2638,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-B11-P16"
                                    ~ "ID-B11-P14",
                                    #ID-B03-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-B03-P01" & Point.Time == "09:41"
+                                   Year == "Y1" & Full.Point.ID == "ID-B03-P01" & Point.Time %in% c("09:14", "06:47")
                                    ~ "ID-B03-P16",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P02" 
                                    ~ "ID-B03-P15",
@@ -2598,7 +2654,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B03-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P08"
                                    ~ "ID-B03-P12",
-                                   Year == "Y1" & Full.Point.ID == "ID-B03-P01" & Point.Time == "06:54"
+                                   Year == "Y1" & Point.Time %in% c("06:54", "08:16")
                                    ~ "ID-B03-P08",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P10"
                                    ~ "ID-B03-P07",
@@ -2649,7 +2705,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C03-P13",
                                    #ID-B23-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "ID-B23-P01"
-                                   ~ "ID-B23-P16",
+                                   ~ "ID-B23-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-B23-P02" 
                                    ~ "ID-B23-P09",
                                    Year == "Y1" & Full.Point.ID == "ID-B23-P03" 
@@ -2717,7 +2773,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Full.Point.ID == "ID-B22-P01"
                                    ~ "ID-B22-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-B22-P02" 
-                                   ~ "ID-B22-P12",
+                                   ~ "ID-B22-P09",
                                    Year == "Y1" & Full.Point.ID == "ID-B22-P03" 
                                    ~ "ID-B22-P05",
                                    Year == "Y1" & Full.Point.ID == "ID-B22-P04"
@@ -2829,7 +2885,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C04-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-C04-P08"
                                    ~ "ID-C04-P15",
-                                   Year == "Y1" & Full.Point.ID == "ID-C04-P16" & Point.Time == "09:08"
+                                   Year == "Y1" & Route.ID == "ID-C04" & Point.Time %in% c("08:02", "09:08")
                                    ~ "ID-C04-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-C04-P10"
                                    ~ "ID-C04-P10",
@@ -2841,11 +2897,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C04-P01",
                                    Year == "Y1" &  Full.Point.ID == "ID-C04-P14"
                                    ~ "ID-C04-P05",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C04-P15"
+                                   Year == "Y1" & Route.ID == "ID-C04" & Point.Time %in% c("06:48", "09:31")
                                    ~ "ID-C04-P09",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C04-P16" & Point.Time == "06:38"
-                                   ~ "ID-C04-P13",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C04-P16" & Point.Time == "09:40"
+                                   Year == "Y1" &  Route.ID == "ID-C04" & Point.Time %in% c("06:38", "09:40")
                                    ~ "ID-C04-P13",
                                    #ID-B24-Y1-V1
                                    Year == "Y1" & Full.Point.ID == "ID-B24-P01" & Visit == "V1"
@@ -2979,38 +3033,71 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B21-P12",
                                    Year == "Y1" &  Full.Point.ID == "ID-B21-P16" & Visit == "V2"
                                    ~ "ID-B21-P11",
-                                   #ID-C21-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P01" & Point.Time == "06:28"
+                                   #ID-C21-Y1-V1
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P01" & Visit == "V1" & Point.Time == "06:28"
                                    ~ "ID-C21-P01",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P02" 
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P02" & Visit == "V1"
                                    ~ "ID-C21-P05",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P03" 
-                                   ~ "ID-C21-P03",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P01" & Point.Time == "06:58"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P03" & Visit == "V1"
+                                   ~ "ID-C21-P09",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P01" & Visit == "V1" & Point.Time == "06:58"
                                    ~ "ID-C21-P13",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P05"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P05" & Visit == "V1"
                                    ~ "ID-C21-P14",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P06"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P06" & Visit == "V1"
                                    ~ "ID-C21-P15",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P07"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P07" & Visit == "V1"
                                    ~ "ID-C21-P16",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P08"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P08" & Visit == "V1"
                                    ~ "ID-C21-P12",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P09"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P09" & Visit == "V1"
                                    ~ "ID-C21-P11",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P10"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P10" & Visit == "V1"
                                    ~ "ID-C21-P10",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P11" 
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P11"  & Visit == "V1"
                                    ~ "ID-C21-P06",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P12"
+                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P12" & Visit == "V1"
                                    ~ "ID-C21-P07",
-                                   Year == "Y1" & Full.Point.ID == "ID-C21-P13" 
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P13"  & Visit == "V1"
                                    ~ "ID-C21-P08",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P15" & Point.Time == "08:37"
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P15" & Visit == "V1" & Point.Time == "08:37"
                                    ~ "ID-C21-P04",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P15" & Point.Time %in% c("07:25", "08:48")
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P15"  & Visit == "V1" & Point.Time == "08:48"
                                    ~ "ID-C21-P03",
-                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P16"
+                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P16" & Visit == "V1"
+                                   ~ "ID-C21-P02",
+                                   #ID-C21-Y1-V2
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P01" & Visit == "V2"
+                                   ~ "ID-C21-P01",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P02" & Visit == "V2"
+                                   ~ "ID-C21-P05",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P03" & Visit == "V2"
+                                   ~ "ID-C21-P09",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P04" & Visit == "V2"
+                                   ~ "ID-C21-P13",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P05" & Visit == "V2"
+                                   ~ "ID-C21-P14",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P06" & Visit == "V2"
+                                   ~ "ID-C21-P15",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P07" & Visit == "V2"
+                                   ~ "ID-C21-P16",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P08" & Visit == "V2"
+                                   ~ "ID-C21-P12",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P09" & Visit == "V2"
+                                   ~ "ID-C21-P11",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P10" & Visit == "V2"
+                                   ~ "ID-C21-P10",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P11"  & Visit == "V2"
+                                   ~ "ID-C21-P06",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P12" & Visit == "V2"
+                                   ~ "ID-C21-P07",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P13"  & Visit == "V2"
+                                   ~ "ID-C21-P08",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P14" & Visit == "V2"
+                                   ~ "ID-C21-P04",
+                                   Year == "Y1" & Full.Point.ID == "ID-C21-P15"  & Visit == "V2"
+                                   ~ "ID-C21-P03",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C21-P16" & Visit == "V2"
                                    ~ "ID-C21-P02",
                                    #UT-B19-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "UT-B19-P01" & Point.Time %in% c("06:31", "10:12")
@@ -3228,30 +3315,28 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B01-P03",
                                    Year == "Y1" &  Full.Point.ID == "UT-B01-P16"
                                    ~ "UT-B01-P04",
-                                   #UT-C02-Y1-V1
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P01" & Point.Time %in% c("07:50", "06:44")
-                                   ~ "UT-C02-P05",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P01" & Point.Time == "08:34"
-                                   ~ "UT-C02-P10",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P02"
-                                   ~ "UT-C02-P02",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P03"
+                                   #UT-C02-Y1-V1&V2
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:15", "07:09")
                                    ~ "UT-C02-P01",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P04"
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:02", "06:57")
+                                   ~ "UT-C02-P02",
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:29", "07:24")
                                    ~ "UT-C02-P03",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P05"
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:43", "07:35")
                                    ~ "UT-C02-P04",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P06"
-                                   ~ "UT-C02-P07",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P07"
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:50", "06:44")
+                                   ~ "UT-C02-P05",
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:37", "08:01")
                                    ~ "UT-C02-P06",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P08"
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:54", "07:49")
+                                   ~ "UT-C02-P07",
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:23", "08:11")
                                    ~ "UT-C02-P08",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P09"
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:11", "08:22")
                                    ~ "UT-C02-P09",
-                                   Year == "Y1" & Full.Point.ID == "UT-C02-P10"
+                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("06:59", "08:34")
                                    ~ "UT-C02-P10",
-                                   #UT-B02-Y1-V1
+                                   #UT-B02-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "UT-B02-P10" & Point.Time %in% c("08:00", "08:19")
                                    ~ "UT-B02-P10",
                                    Year == "Y1" & Full.Point.ID == "UT-B02-P10" & Point.Time == "08:06"
@@ -3476,8 +3561,8 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "UT-C22-P12" & Visit == "V1"
                                    ~ "UT-C22-P03",
                                    #UT-C22-Y1-V2
-                                   Year == "Y1" & Full.Point.ID == "UT-C22-P01" & Visit == "V2"
-                                   ~ "UT-C22-P12",
+                                   Year == "Y1" & Point.Time == "06:09" & Visit == "V2"
+                                   ~ "UT-C22-P01",
                                    Year == "Y1" & Full.Point.ID == "UT-C22-P03" & Visit == "V2"
                                    ~ "UT-C22-P09",
                                    Year == "Y1" & Full.Point.ID == "UT-C22-P04" & Visit == "V2"
@@ -3884,7 +3969,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B24-P02",
                                    Year == "Y1" &  Full.Point.ID == "UT-B24-P15" & Visit == "V1"
                                    ~ "UT-B24-P03",
-                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P16" & Visit == "V2"
+                                   Year == "Y1" &  Full.Point.ID == "UT-B24-P16" & Visit == "V1"
                                    ~ "UT-B24-P04",
                                    #UT-B24-Y1-V2
                                    Year == "Y1" & Full.Point.ID == "UT-B24-P01" & Visit == "V2"
@@ -3920,8 +4005,12 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "UT-B24-P16" & Visit == "V2"
                                    ~ "UT-B24-P13",
                                    #UT-B08-Y1-V1&V2
-                                   Year == "Y1" & Full.Point.ID == "UT-B08-P01"
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P01" & Visit == "V1"
                                    ~ "UT-B08-P01",
+                                   Year == "Y1" & Point.Time == "10:43" & Visit == "V2"
+                                   ~ "UT-B08-P01",
+                                   Year == "Y1" & Point.Time == "11:15" & Visit == "V2"
+                                   ~ "UT-B08-P13",
                                    Year == "Y1" & Full.Point.ID == "UT-B08-P02" 
                                    ~ "UT-B08-P05",
                                    Year == "Y1" & Full.Point.ID == "UT-B08-P03"
@@ -3944,7 +4033,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B08-P03",
                                    Year == "Y1" &  Full.Point.ID == "UT-B08-P12" 
                                    ~ "UT-B08-P02",
-                                   Year == "Y1" & Full.Point.ID == "UT-B08-P13" 
+                                   Year == "Y1" & Full.Point.ID == "UT-B08-P13"
                                    ~ "UT-B08-P07",
                                    Year == "Y1" &  Full.Point.ID == "UT-B08-P14" 
                                    ~ "UT-B08-P11",
@@ -3985,6 +4074,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-C08-P12",
                                    Year == "Y1" & Full.Point.ID == "UT-C08-P16" 
                                    ~ "UT-C08-P16",
+                                   #ID-C28 Y1 V1
+                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("08:02", "09:17")
+                                   ~ "UT-C08-P06",
                                    ###### Fix a few Y2's #######################
                                    Year == "Y2" & Full.Point.ID == "ID-B13-P09" & Point.Time == "06:23" 
                                    ~ "ID-B13-P16",
@@ -4014,6 +4106,24 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B16-P14",
                                    Year == "Y2" & Full.Point.ID == "UT-B16-P14" & Visit == "V2" 
                                    ~ "UT-B16-P13",
+                                   Year == "Y2" & Route.ID == "ID-C04" & Visit == "V1" & Point.Time == "08:24"
+                                   ~ "ID-C04-P02",
+                                   Year == "Y2" & Route.ID == "UT-C17" & Visit == "V1" & Point.Time == "07:56"
+                                   ~ "UT-C17-P04",
+                                   Year == "Y2" & Route.ID == "UT-C17" & Visit == "V1" & Point.Time == "09:08"
+                                   ~ "UT-C17-P09",
+                                   Year == "Y2" & Route.ID == "ID-B13" & Visit == "V1" & Point.Time == "09:06"
+                                   ~ "ID-B13-P13",
+                                   Year == "Y2" & Route.ID == "ID-B04" & Visit == "V1" & Point.Time == "10:13"
+                                   ~ "ID-B04-P12",
+                                   Year == "Y2" & Route.ID == "UT-B16" & Visit == "V1" & Point.Time == "06:38"
+                                   ~ "UT-B16-P13",
+                                   Year == "Y2" & Route.ID == "ID-B12" & Visit == "V2" & Point.Time == "07:01"
+                                   ~ "ID-B12-P11",
+                                   Year == "Y2" & Route.ID == "UT-B19" & Visit == "V2" & Point.Time == "09:01"
+                                   ~ "UT-B19-P13",
+                                   Year == "Y2" & Route.ID == "ID-B07" & Visit == "V2" & Point.Time == "06:03"
+                                   ~ "ID-B07-P03",
                                    #UT-B25
                                    Year == "Y2" & Full.Point.ID == "UT-B25-P02" & Visit == "V1" 
                                    ~ "UT-B25-P15",
@@ -4037,9 +4147,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B25-P10",
                                    Year == "Y2" & Full.Point.ID == "UT-B25-P12" & Visit == "V1" 
                                    ~ "UT-B25-P11",
-                                   Year == "Y2" & Full.Point.ID == "UT-B25-P13" & Visit == "V1" 
+                                   Year == "Y2" & Route.ID == "UT-B25" & Visit == "V1" & Point.Time == "07:46"
                                    ~ "UT-B25-P12",
-                                   Year == "Y2" & Full.Point.ID == "UT-B25-P14" & Visit == "V1" 
+                                   Year == "Y2" & Route.ID == "UT-B25" & Visit == "V1" & Point.Time == "08:10"
                                    ~ "UT-B25-P13",
                                    Year == "Y2" & Full.Point.ID == "UT-B25-P15" & Visit == "V1" 
                                    ~ "UT-B25-P14",
@@ -4060,65 +4170,85 @@ sobs_clean_point <- sobs_clean_point %>%
 glimpse(sobs_clean_point)
 sobs_clean_point %>% 
   filter(Route.ID == "UT-B25") %>% 
-  distinct(Full.Point.ID, Year, Visit) %>% 
-  dplyr::count(Full.Point.ID)
+  distinct(New.Point.ID, Year, Visit) %>% 
+  dplyr::count(New.Point.ID)
 
 #Fix UT-B25. It has one extra point (now P15)
 sobs_clean_point <- sobs_clean_point %>% 
-  filter(Full.Point.ID != "UT-B25-P15") %>% 
+  filter(New.Point.ID != "UT-B25-P15") %>% 
   #IDK what to do with the V3's so I'm dropping them
   filter(Visit %in% c("V1", "V2"))
 
-#Change the points on a few of my surveys from year three. First I need to see them
-sobs_clean_point %>% 
-  filter(Observer.ID == "Will" &
-           Route.ID %in% c("ID-C09", "ID-B22", "ID-C28", "UT-B08", "UT-C25")) %>% 
-  distinct(Route.ID, Point.ID, Point.Time) %>% 
-  print(n = Inf)
-
-#Change the wrong points that I put down
+#Change the wrong points that were put down in Y3 (mostly me)
 sobs_clean_point <- sobs_clean_point %>% 
-  mutate(Point.ID = case_when(Observer.ID == "Will" & 
-                                Year == "Y3" &
-                                Route.ID == "ID-B22" & 
-                                Point.Time == "07:23" 
-                              ~ "11",
-                              Observer.ID == "Will" & 
-                                Year == "Y3" &
-                                Route.ID == "ID-B22" & 
-                                Point.Time == "07:52" 
-                              ~ "04",
-                              Observer.ID == "Will" & 
-                                Year == "Y3" &
-                                Route.ID == "UT-B08" & 
-                                Point.Time == "07:05" 
-                              ~ "12",
-                              Observer.ID == "Will" & 
-                                Year == "Y3" &
-                                Route.ID == "ID-C28" & 
-                                Point.Time == "06:01" 
-                              ~ "16",
-                              Observer.ID == "Will" & 
-                                Year == "Y3" &
-                                Route.ID == "ID-C28" & 
-                                Point.Time == "08:50" 
-                              ~ "13",
-                              Observer.ID == "Will" &
-                                Year == "Y3" &
-                                Route.ID == "UT-C25" & 
-                                Point.Time == "08:37" 
-                              ~ "14",
-                              Observer.ID == "Will" &
-                                Year == "Y3" &
-                                Route.ID == "UT-C25" & 
-                                Point.Time == "07:03"
-                              ~ "01",
-                              TRUE ~ Point.ID)) %>% 
+  mutate(New.Point.ID = case_when(Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-B22" & Point.Time == "07:23" 
+                                  ~ "ID-B22-P11",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-B22" & Point.Time == "07:52" 
+                                  ~ "ID-B22-P04",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-B08" & Point.Time == "07:05" 
+                                  ~ "UT-B08-P12",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C28" & Point.Time == "06:01" 
+                                  ~ "ID-C28-P16",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C28" & Point.Time == "08:50" 
+                                  ~ "ID-C28-P13",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C25" & Point.Time == "08:37" 
+                                  ~ "UT-C25-P14",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C25" & Point.Time == "07:03"
+                                  ~ "UT-C25-P01",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C09" & Point.Time == "07:03"
+                                  ~ "ID-C09-P01",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C24" & Point.Time == "05:45"
+                                  ~ "UT-C24-P01",
+                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C24" &  Point.Time == "05:45"
+                                  ~ "UT-C24-P03",
+                                  Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "UT-B24" & Point.Time == "08:58"
+                                  ~ "UT-B24-P05",
+                                  Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "ID-B15" & Point.Time == "07:15"
+                                  ~ "ID-B15-P08",
+                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "ID-C04" & Point.Time == "08:11"
+                                  ~ "ID-C04-P04",
+                                  Observer.ID == "Holden" & Year == "Y3" & Route.ID == "UT-B22" & Point.Time == "06:46"
+                                  ~ "UT-B22-P02",
+                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "UT-C30" & Point.Time == "07:24"
+                                  ~ "UT-C30-P02",
+                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "UT-B24" & Point.Time == "08:56"
+                                  ~ "UT-B24-P14",
+                                  Observer.ID == "Aidan" & Year == "Y3" & Route.ID == "ID-B07" & Point.Time == "08:25"
+                                  ~ "ID-B07-P13",
+                                  Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "ID-B26" & Point.Time == "09:01"
+                                  ~ "ID-B26-P13",
+                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "ID-C16" & Point.Time == "09:01"
+                                  ~ "ID-C16-P07",
+                                  TRUE ~ New.Point.ID
+                                  )) %>% 
   mutate(Visit = case_when(Route.ID == "ID-B22" & Observer.ID == "Will" 
                            ~ "V1",
                            Route.ID == "ID-C09" & Observer.ID == "Will" 
                            ~ "V1",
                            TRUE ~ Visit))
+
+#And now to view the points that were surveyed twice during a single visit
+sobs_clean_point %>% 
+  distinct(Route.ID, Date, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
+  group_by(Route.ID, Date, New.Point.ID) %>%
+  reframe(Route.ID, Visit, Date, Observer.ID, New.Point.ID, Point.Time, Times.Visited = n()) %>%
+  arrange(Date, New.Point.ID) %>%
+  filter(Times.Visited != 1) %>%
+  print(n = Inf)
+
+#Define a specific route/visit to look at
+route <- "ID-C16"
+year <- "Y3"
+visit <- c("V1", "V2")
+
+#View that whole route to see which point was missed 
+sobs_clean_point %>% 
+  distinct(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
+  filter(Route.ID == route & Year == year & Visit %in% visit) %>% 
+  arrange(Date, Point.Time) %>% 
+  print(n = Inf)
+
+
 #and view
 sobs_clean_point %>% 
   distinct(Route.ID, Visit, Date, Observer.ID, Point.ID) %>% 
@@ -4132,34 +4262,34 @@ sobs_clean_point %>%
 #Hoolden recorded a non-existant UT-B02-P11. What is it?
 sobs_clean_point %>% 
   filter(Year == "Y3" & Route.ID == "UT-B02" & Observer.ID == "Holden") %>% 
-  distinct(Full.Point.ID, Point.Time) %>% 
-  arrange(Full.Point.ID)
+  distinct(New.Point.ID, Point.Time) %>% 
+  arrange(New.Point.ID)
 
 #Swap it to P10
 sobs_clean_point <- sobs_clean_point %>% 
-  mutate(Full.Point.ID = case_when(Year == "Y3" & Observer.ID == "Holden" & Full.Point.ID == "UT-B02-P11"
+  mutate(New.Point.ID = case_when(Year == "Y3" & Observer.ID == "Holden" & New.Point.ID == "UT-B02-P11"
                                    ~ "UT-B02-P10",
-                                   TRUE ~ Full.Point.ID))
+                                   TRUE ~ New.Point.ID))
 
 #View how many of each point we have after the fix
 sobs_clean_point %>% 
   mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  distinct(Full.Point.ID, Visit.ID) %>% 
-  count(Full.Point.ID, Visit.ID) %>% 
-  arrange(Full.Point.ID) %>% 
+  distinct(New.Point.ID, Visit.ID) %>% 
+  count(New.Point.ID, Visit.ID) %>% 
+  arrange(New.Point.ID) %>% 
   pivot_wider(names_from = Visit.ID, values_from = n) %>% 
   print(n = Inf)
 
 #Now in a more condensed format
 sobs_clean_point %>% 
-  distinct(Full.Point.ID, Year, Visit) %>% 
-  count(Full.Point.ID) %>% 
-  arrange(Full.Point.ID) %>% 
+  distinct(New.Point.ID, Year, Visit) %>% 
+  count(New.Point.ID) %>% 
+  arrange(New.Point.ID) %>% 
   print(n = Inf)
 
 #And condensed again differently
 sobs_clean_point %>% 
-  distinct(Route.ID, Full.Point.ID, Visit, Year, Date) %>% 
+  distinct(Route.ID, New.Point.ID, Visit, Year, Date) %>% 
   group_by(Route.ID, Year, Visit, Date) %>% 
   reframe(Route.ID, Year, Visit, Date, Points.Surveyed = n()) %>% 
   distinct(Route.ID, Year, Visit, Date, Points.Surveyed ) %>% 
@@ -4174,6 +4304,10 @@ glimpse(sobs_clean_point)
 
 #Redefine the incorrect route types
 sobs_clean_nobi <- sobs_clean_point %>% 
+  #Reverse the new point column that I created 
+  mutate(Full.Point.ID = New.Point.ID) %>% 
+  select(-New.Point.ID) %>% 
+  #Redefine some of the route types
   mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
                                 Route.ID == "UT-C25" ~ "B",
                                 Route.ID == "UT-C30" ~ "R",
@@ -4181,7 +4315,7 @@ sobs_clean_nobi <- sobs_clean_point %>%
                                 TRUE ~ Route.Type))
 
 #Many of the counts do not have NOBI for minutes where no birds were detected
-#Add in NOBI Observations ---------------------------------------------------
+#Add in NOBI Observations ############################################################
 #View some example NOBI observations
 sobs_clean_nobi %>% 
   filter(Species == "NOBI") %>% 
