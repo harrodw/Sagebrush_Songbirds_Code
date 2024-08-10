@@ -516,7 +516,7 @@ point_summaries %>%
 point_summaries <- point_summaries %>% 
   mutate(geometry = as.character(geometry)) %>% 
   mutate(Point.X = str_sub(geometry, start = 3, end = 8)) %>% 
-  mutate(Point.Y = str_sub(geometry, start = 11, end = 17)) %>% 
+  mutate(Point.Y = str_sub(geometry, start = 15, end = 21)) %>% 
   dplyr::select(-geometry) %>% 
   mutate_at(c('Point.X', 'Point.Y'), as.integer) 
 
@@ -524,15 +524,15 @@ point_summaries <- point_summaries %>%
 glimpse(point_summaries)
 
 #export the point summaries
-write.csv(point_summaries, "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Sagebrush_Songbirds_Code\\Data\\Outputs\\point_summaries.csv")
+write.csv(point_summaries, "Data\\Outputs\\point_summaries.csv")
 
 #remove the variables that I no longer need
 point_covs <- point_summaries %>% 
-  select(-c(Route.ID, Route.Type, Point.X, Point.Y))
+  dplyr::select(-c(Route.ID, Route.Type, Point.X, Point.Y))
 #...and view
 glimpse(point_covs)
 
 #View again
 point_covs %>% 
-  select(-Fire.Name, -Full.Point.ID) %>% 
+  dplyr::select(-Fire.Name, -Full.Point.ID) %>% 
   cor()

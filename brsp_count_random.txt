@@ -5,9 +5,9 @@
     beta_p_wind ~ dnorm(0, 0.001) #offset for average wind speed
     
     #Random effect hyperparameters
-    tau.lam <- 1/(sd.lam*sd.lam)
+    tau.lam <- pow(sd.lam, -2)
     sd.lam ~ dunif(0,3)
-    tau.p <- 1/(sd.p*sd.p)
+    tau.p <- pow(sd.p, -2)
     sd.p ~ dunif(0,3)
 
     # #Random intercept priors ---

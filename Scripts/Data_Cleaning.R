@@ -203,12 +203,12 @@ obs_clean_species  <- obs_clean_species  %>%
                    "BRDP",
                    "CCSP"
     ) ~ "BRSP",
-    Species == "BBHU" ~ "BTHU",
     Species %in% c("BLSP",
                    "BTHS"
     ) ~ "BTSP",
     Species == "BAOW" ~ "BUOW",
     Species == "BUSHTIT" ~ "BUSH",
+    Species == "CAGO" ~ "CANG",
     Species == "CAWR" ~ "CANW",
     Species == "CEWA" ~ "CEDW",
     Species == "CHDP" ~ "CHSP",
@@ -1911,9 +1911,9 @@ sobs_clean_point <- sobs_first_clean
 sobs_clean_point <- sobs_clean_point %>% 
   mutate(New.Point.ID = case_when(#ID-B13-V1
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P10"
-                                   ~ "ID-B13-X01",
+                                   ~ "ID-B13-P01",
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P11"
-                                   ~ "ID-B13-X02", 
+                                   ~ "ID-B13-P02", 
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P14"
                                    ~ "ID-B13-P03",
                                    Year == "Y1" & Visit == "V1" & Full.Point.ID == "ID-B13-P15"
@@ -4197,8 +4197,6 @@ sobs_clean_point <- sobs_clean_point %>%
                                   ~ "UT-C25-P01",
                                   Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C09" & Point.Time == "07:03"
                                   ~ "ID-C09-P01",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C24" & Point.Time == "05:45"
-                                  ~ "UT-C24-P01",
                                   Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C24" &  Point.Time == "05:45"
                                   ~ "UT-C24-P03",
                                   Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "UT-B24" & Point.Time == "08:58"
@@ -4217,7 +4215,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                   ~ "ID-B07-P13",
                                   Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "ID-B26" & Point.Time == "09:01"
                                   ~ "ID-B26-P13",
-                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "ID-C16" & Point.Time == "09:01"
+                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "ID-C16" & Point.Time == "06:32"
                                   ~ "ID-C16-P07",
                                   TRUE ~ New.Point.ID
                                   )) %>% 
@@ -4237,7 +4235,7 @@ sobs_clean_point %>%
   print(n = Inf)
 
 #Define a specific route/visit to look at
-route <- "ID-C16"
+route <- "UT-C24"
 year <- "Y3"
 visit <- c("V1", "V2")
 
@@ -4246,17 +4244,6 @@ sobs_clean_point %>%
   distinct(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
   filter(Route.ID == route & Year == year & Visit %in% visit) %>% 
   arrange(Date, Point.Time) %>% 
-  print(n = Inf)
-
-
-#and view
-sobs_clean_point %>% 
-  distinct(Route.ID, Visit, Date, Observer.ID, Point.ID) %>% 
-  group_by(Route.ID, Visit, Date, Observer.ID) %>% 
-  reframe(Route.ID, Visit, Date, Observer.ID, Points.Surveyed = n()) %>% 
-  distinct(Route.ID, Visit, Date, Observer.ID, Points.Surveyed) %>% 
-  arrange(Route.ID, Visit) %>% 
-  filter(Observer.ID == "Will") %>% 
   print(n = Inf)
 
 #Hoolden recorded a non-existant UT-B02-P11. What is it?
@@ -4297,7 +4284,6 @@ sobs_clean_point %>%
 
 #View the dataset to make sure everything looks good
 glimpse(sobs_clean_point)
-
 
 #After learning more about fire history in this area I have realized that 
 #UT-C24 and UT-C25 burned in 1999 and ID-B03 did not burn
@@ -4597,7 +4583,7 @@ sobs_clean_time <- sobs_clean_time %>%
   arrange(by = Date)
 glimpse(sobs_clean_time)
 
-#Last check ----------------------------------------------------------
+#Last check ----------------------------------------------------------------------------------------------------
 sobs <- sobs_clean_time
 
 #View one last time

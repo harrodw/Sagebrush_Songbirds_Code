@@ -127,7 +127,7 @@ newag<-ag/comp
 newgrass<-grass/comp
 newtree<-tree/comp
 # Now assign NAs a reasonable habitat composition.
-For simplicity - we assume all NA sites are 100% ag
+# For simplicity - we assume all NA sites are 100% ag
 newwet[is.na(newwet)]=0
 newag[is.na(newag)]=1
 newgrass[is.na(newgrass)]=0
@@ -437,7 +437,8 @@ win.data<-list(y=y,
                tree=tree,
                grass=grass,
                ag=ag,wet=wet,ntrans=ntrans,
-               tran=transect$trans,date=date)
+               tran=transect$trans,
+               date=date)
 # create initial values for N and navail that are very close to actual values or model will not run!
 Nst<-win.data$y+1
 
