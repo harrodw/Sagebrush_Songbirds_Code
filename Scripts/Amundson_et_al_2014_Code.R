@@ -437,7 +437,7 @@ win.data<-list(y=y,
                tree=tree,
                grass=grass,
                ag=ag,wet=wet,ntrans=ntrans,
-               tran=transect$trans,
+               tran=Ftransect$trans,
                date=date)
 # create initial values for N and navail that are very close to actual values or model will not run!
 Nst<-win.data$y+1

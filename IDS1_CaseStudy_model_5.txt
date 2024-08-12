@@ -1,0 +1,95 @@
+
+    model{
+      
+      # Priors for all parameters in IDS model
+      # -------------------------------------------------------------------
+      # Partly different parameters in the detectability-perceptibility component 
+	    # of the detection model for the DS and the PC portions of the data
+      
+        alpha0 <- log(mean.sigma)  # sigma intercept on log scale and ...
+        mean.sigma ~ dunif(0, 1)    # ... on the natural scale (0 - 1 km)
+        tau.eps <- pow(sd.eps, -2)
+		    sd.eps ~ dt(0, 1, 1)I(0,)     # Magnitude of that noise
+		    
+      # Covariates:
+      alpha1 ~ dnorm(0, 1)     #shrub cover
+
+      # Shared parameters in the availability component of the detection model
+      gamma0 <- log(mean.phi)  # phi intercept on log scale and ...
+      mean.phi ~ dunif(0, 1)   # ... on natural scale
+	    # mean.phi ~ dbeta(2, 2)   # ... on natural scale
+      gamma1 ~ dnorm(0, 1)     # Effect of day of year on singing rate
+      gamma2 ~ dnorm(0, 1)     # Effect of day of year on singing rate (quadratic)
+      gamma3 ~ dnorm(0, 1)     # Effect of time of day on singing rate
+      gamma4 ~ dnorm(0, 1)     # Effect of time of day on singing rate (quadratic)
+
+      # Shared parameters in the abundance model
+      # Random intercept for each year
+      for (i in 1:nyear) {     # Loop over 7 years
+        ann.beta0[i] ~ dnorm(beta0, tau.beta0)
+      }
+      beta0 <- log(mean.lambda)  # lambda intercept on log scale and ...
+      mean.lambda ~ dnorm(0, 0.001)I(0,) # ... on natural scale
+      tau.beta0 <- pow(sd.beta0,-2) 
+      sd.beta0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in lambda intercept
+      # Covariates:
+      beta1 ~ dnorm(0, 1)      # Effect of habitat (burned) on abundance
+      beta2 ~ dnorm(0, 0.1)    # Effect of habitat (burned) on abundance (quadratic)
+
+      # Submodel for the DS data
+      # -------------------------------------------------------------------
+      # Hierarchical construction of the likelihood
+      # Model for binned distance observations of every detected individual
+      for(i in 1:nind){       # Loop over all detected individuals
+        dclass[i] ~ dcat(fc[siteDS[i],])               # Part 1 of HM
+      }
+      
+      # Construction of the cell probabilities for the nD distance bands
+      # This is for the truncation distance for the DS data (here, newB = 0.3 km)
+
+      for(s in 1:nsites_DS){  # Loop over all sites in data set 1
+        for(g in 1:nD){       # midpt = mid-point of each distance band
+          log(p[s,g]) <- -midpt[g] * midpt[g] / (2 * sigma[s]^2)
+          pi[s,g] <- ((2 * midpt[g] ) / newB^2) * delta # prob. per interval
+          f[s,g] <- p[s,g] * pi[s,g]
+          fc[s,g] <- f[s,g] / pcap[s] 
+        }
+        # Rectangular approx. of integral that yields the Pr(capture)
+        pcap[s] <- sum(f[s,])
+        
+        ### Log-linear models on abundance, detectability, and availability
+        # Abundance (lambda)
+        log(lambda[s]) <- ann.beta0[year_DS[s]] + beta1 * habitat_DS[s] + beta2 * pow(habitat_DS[s],2) # Log-linear model for abundance 
+        
+        # Detectability/perceptability (sigma)
+        log(sigma[s]) <- alpha0 + alpha1 * shrubcovdetect_DS[s] + eps[s]  # Log-Linear model for detection probability
+		      eps[s] ~ dnorm(0, tau.eps)        # Note here eps1 has one precision and below another
+
+        # Availability (phi)
+        log(phi[s]) <- gamma0 + gamma1 * day_DS[s] + gamma2 * pow(day_DS[s],2) + gamma3 * time_DS[s] + gamma4 * pow(time_DS[s],2)  # Log-linear model for availability
+        theta[s] <- 1-exp(-DSduration[s]*phi[s])  # Effect of duration on availability
+
+        # Multiply availability with detection probability
+        pDS[s] <- pcap[s] * theta[s]
+
+        ### Binomial mixture part (in conditional multinomial specification)
+        ncap[s] ~ dbin(pDS[s], N_indv[s])  # Part 2 of HM: number captured
+        N_indv[s] ~ dpois(A_DS * lambda[s])  # Note use of A_DS as an offset
+
+		  # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
+        # Compute fit statistic for observed data (DS data portion)
+        evalDS[s] <- pDS[s] * N_indv[s]
+        EDS[s] <- pow((sqrt(ncap[s]) - sqrt(evalDS[s])), 2)
+
+        # Generate replicate DS count data and compute same fit stats for them
+        ncap.new[s] ~ dbin(pDS[s], N_indv[s])
+        EDS.new[s] <- pow((sqrt(ncap.new[s]) - sqrt(evalDS[s])), 2)
+	   }
+      # Add up fit stats across sites for DS data
+      fitDS <- sum(EDS[])
+      fitDS.new <- sum(EDS.new[])
+      
+      # Compute Bayesian p-value for distance sampling data
+      bpvDS <- step(fitDS.new - fitDS)
+    }
+    

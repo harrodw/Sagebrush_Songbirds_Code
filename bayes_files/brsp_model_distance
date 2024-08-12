@@ -1,22 +1,23 @@
 
   model{
-    #Priors #################
-    #Detection level priors
-    sigma_observer ~ dunif(0, 500)   #between observer variation in detection
+    #Priors ################
+    
+    #Detection level priors ----
+    sigma_observer ~ dunif(0, 1)   #between observer variation in detection
     sigma2_observer <- pow(sigma_observer, 2)
     tau_observer <- pow(sigma_observer, -2)
-    beta_pd_wind ~ dnorm(0, 0.001) #offset in detection probability for minutes after sunrise               
+    beta_pd_mas ~ dnorm(0, 0.1) #offset in detection probability for minutes after sunrise               
    
-    #Random intercepts for observer
+    #Random intercepts for observer ----
     for(o in 1: n_observers){
       alpha_observer[o] ~ dnorm(0, tau_observer)
     }
     
-    #Abundance level priors ----------
+    #Abundance level priors ----
     sigma_route ~ dunif(0, 50) #Between route variation in abundance
     sigma2_route <- pow(sigma_route, 2)
     tau_route <- pow(sigma_route, -2)
-    beta_lambda_burn ~ dnorm(0, 0.001) #difference in abundance between burned and ref routes
+    beta_lambda_burn ~ dnorm(0, 0.1) #difference in abundance between burned and ref routes
     
     #Random intercept for route ID
     for(j in 1: n_routes){
@@ -29,7 +30,7 @@
     #Linear combination of covariates
     for(k in 1:n_surveys){
       #Log linear combination of predictors for detection probability
-      ln_sigma[k] <- alpha_observer[observers[k]] + beta_pd_wind * wind[k]
+      ln_sigma[k] <- alpha_observer[observers[k]] + beta_pd_mas * mas[k]
       #Log link
       sigma[k] <- exp(ln_sigma[k])
 
@@ -37,37 +38,37 @@
       # Using summation technique - Pr(p of x)=exp(-x^2/2*sigma^2)*f(x)
       for(b in 1:n_bins){
         # half-normal detection function - first half of eq.,
-        ln_g[b, k] <- (-bin_midpoints[b]*bin_midpoints[b]) / (2*sigma[k]*sigma[k])
+        ln_g[k, b] <- -(bin_midpoints[b]*bin_midpoints[b]) / (2*sigma[k]*sigma[k])
         #Log link
-        g[b, k] <- exp(ln_g[b, k])
+        g[k, b] <- exp(ln_g[k, b])
         # this is f(x), the scaled radial density function
-        f[b, k]<-  (2*bin_midpoints[b]*delta) / (max_dist*max_dist)
+        f[k, b] <- (2*bin_midpoints[b]*delta) / (max_dist*max_dist)
 
         #this is the product Pr(detect)*Pr(distribution)
-        pi_pd[b, k]<- g[b, k]*f[b, k]
+        pi_pd[k, b]<- g[b, k]*f[k, b]
         #standardizing based on overall capture probability - conditional formulation
-        pi_pd_c[b, k] <- pi_pd[b, k]/pd[k]
+        pi_pd_c[k, b] <- pi_pd[k, b]/pd[k]
       } #b
 
       #probability of detection is the sum of all rectangular areas
-      pd[k] <- sum(pi_pd[,k])
+      pd[k] <- sum(pi_pd[k,])
     }#k
 
     ######## Observation-level model ----------------------------------
     for(i in 1:n_observations){
       #single trial with categorical distribution linking distance class to survey point
-      dist_class[i] ~ dcat(pi_pd_c[,surveys_obs[i]])
+      dist_class[i] ~ dcat(pi_pd_c[surveys_obs[i],])
     } #i
 
     ################# Abundance level model  -----------------------------
     for(k in 1:n_surveys){
       # Abundance
       #Linear combination of abundance predictors
-      lin_comb_lambda <- alpha_route[surveys_count[k]] + beta_lambda_burn * burned[k]
+      lin_comb_lambda[k] <- alpha_route[surveys_count[k]] + beta_lambda_burn * burned[k]
       #Log link
-      lambda <- exp(lin_comb_lambda)
+      lambda[k] <- exp(lin_comb_lambda[k])
       #Poisson process of birds being distributed across the landscape
-      N[k] ~ dpois(lambda)
+      N[k] ~ dpois(lambda[k])
       
       #Detection process likelihood
       n[k] ~ dbin(pd[k], N[k])
@@ -79,31 +80,3 @@ Processing function input.......
 
 Done. 
  
-Rows: 49,367
-Columns: 26
-$ Species       [3m[38;5;246m<chr>[39m[23m "NOBI", "WEME", "NOBI", "HOLA", "WEME", "AMRO", "HOLA", "VESP",…
-$ Distance      [3m[38;5;246m<int>[39m[23m NA, 80, NA, 30, 50, 400, 150, 200, 150, NA, 300, NA, 400, 100, …
-$ Minute        [3m[38;5;246m<int>[39m[23m 1, 2, 3, 4, 5, 5, 1, 1, 2, 3, 4, 5, 6, 1, 1, 2, 3, 4, 5, 6, 1, …
-$ How.Detected  [3m[38;5;246m<chr>[39m[23m NA, "S", NA, "S", "S", "C", "S", "S", "S", NA, "S", NA, "C", "S…
-$ Visual.ID     [3m[38;5;246m<chr>[39m[23m NA, "N", NA, "N", "N", "N", "N", "N", "N", NA, "N", NA, "N", "N…
-$ Route.ID      [3m[38;5;246m<chr>[39m[23m "UT-B05", "UT-B05", "UT-B05", "UT-B05", "UT-B05", "UT-B05", "UT…
-$ Route.Type    [3m[38;5;246m<chr>[39m[23m "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B"…
-$ Full.Point.ID [3m[38;5;246m<chr>[39m[23m "ID-C12-P03", "ID-C12-P03", "ID-C12-P03", "ID-C12-P03", "ID-C12…
-$ Observer.ID   [3m[38;5;246m<chr>[39m[23m "Eliza", "Eliza", "Eliza", "Eliza", "Eliza", "Eliza", "Eliza", …
-$ Year          [3m[38;5;246m<chr>[39m[23m "Y1", "Y1", "Y1", "Y1", "Y1", "Y1", "Y1", "Y1", "Y1", "Y1", "Y1…
-$ Visit         [3m[38;5;246m<chr>[39m[23m "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1…
-$ Date          [3m[38;5;246m<chr>[39m[23m "2022-06-06", "2022-06-06", "2022-06-06", "2022-06-06", "2022-0…
-$ Ord.Date      [3m[38;5;246m<int>[39m[23m 156, 156, 156, 156, 156, 156, 156, 156, 156, 156, 156, 156, 156…
-$ Point.Time    [3m[38;5;246m<chr>[39m[23m "08:12", "08:12", "08:12", "08:12", "08:12", "08:12", "10:08", …
-$ MAS           [3m[38;5;246m<int>[39m[23m 158, 158, 158, 158, 158, 158, 271, 271, 271, 271, 271, 271, 271…
-$ Temp.Start    [3m[38;5;246m<int>[39m[23m 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, …
-$ Wind.Start    [3m[38;5;246m<chr>[39m[23m "4-7 mph", "4-7 mph", "4-7 mph", "4-7 mph", "4-7 mph", "4-7 mph…
-$ Sky.Start     [3m[38;5;246m<chr>[39m[23m "Clear", "Clear", "Clear", "Clear", "Clear", "Clear", "Clear", …
-$ Temp.End      [3m[38;5;246m<int>[39m[23m 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,…
-$ Wind.End      [3m[38;5;246m<chr>[39m[23m "1-3 mph", "1-3 mph", "1-3 mph", "1-3 mph", "1-3 mph", "1-3 mph…
-$ Sky.End       [3m[38;5;246m<chr>[39m[23m "Clear", "Clear", "Clear", "Clear", "Clear", "Clear", "Clear", …
-$ Notes         [3m[38;5;246m<chr>[39m[23m NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA,…
-$ UTM.X         [3m[38;5;246m<dbl>[39m[23m 262625.1, 262625.1, 262625.1, 262625.1, 262625.1, 262625.1, 253…
-$ UTM.Y         [3m[38;5;246m<dbl>[39m[23m 4667869, 4667869, 4667869, 4667869, 4667869, 4667869, 4604084, …
-$ Geo.X         [3m[38;5;246m<dbl>[39m[23m -113.8718, -113.8718, -113.8718, -113.8718, -113.8718, -113.871…
-$ Geo.Y         [3m[38;5;246m<dbl>[39m[23m 42.12701, 42.12701, 42.12701, 42.12701, 42.12701, 42.12701, 41.…

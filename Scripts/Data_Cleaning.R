@@ -4235,13 +4235,14 @@ sobs_clean_point %>%
   print(n = Inf)
 
 #Define a specific route/visit to look at
-route <- "UT-C24"
-year <- "Y3"
+route <- "ID-B09"
+year <- "Y1"
 visit <- c("V1", "V2")
 
 #View that whole route to see which point was missed 
 sobs_clean_point %>% 
-  distinct(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
+  select(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
+  distinct(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
   filter(Route.ID == route & Year == year & Visit %in% visit) %>% 
   arrange(Date, Point.Time) %>% 
   print(n = Inf)
