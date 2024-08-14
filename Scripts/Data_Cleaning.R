@@ -723,7 +723,7 @@ obs_clean_min <- obs_clean_min %>%
   mutate(Remove = case_when(Species == "NOBI" & is.na(Minute) ~ T,
                             TRUE ~ F)) %>% 
   filter(Remove == F) %>% 
-  select(-Remove)
+  dplyr::select(-Remove)
 
 #View the NA minuutes again
 obs_clean_min %>% 
@@ -1032,7 +1032,7 @@ surveys_clean_date <- surveys_clean_date %>%
 #view the new ordinal date
 glimpse(surveys_clean_date)
 surveys_clean_date %>% 
-  count(Ord.Date) %>% 
+  dplyr::count(Ord.Date) %>% 
   print(n = Inf)
 
 #Fix Temp --------------------------------------------------------
@@ -1104,22 +1104,22 @@ surveys_clean_wind <- surveys_clean_wind %>%
 
 #view start wind after the fix
 surveys_clean_wind %>% 
-  count(Wind.Start)
+  dplyr::count(Wind.Start)
 
 #view end wind after the fix
 surveys_clean_wind %>% 
-  count(Wind.End)
+  dplyr::count(Wind.End)
 
 #Fix sky ---------------------------------------------------------
 surveys_clean_sky <- surveys_clean_wind
 
 #view start sky
 surveys_clean_sky %>% 
-  count(Sky.Start)
+  dplyr::count(Sky.Start)
 
 #view end sky
 surveys_clean_sky %>% 
-  count(Sky.End)
+  dplyr::count(Sky.End)
 
 #Recode sky based on how it was in survey123
 surveys_clean_sky <- surveys_clean_sky %>% 
@@ -1144,11 +1144,11 @@ surveys_clean_sky <- surveys_clean_sky %>%
 
 #view start sky after the fix
 surveys_clean_sky %>% 
-   count(Sky.Start)
+  dplyr::count(Sky.Start)
 
 #view end sky after the fix
 surveys_clean_sky %>% 
-  count(Sky.End)
+  dplyr::count(Sky.End)
 
 #Fix Year ---------------------------------------------------------
 surveys_clean_year <- surveys_clean_sky
@@ -1305,7 +1305,7 @@ surveys_clean_route <- surveys_clean_route %>%
                             Route.ID == "UT-C16" & Date == ymd("2024-06-14") ~ T,
                             TRUE ~ F)) %>% 
   filter(Remove == F) %>% 
-  select(-Remove)
+  dplyr::select(-Remove)
 
 #View surveys after the change
 surveys_clean_route %>% 
@@ -1483,11 +1483,11 @@ surveys_clean_obs <- surveys_clean_obs %>%
   mutate(Observer.ID = case_when(Visit.ID %in% aidan_surveys ~ "Aidan",
                                  Visit.ID %in% alex_surveys ~ "Alex",
                                  TRUE ~ Observer.ID)) %>% 
-  select(-Visit.ID) #I no longer need this column
+  dplyr::select(-Visit.ID) #I no longer need this column
 
 #View observer ID after the change
 surveys_clean_obs %>%
-  count(Observer.ID) %>% 
+  dplyr::count(Observer.ID) %>% 
   print(n = Inf)
 
 #fix observer name ----------------------------------------------------------
@@ -1534,7 +1534,7 @@ surveys_clean_obs <- surveys_clean_obs %>%
 
 #View observer ID after the change
 surveys_clean_obs %>%
-  count(Observer.ID) %>% 
+  dplyr::count(Observer.ID) %>% 
   print(n = Inf)
 
 #Add a column for plot type ------------------------------------------------------------
@@ -2128,7 +2128,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B16-P16",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P02"
                                    ~ "ID-B16-P15",
-                                   Year == "Y1" & Point.Time %in% c("07:27", "10:36")
+                                   Year == "Y1" & Point.Time %in% c("07:27", "10:36") & Route.ID == "ID-B16"
                                    ~ "ID-B16-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P03" & Point.Time == "10:22"
                                    ~ "ID-B16-P13",
@@ -2258,9 +2258,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-C15-P16"
                                    ~ "ID-C15-P08",
                                    #ID-C12-Y1-V1
-                                   Year == "Y1" & Point.Time == "06:59" & Visit == "V1"
+                                   Year == "Y1" & Point.Time == "06:59" & Visit == "V1" & Route.ID == "ID-C12"
                                    ~ "ID-C12-P14",
-                                   Year == "Y1" & Point.Time == "08:12" & Visit == "V1"
+                                   Year == "Y1" & Point.Time == "08:12" & Visit == "V1" & Route.ID == "ID-C12"
                                    ~ "ID-C12-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P02" & Visit == "V1"
                                    ~ "ID-C12-P15",
@@ -2390,9 +2390,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C09-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C09-P11"  & Visit == "V1"
                                    ~ "ID-C09-P09",
-                                   Year == "Y1" & Point.Time == "09:50" & Visit == "V1"
+                                   Year == "Y1" & Point.Time == "09:50" & Visit == "V1" & Route.ID == "ID-C09"
                                    ~ "ID-C09-P10",
-                                   Year == "Y1" & Point.Time == "10:00" & Visit == "V1"
+                                   Year == "Y1" & Point.Time == "10:00" & Visit == "V1" & Route.ID == "ID-C09"
                                    ~ "ID-C09-P11",
                                    Year == "Y1" &  Full.Point.ID == "ID-C09-P14" & Visit == "V1"
                                    ~ "ID-C09-P07",
@@ -2452,13 +2452,13 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B09-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-B09-P09"
                                    ~ "ID-B09-P02",
-                                   Year == "Y1" & Point.Time == "10:49" 
+                                   Year == "Y1" & Point.Time == "10:49" & Route.ID == "ID-B09"
                                    ~ "ID-B09-P06",
-                                   Year == "Y1" & Visit == "V1" & Point.Time == "08:52"
+                                   Year == "Y1" & Visit == "V1" & Point.Time == "08:52" & Route.ID == "ID-B09"
                                    ~ "ID-B09-P06",
-                                   Year == "Y1" & Visit == "V1" & Point.Time == "09:05"
+                                   Year == "Y1" & Visit == "V1" & Point.Time == "09:05" & Route.ID == "ID-B09"
                                    ~ "ID-B09-P10",
-                                   Year == "Y1" & Visit == "V2" & Point.Time == "10:39"
+                                   Year == "Y1" & Visit == "V2" & Point.Time == "10:39" & Route.ID == "ID-B09"
                                    ~ "ID-B09-P10",
                                    Year == "Y1" &  Full.Point.ID == "ID-B09-P12"
                                    ~ "ID-B09-P14",
@@ -2504,9 +2504,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-B28-P16"
                                    ~ "ID-B28-P01",
                                    #ID-C07-Y1-V1&V2
-                                   Year == "Y1" & Point.Time %in% c("10:13", "10:18")
+                                   Year == "Y1" & Point.Time %in% c("10:13", "10:18") & Route.ID == "ID-C07"
                                    ~ "ID-C07-P16",
-                                   Year == "Y1" & Point.Time %in% c("09:38", "07:10")
+                                   Year == "Y1" & Point.Time %in% c("09:38", "07:10") & Route.ID == "ID-C07"
                                    ~ "ID-C07-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C07-P02" 
                                    ~ "ID-C07-P09",
@@ -2654,7 +2654,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B03-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P08"
                                    ~ "ID-B03-P12",
-                                   Year == "Y1" & Point.Time %in% c("06:54", "08:16")
+                                   Year == "Y1" & Point.Time %in% c("06:54", "08:16") & Route.ID == "ID-B03"
                                    ~ "ID-B03-P08",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P10"
                                    ~ "ID-B03-P07",
@@ -3561,7 +3561,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "UT-C22-P12" & Visit == "V1"
                                    ~ "UT-C22-P03",
                                    #UT-C22-Y1-V2
-                                   Year == "Y1" & Point.Time == "06:09" & Visit == "V2"
+                                   Year == "Y1" & Point.Time == "06:09" & Visit == "V2" & Route.ID == "UT-C22" 
                                    ~ "UT-C22-P01",
                                    Year == "Y1" & Full.Point.ID == "UT-C22-P03" & Visit == "V2"
                                    ~ "UT-C22-P09",
@@ -4007,9 +4007,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    #UT-B08-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "UT-B08-P01" & Visit == "V1"
                                    ~ "UT-B08-P01",
-                                   Year == "Y1" & Point.Time == "10:43" & Visit == "V2"
+                                   Year == "Y1" & Point.Time == "10:43" & Visit == "V2" & Route.ID == "UT-B08"
                                    ~ "UT-B08-P01",
-                                   Year == "Y1" & Point.Time == "11:15" & Visit == "V2"
+                                   Year == "Y1" & Point.Time == "11:15" & Visit == "V2" & Route.ID == "UT-B08"
                                    ~ "UT-B08-P13",
                                    Year == "Y1" & Full.Point.ID == "UT-B08-P02" 
                                    ~ "UT-B08-P05",
@@ -4074,9 +4074,43 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-C08-P12",
                                    Year == "Y1" & Full.Point.ID == "UT-C08-P16" 
                                    ~ "UT-C08-P16",
-                                   #ID-C28 Y1 V1
-                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("08:02", "09:17")
-                                   ~ "UT-C08-P06",
+                                   #ID-C28 Y1 V1 & V2
+                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("08:02")
+                                   ~ "ID-C28-P08",
+                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("06:40")
+                                   ~ "ID-C28-P13",
+                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("10:29")
+                                   ~ "ID-C28-P13",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P02"
+                                   ~ "ID-C28-P14",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P03" 
+                                   ~ "ID-C28-P15",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P04" 
+                                   ~ "ID-C28-P16",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P05" 
+                                   ~ "ID-C28-P12",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P06" 
+                                   ~ "ID-C28-P08",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P07" 
+                                   ~ "ID-C28-P04",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P08" 
+                                   ~ "ID-C28-P03",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P09" 
+                                   ~ "ID-C28-P07",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P10"  
+                                   ~ "ID-C28-P11",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P11" 
+                                   ~ "ID-C28-P10",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C28-P12" 
+                                   ~ "ID-C28-P06",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P13" 
+                                   ~ "ID-C28-P02",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C28-P14" 
+                                   ~ "ID-C28-P01",
+                                   Year == "Y1" &  Full.Point.ID == "ID-C28-P15" 
+                                   ~ "ID-C28-P05",
+                                   Year == "Y1" & Full.Point.ID == "ID-C28-P16" 
+                                   ~ "ID-C28-P09",
                                    ###### Fix a few Y2's #######################
                                    Year == "Y2" & Full.Point.ID == "ID-B13-P09" & Point.Time == "06:23" 
                                    ~ "ID-B13-P16",
@@ -4234,6 +4268,13 @@ sobs_clean_point %>%
   filter(Times.Visited != 1) %>%
   print(n = Inf)
 
+#Make sure the points and routes still line up
+sobs_clean_point %>% 
+  dplyr::select(Full.Point.ID, Route.ID, Year, Visit, Date, Observer.ID) %>% 
+  mutate(Temp.Route.ID = str_sub(Full.Point.ID, start = 1, end = 6)) %>% 
+  filter(Route.ID != Temp.Route.ID)
+#Perfect!
+
 #Define a specific route/visit to look at
 route <- "ID-B09"
 year <- "Y1"
@@ -4241,7 +4282,7 @@ visit <- c("V1", "V2")
 
 #View that whole route to see which point was missed 
 sobs_clean_point %>% 
-  select(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
+  dplyr::select(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
   distinct(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
   filter(Route.ID == route & Year == year & Visit %in% visit) %>% 
   arrange(Date, Point.Time) %>% 
@@ -4263,7 +4304,7 @@ sobs_clean_point <- sobs_clean_point %>%
 sobs_clean_point %>% 
   mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   distinct(New.Point.ID, Visit.ID) %>% 
-  count(New.Point.ID, Visit.ID) %>% 
+  dplyr::count(New.Point.ID, Visit.ID) %>% 
   arrange(New.Point.ID) %>% 
   pivot_wider(names_from = Visit.ID, values_from = n) %>% 
   print(n = Inf)
@@ -4271,7 +4312,7 @@ sobs_clean_point %>%
 #Now in a more condensed format
 sobs_clean_point %>% 
   distinct(New.Point.ID, Year, Visit) %>% 
-  count(New.Point.ID) %>% 
+  dplyr::count(New.Point.ID) %>% 
   arrange(New.Point.ID) %>% 
   print(n = Inf)
 
@@ -4293,7 +4334,7 @@ glimpse(sobs_clean_point)
 sobs_clean_nobi <- sobs_clean_point %>% 
   #Reverse the new point column that I created 
   mutate(Full.Point.ID = New.Point.ID) %>% 
-  select(-New.Point.ID) %>% 
+  dplyr::select(-New.Point.ID) %>% 
   #Redefine some of the route types
   mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
                                 Route.ID == "UT-C25" ~ "B",
@@ -4480,7 +4521,7 @@ sobs_clean_temp %>%
 
 #View the NA's
 sobs_clean_temp %>% 
-  select(Full.Point.ID, Year, Visit, Observer.ID, Temp.Start, Temp.End) %>% 
+  dplyr::select(Full.Point.ID, Year, Visit, Observer.ID, Temp.Start, Temp.End) %>% 
   filter(is.na(Temp.Start) | is.na(Temp.End)) %>% 
   print(n = 250)
 
@@ -4591,8 +4632,10 @@ sobs <- sobs_clean_time
 glimpse(sobs)
 base::print(sobs, n = 200)
 
-#Save the cleaned data as a csv
+#Save the cleaned data as a csv in this R project
 write.csv(sobs, "Data\\Outputs\\sobs_data.csv")
+#And to my box data folder. Feel free to comment this out
+write.csv(sobs, "C:\\Users\\willh\\Box\\Will Harrod MS Project\\Data\\Point_Count\\Cleaned_Data\\sobs_data.csv")
 
 # Notes and next steps ------------------------
 #I might need to link external temp data

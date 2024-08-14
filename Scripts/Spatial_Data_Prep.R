@@ -245,10 +245,16 @@ route_summaries %>%
   ggplot(aes(x = Fire.Year)) +
   geom_bar()
 
+#View the routes that are still NA
+route_summaries %>% 
+  dplyr::select(Route.ID, Fire.Year) %>% 
+  filter(is.na(Fire.Year)) %>% 
+  print(n = Inf)
+
 #View the data
 glimpse(route_summaries)
 
-#examine spatial data ------------------------------------------------------------------ 
+#examine spatial data at the route level ------------------------------------------------------------------ 
 
 #Plot variables
 route_summaries %>% 
@@ -296,6 +302,14 @@ route_summaries <- route_summaries %>%
 
 #looks good. time to export
 write.csv(route_summaries, "Data\\Outputs\\route_summaries.csv")
+#And to my box data folder. Feel free to comment this out
+write.csv(sobs, "C:\\Users\\willh\\Box\\Will Harrod MS Project\\Data\\Point_Count\\Cleaned_Data\\route_summaries.csv")
+
+#Isolate the precipitation values so I can add them to the point data 
+precip_vals <- route_summaries %>% 
+  dplyr::select(Route.ID, Precipitation)
+#...and view
+glimpse(precip_vals)
 
 
 #################################################################################################
@@ -328,11 +342,7 @@ point_summaries$Shrub.Cover <- raster::extract(x = shrub_cvr,
                                                y = points,
                                                buffer = 125,
                                                fun = mean)
-# #summarize tree cover
-# point_summaries$Tree.Cover <- raster::extract(x = tree_cvr,
-#                                                y = points,
-#                                                buffer = 125,
-#                                                fun = mean)
+
 #summarize bare gound cover
 point_summaries$Bare.Ground.Cover <- raster::extract(x = bg_cvr,
                                                y = points,
@@ -379,6 +389,11 @@ point_summaries$Road.Distance <- raster::extract(x = road_dist,
                                                  y = points,
                                                  buffer = 125,
                                                  fun = mean)
+
+#Take the precipitation values from the route summaries
+point_summaries <- point_summaries %>% 
+  left_join(precip_vals, by = "Route.ID")
+
 #View summaries
 glimpse(point_summaries)
 print(point_summaries, n = 60)
@@ -440,6 +455,8 @@ point_summaries <- point_summaries %>%
                                Route.ID == 'UT-B22' ~ 'Goose Creek',
                                Route.ID == 'UT-B24' ~ 'Goose Creek',
                                Route.ID == 'UT-B25' ~ 'Wagon Box',
+                               Route.ID == 'UT-B27' ~ 'Dairy Valley',
+                               Route.ID == 'UT-B30' ~ 'Dairy Valley',
                                Full.Point.ID %in% burn_points_99 ~ "Dry Mountain")) 
 
   
@@ -466,14 +483,26 @@ point_summaries <- point_summaries %>%
                                Fire.Name == "Rosebud" ~ 2017,
                                Fire.Name == "Wagon Box" ~ 1999)) 
 #view the fire names
-print(route_summaries, n = 30)
+print(point_summaries, n = 30)
 unique(point_summaries$Fire.Year)
 point_summaries %>%
   ggplot(aes(x = Fire.Year)) +
   geom_bar()
 
+#View the NA fire years
+point_summaries %>% 
+  dplyr::select(Full.Point.ID, Route.ID, Fire.Year) %>% 
+  filter(is.na(Fire.Year)) %>% 
+  print(n = Inf)
+
 #View the data
 glimpse(point_summaries)
+
+#View any missing precipitation values
+point_summaries %>% 
+  select(Full.Point.ID, Precipitation) %>% 
+  filter(is.na(Precipitation)) %>% 
+  print(n = Inf)
 
 #compare variables at the point level --------------------------------------------
 #use this if the graphing gets messed up --------------- 
@@ -487,15 +516,21 @@ point_summaries %>%
 
 #Plot of a single variable against another
 point_summaries %>% 
-  ggplot(aes(x = Elevation, y = Sagebrush.Cover, 
+  ggplot(aes(x = Elevation, y = Precipitation, 
              fill = Route.Type, col = Route.Type)) +
   geom_point() +
   geom_smooth() 
 
 #Histogram of a single variable
 point_summaries %>% 
-  ggplot(aes(x = Shrub.Cover, fill = Route.Type)) +
+  ggplot(aes(x = Elevation, fill = Route.Type)) +
   geom_histogram()
+
+#Histogram of a single variable
+point_summaries %>% 
+  ggplot(aes(x = Precipitation, fill = Route.Type)) +
+  geom_histogram()
+
 
 #Compare variables all at the point level -------------------------------------
 #Compare correlation among all variables
@@ -525,14 +560,17 @@ glimpse(point_summaries)
 
 #export the point summaries
 write.csv(point_summaries, "Data\\Outputs\\point_summaries.csv")
+#And to my box data folder. Feel free to comment this out
+write.csv(sobs, "C:\\Users\\willh\\Box\\Will Harrod MS Project\\Data\\Point_Count\\Cleaned_Data\\point_summaries.csv")
 
-#remove the variables that I no longer need
+#remove the variables that interfere with the cor() function
 point_covs <- point_summaries %>% 
   dplyr::select(-c(Route.ID, Route.Type, Point.X, Point.Y))
 #...and view
 glimpse(point_covs)
 
-#View again
+#View correlations 
 point_covs %>% 
   dplyr::select(-Fire.Name, -Full.Point.ID) %>% 
   cor()
+
