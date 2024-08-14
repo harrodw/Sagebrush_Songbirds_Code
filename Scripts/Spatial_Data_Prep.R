@@ -282,10 +282,10 @@ route_summaries %>%
   cor()
 
 #Then graphically
-route_summaries %>%
-  filter(Route.Type =="B" & Route.ID != "ID-B03") %>%
-  dplyr::select(-Route.ID, -Route.Type, - geometry, -Fire.Name) %>%
-  pairs()
+# route_summaries %>%
+#   filter(Route.Type =="B" & Route.ID != "ID-B03") %>%
+#   dplyr::select(-Route.ID, -Route.Type, - geometry, -Fire.Name) %>%
+#   pairs()
 
 
 #annual and perennial cover are too correlated
@@ -493,16 +493,16 @@ point_summaries %>%
 point_summaries %>% 
   dplyr::select(Full.Point.ID, Route.ID, Fire.Year) %>% 
   filter(is.na(Fire.Year)) %>% 
-  print(n = Inf)
+  base::print(n = Inf)
 
 #View the data
 glimpse(point_summaries)
 
 #View any missing precipitation values
 point_summaries %>% 
-  select(Full.Point.ID, Precipitation) %>% 
+  dplyr::select(Full.Point.ID, Precipitation) %>% 
   filter(is.na(Precipitation)) %>% 
-  print(n = Inf)
+  base::print(n = Inf)
 
 #compare variables at the point level --------------------------------------------
 #use this if the graphing gets messed up --------------- 

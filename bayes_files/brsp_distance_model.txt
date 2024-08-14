@@ -4,8 +4,9 @@
       # Priors for all parameters in DS model
       # ------------------------------------------------------------------
     
-        tau.eps <- pow(sd.eps, -2)
-		    sd.eps ~ dt(0, 1, 1)I(0,)     # Magnitude of that noise
+      # Random noise on availability
+      tau.eps <- pow(sd.eps, -2)
+		  sd.eps ~ dt(0, 1, 1)I(0,)     # Magnitude of that noise
 		    
       # Covariates:
       alpha1 ~ dnorm(0, 1)     #shrub cover
@@ -22,7 +23,7 @@
       # Shared parameters in the abundance model
       # Random intercept for each year
       for (i in 1:nvst) {     # Loop over 7 years
-        ann.beta0[i] ~ dnorm(beta0, tau.beta0)
+        rf.beta0[i] ~ dnorm(beta0, tau.beta0)
       }
       beta0 <- log(mean.lambda)  # lambda intercept on log scale and ...
       mean.lambda ~ dnorm(0, 0.001)I(0,) # ... on natural scale
@@ -31,7 +32,7 @@
       
       # Random intercept for each observer
       for (o in 1:nobs) {     # Loop over 18 observers
-        det.alpah0[o] ~ dnorm(alpha0, tau.alpha0)
+        rf.alpah0[o] ~ dnorm(alpha0, tau.alpha0)
       }
       alpha0 <- log(mean.sigma)  # sigma intercept on log scale and ...
       mean.sigma ~ dunif(0, 1) # ... on the natural scale (0 - 1 km)
@@ -39,8 +40,11 @@
       sd.alpha0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in sigma intercept
       
       # Covariates:
-      beta1 ~ dnorm(0, 1)      # Effect of habitat (burned) on abundance
-      beta2 ~ dnorm(0, 0.1)    # Effect of habitat (burned) on abundance (quadratic)
+      beta1 ~ dnorm(0, 1)      # Effect of burned vs unburned
+      beta2 ~ dnorm(0, 0.1)    # Effect of years since fire only on burned routes
+      beta3 ~ dnorm(0, 0.1)    # effect of years since fire squared only on burned routes
+      beta4 ~ dnorm(0, 0.1)    # effect of precipitation
+      beta5 ~ dnorm(0, 0.1)    # effect of years since fire and precipitation only on burned routes
 
       # -------------------------------------------------------------------
       # Hierarchical construction of the likelihood
@@ -63,23 +67,34 @@
         pcap[s] <- sum(f[s,])
         
         ### Log-linear models on abundance, detectability, and availability
-        # Abundance (lambda)
-        log(lambda[s]) <- ann.beta0[year[s]] + beta1 * habitat[s] + beta2 * pow(habitat[s],2) # Log-linear model for abundance 
+        # Abundance (lambda) Log-linear model for abundance
+        log(lambda[s]) <- rf.beta0[year[s]]           # random intercept for each year of the survey
+        + beta1 * burned[s]                           # most important effect: burned vs unburned
+        + beta2 * f_year[s] * burned[s]               # Effect of years since fire only on burned routes
+        + beta3 * f_year[s]^2 * burned[s]             # effect of years since fire squared only on burned routes
+        + beta4 * precip[s]                           # Effect of precipitation
+        + beta5 * f_year[s] * precip[s] * burned[s]   # Effect of years since fire and precipitation only on burned routes
         
         # Detectability/perceptability (sigma)
-        log(sigma[s]) <- det.alpah0[observers[s]] + eps[s]  # Log-Linear model for detection probability
+        log(sigma[s]) <- rf.alpah0[observers[s]] + eps[s]  # Log-Linear model for detection probability
 		      eps[s] ~ dnorm(0, tau.eps)        # Note here eps1 has one precision and below another
 
         # Availability (phi)
-        log(phi[s]) <- gamma0 + gamma1 * day[s] + gamma2 * pow(day[s],2) + gamma3 * time[s] + gamma4 * pow(time[s],2)  # Log-linear model for availability
-        theta[s] <- 1-exp(-duration[s]*phi[s])  # Effect of duration on availability
+		    # Log-linear model for availability
+        log(phi[s]) <- gamma0                        #Intercept
+        + gamma1 * day[s]                            # Effect of scaled ordinal date
+        + gamma2 * pow(day[s], 2)                    # Effect of scaled ordinal date squared
+        + gamma3 * time[s]                           # Effect of scaled time of day
+        + gamma4 * pow(time[s], 2)                   # Effect of scaled time of day aquared
+        
+        theta[s] <- 1-exp(-phi[s])                  # link function to convert linear comb to a probability
 
         # Multiply availability with detection probability
         pDS[s] <- pcap[s] * theta[s]
 
         ### Binomial mixture part (in conditional multinomial specification)
-        ncap[s] ~ dbin(pDS[s], N_indv[s])  # Part 2 of HM: number captured
-        N_indv[s] ~ dpois(area * lambda[s])  # Note use of area as an offset
+        ncap[s] ~ dbin(pDS[s], N_indv[s])            # Part 2 of HM: number captured
+        N_indv[s] ~ dpois(area * lambda[s])          # Note use of area as an offset
 
 		  # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
         # Compute fit statistic for observed data 

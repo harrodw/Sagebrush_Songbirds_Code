@@ -192,7 +192,7 @@ brsp_count <- brsp_count %>%
   arrange(Survey.ID) %>% 
   mutate(Survey.ID.Fact = as.factor(Survey.ID)) %>% 
   mutate(Survey.ID.num = as.numeric(Survey.ID.Fact)) %>% 
-  select(-Survey.ID.Fact) %>% 
+  dplyr::select(-Survey.ID.Fact) %>% 
   mutate(Visit.ID.num = as.numeric(Visit.ID))
 
 #...and view
@@ -201,7 +201,7 @@ glimpse(brsp_count)
 
 #Pull out just the visit ID
 survey_ids <- brsp_count %>% 
-  select(Survey.ID, Survey.ID.num, Visit.ID.num)
+  dplyr::select(Survey.ID, Survey.ID.num, Visit.ID.num)
 
 #...and view
 glimpse(survey_ids)
@@ -244,7 +244,7 @@ brsp_data <- list(
 # Model definition in the BUGS language ----
 # Add random noise in the detection function intercepts and 
 # Note all distances are in units of 1km (and area in 1km2 units)
-cat(file="brsp_distance_model.txt",
+cat(file="Bayes_Files//brsp_distance_model.txt",
     "
     model{
       
@@ -386,8 +386,8 @@ params <- c("mean.sigma", "alpha0",  "sd.eps", "rf.alpha0",
             "fit", "fit.new", "bpv")
 
 # MCMC settings ----
-# na <- 10  ;  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
-na <- 500  ;  nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 5 # longer test
+na <- 10  ;  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
+# na <- 500  ;  nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 5 # longer test
 # na <- 10000;  nc <- 4;  ni <- 120000;  nb <- 60000;  nt <- 60   # As for the paper
 # na <- 10000;  nc <- 10;  ni <- 400000;  nb <- 200000;  nt <- 200 # takes a while...
 
@@ -396,7 +396,7 @@ na <- 500  ;  nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 5 # longer test
 library(jagsUI)
 start <- Sys.time()
 set.seed(123)
-jags_out <- jags(brsp_data, inits, params, "brsp_distance_model.txt", n.adapt = na,
+jags_out <- jags(brsp_data, inits, params, "Bayes_Files//brsp_distance_model.txt", n.adapt = na,
                  n.chains = nc, n.iter = ni, n.burnin = nb, n.thin = nt, parallel = TRUE)
 difftime(Sys.time(),start)
 traceplot(jags_out)
