@@ -102,14 +102,7 @@ brsp_count <- sobs_count %>%
   dplyr::select(-Species, -Route.Type, -Fire.Name, -Fire.Year) %>% 
   arrange(Year, Visit, Route.ID, Full.Point.ID)
 
-#Look into the fire year data
-brsp_count %>% 
-  group_by(Full.Point.ID, Years.Since.Fire) %>% 
-  reframe(Full.Point.ID, Years.Since.Fire) %>% 
-  distinct(Full.Point.ID, Years.Since.Fire) %>% 
-  print(n = Inf)
-
-# Fill in years since fire
+# Fill in years since fire so there are no NA's for BUGs to get mad about
 for(i in 1:nrow(brsp_count)) {
   if(is.na(brsp_count$Years.Since.Fire[i])){
     brsp_count$Years.Since.Fire[i] <- floor(rnorm(1, 115, 10))
@@ -151,8 +144,6 @@ sobs_obs <- sobs %>%
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>% 
-  dplyr::select(-Burn.Sevarity, -Perennial.Cover, - Fire.Distance,
-                -Fire.Name, - Fire.Year, - Route.Type, - Aspect) %>% 
   mutate(Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>% 
   #Add in the bin sizes
   mutate(Dist.Bin = round_any(Distance, bin_size, floor)) %>% 
@@ -167,14 +158,8 @@ sobs_obs <- sobs %>%
                               Dist.Bin < 0.1 & Dist.Bin >= 0.075 ~ 3, #idk why it needs this specificity. It just does
                               Dist.Bin == 0.100 ~ 4,
                               Dist.Bin == 0.125 ~ 5
-  ))
-
-#Fill in years since fire
-for(i in 1:nrow(sobs_obs)) {
-  if(is.na(sobs_obs$Years.Since.Fire[i])){
-    sobs_obs$Years.Since.Fire[i] <- as.integer(rnorm(1, 115, 10))
-  }
-}
+  )) %>% 
+  dplyr::select(Dist.Bin, Dist.Bin.Midpoint, Survey.ID)
 
 #view the whole object
 glimpse(sobs_obs)
@@ -270,9 +255,9 @@ cat(file="Bayes_Files//brsp_distance_model.txt",
       # Shared parameters in the abundance model
       # Random intercept for each year
       for (i in 1:nvst) {     # Loop over 7 years
-        rf.beta0[i] ~ dnorm(beta0, tau.beta0)
+        beta0[i] ~ dnorm(beta0.int, tau.beta0)
       }
-      beta0 <- log(mean.lambda)  # lambda intercept on log scale and ...
+      beta0.int <- log(mean.lambda)  # lambda intercept on log scale and ...
       mean.lambda ~ dnorm(0, 0.001)I(0,) # ... on natural scale
       tau.beta0 <- pow(sd.beta0,-2) 
       sd.beta0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in lambda intercept
@@ -315,7 +300,7 @@ cat(file="Bayes_Files//brsp_distance_model.txt",
         
         ### Log-linear models on abundance, detectability, and availability
         # Abundance (lambda) Log-linear model for abundance
-        log(lambda[s]) <- rf.beta0[year[s]]           # random intercept for each year of the survey
+        log(lambda[s]) <- beta0[year[s]]           # random intercept for each year of the survey
         + beta1 * burned[s]                           # most important effect: burned vs unburned
         + beta2 * f_year[s] * burned[s]               # Effect of years since fire only on burned routes
         + beta3 * f_year[s]^2 * burned[s]             # effect of years since fire squared only on burned routes
@@ -382,12 +367,12 @@ inits <- function(){list(mean.sigma = runif(1, 0, 1),
 params <- c("mean.sigma", "alpha0",  "sd.eps", "rf.alpha0",
             "mean.phi", 
             "gamma0", "gamma1", "gamma2", "gamma3", "gamma4", 
-            "mean.lambda", "beta0", "beta1", "beta2", "beta3", "beta4"," beta5", "sd.beta0", "rf.beta0",
+            "mean.lambda", "beta0", "beta1", "beta2", "beta3", "beta4"," beta5", "sd.beta0", "beta0.int",
             "fit", "fit.new", "bpv")
 
 # MCMC settings ----
-na <- 10  ;  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
-# na <- 500  ;  nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 5 # longer test
+# na <- 10  ;  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
+na <- 500  ;  nc <- 3  ;  ni <- 10000  ;  nb <- 3000  ;  nt <- 5 # longer test
 # na <- 10000;  nc <- 4;  ni <- 120000;  nb <- 60000;  nt <- 60   # As for the paper
 # na <- 10000;  nc <- 10;  ni <- 400000;  nb <- 200000;  nt <- 200 # takes a while...
 
