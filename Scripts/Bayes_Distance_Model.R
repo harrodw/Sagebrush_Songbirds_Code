@@ -8,32 +8,38 @@
 #---------------------------------------------------------------
 
 #add packages
-library(jagsUI)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(forcats)
+library(nimble)
+library(tidyverse)
 library(plyr)
+library(MCMCvis)
 
-#My data Prep  ###########################################################################################
+#clear environments
+rm(list = ls())
+
+################################################################################
+#Data Prep  ####################################################################
+################################################################################
+
 # #Add in Data from local drive
-sobs <- read.csv("Data//Outputs//sobs_data.csv") %>%
+sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
   dplyr::select(-X) %>%
   tibble()
 # #or from github
 # sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>%
-#   dplyr::select(-X)
+#   dplyr::select(-X) %>% 
+#    tibble()
 
 #view the data
 glimpse(sobs)
 
 #add covariates from the local drive
-covs <- tibble(read.csv("Data//Outputs//point_summaries.csv")) %>%
+covs <- tibble(read.csv("Data/Outputs/point_summaries.csv")) %>%
   dplyr::select(-X) %>%
   tibble()
 # or from github
 # covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/point_summaries.csv") %>%
-#   dplyr::select(-X)
+#   dplyr::select(-X) %>% 
+#   tibble()
 
 #View covariates
 glimpse(covs)
@@ -199,46 +205,77 @@ brsp_obs <- sobs_obs %>%
 print("Observations:")
 glimpse(brsp_obs)
 
-# Dataset to be fed into JAGS ----
-brsp_data <- list(
-  ### Brewer's Sparrow data set:
-  nsites = nrow(brsp_count), # Number of sites  
-  nind = nrow(brsp_obs), # Number of individuals detected 
-  nobs = length(unique(as.numeric(brsp_count$Observer.ID))), # Number of unique observers
-  newB = trunc_dist, # Truncation distance
-  nD = length(unique(brsp_obs$Dist.Bin)), # Number of distance bins
-  midpt = unique(brsp_obs$Dist.Bin.Midpoint), # Midpoints of distance bins
-  ncap = brsp_count$Count, # Number of detected individuals per site
-  dclass = brsp_obs$Dist.Bin, # Distance category for each observation
-  point = brsp_obs$Survey.ID.num, # point number of each observation 
+################################################################################
+#The model building part of the code ###########################################
+################################################################################
+
+#Define loop sizes -----
+nsites <- nrow(brsp_count) # Number of sites
+nind <- nrow(brsp_obs) # Number of individuals detected 
+nobs <- length(unique(as.numeric(brsp_count$Observer.ID))) # Number of unique observers
+nbins <- length(unique(brsp_obs$Dist.Bin)) # Number of distance bins
+nvst <- length(unique(brsp_count$Visit.ID.num)) # number of visits in data
+
+# Constants to be fed into Nimble ----
+nimble_const <- list (
+  ## Misc. Constants
   area = pi * trunc_dist^2, # Area associated with the DS data
   delta = bin_size, # Bin width
-  nvst = length(unique(brsp_count$Visit.ID.num)), # number of visits in data
-  #covariates on detecability
-  observers = as.numeric(brsp_count$Observer.ID), #Random effect for observer associated with each survey
-  #covariates on availability
-  time = (brsp_count$MAS - mean(brsp_count$MAS))/sd(brsp_count$MAS), # scaled based on mean time after sunrise
-  day = (brsp_count$Ord.Date - mean(brsp_count$Ord.Date)) / sd(brsp_count$Ord.Date), #scaled data covariate
-  # Covariates on abundance
+  newB = trunc_dist, # Truncation distance
+  
+  #For loop sizes
+  nsites = nsites, # Number of sites
+  nind = nind, # Number of individuals detected 
+  nobs = nobs, # Number of unique observers
+  nbins = nbins, # Number of distance bins
+  nvst = nvst # number of visits in data
+)
+
+#Define my data objects ----
+# Observation Level data 
+dist_class <- brsp_obs$Dist.Bin # Distance category for each observation
+points <- brsp_obs$Survey.ID.num # point number of each observation 
+midpoints <- unique(brsp_obs$Dist.Bin.Midpoint) # Midpoints of distance bins
+observers <- as.numeric(brsp_count$Observer.ID) #Random effect for observer associated with each survey
+
+#Point level data
+ncap <- brsp_count$Count # Number of detected individuals per site
+year <- as.numeric(as.factor(brsp_count$Year)) # year number
+burned <- brsp_count$Burned # Habitat covariate
+fire_year <- (brsp_count$Years.Since.Fire -mean_burnY)/ sd_burnY
+precip <- (brsp_count$Precipitation -mean(brsp_count$Precipitation)) / sd(brsp_count$Precipitation) #scaled precipitation covariate
+time <- (brsp_count$MAS - mean(brsp_count$MAS)) / sd(brsp_count$MAS) # scaled based on mean time after sunrise
+day <- (brsp_count$Ord.Date - mean(brsp_count$Ord.Date)) / sd(brsp_count$Ord.Date) #scaled data covariate
+
+# Data to be fed into Nimble ----
+nimble_dat <- list(
+  # Observation Level data 
+  dclass = dist_class, # Distance category for each observation
+  point = points, # point number of each observation 
+  midpt = midpoints, # Midpoints of distance bins
+  observers = observers, #Random effect for observer associated with each survey
+  
+  #Point level data
+  ncap = ncap, # Number of detected individuals per site
   year = as.numeric(as.factor(brsp_count$Year)), # year number
-  burned = brsp_count$Burned, # Habitat covariate
-  f_year = (brsp_count$Years.Since.Fire -mean_burnY)/ sd_burnY,
-  precip = (brsp_count$Precipitation -mean(brsp_count$Precipitation)) / sd(brsp_count$Precipitation) #scaled precipitation covariate
+  burned = burned, # Habitat covariate
+  f_year = fire_year,
+  precip = precip, #scaled precipitation covariate
+  time = time, # scaled based on mean time after sunrise
+  day = day #scaled data covariate
 )
 
 # Model definition in the BUGS language ----
 # Add random noise in the detection function intercepts and 
 # Note all distances are in units of 1km (and area in 1km2 units)
-cat(file="Bayes_Files//brsp_distance_model.txt",
-    "
-    model{
-      
+model <- nimbleCode({
       # Priors for all parameters in DS model
       # ------------------------------------------------------------------
     
       # Random noise on availability
-      tau.eps <- pow(sd.eps, -2)
-		  sd.eps ~ dt(0, 1, 1)I(0,)     # Magnitude of that noise
+      tau.eps <- sd.eps^-2
+      # Magnitude of that noise
+		  sd.eps ~ T(dt(0, 1, 1), 0,)  #truncated to be greater than 0
 		    
       # Covariates:
       alpha1 ~ dnorm(0, 1)     #shrub cover
@@ -258,18 +295,19 @@ cat(file="Bayes_Files//brsp_distance_model.txt",
         beta0[i] ~ dnorm(beta0.int, tau.beta0)
       }
       beta0.int <- log(mean.lambda)  # lambda intercept on log scale and ...
-      mean.lambda ~ dnorm(0, 0.001)I(0,) # ... on natural scale
-      tau.beta0 <- pow(sd.beta0,-2) 
-      sd.beta0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in lambda intercept
+      mean.lambda ~ T(dnorm(0, 0.001), 0,) # ... on natural scale
+      tau.beta0 <- sd.beta0^-2 
+      # Magnitude of that noise on lambda intercept
+      sd.beta0 ~ T(dt(0, 1, 1), 0,)  #truncated to be greater than 0
       
       # Random intercept for each observer
       for (o in 1:nobs) {     # Loop over 18 observers
-        rf.alpah0[o] ~ dnorm(alpha0, tau.alpha0)
+        rf.alpha0[o] ~ dnorm(alpha0, tau.alpha0)
       }
       alpha0 <- log(mean.sigma)  # sigma intercept on log scale and ...
       mean.sigma ~ dunif(0, 1) # ... on the natural scale (0 - 1 km)
-      tau.alpha0 <- pow(sd.alpha0,-2) 
-      sd.alpha0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in sigma intercept
+      tau.alpha0 <- sd.alpha0^-2
+      sd.alpha0 ~ T(dt(0, 1, 2), 0,) # Magnitude of noise in sigma intercept
       
       # Covariates:
       beta1 ~ dnorm(0, 1)      # Effect of burned vs unburned
@@ -282,44 +320,44 @@ cat(file="Bayes_Files//brsp_distance_model.txt",
       # Hierarchical construction of the likelihood
       # Model for binned distance observations of every detected individual
       for(i in 1:nind){       # Loop over all detected individuals
-        dclass[i] ~ dcat(fc[point[i],])               # Part 1 of HM
+        dclass[i] ~ dcat(fc[point[i], ])      # distance classes follow a multinational distribution
       }
       
       # Construction of the cell probabilities for the nD distance bands
       # This is for the truncation distance for the data (here, newB = 0.125 km)
 
       for(s in 1:nsites){  # Loop over all sites in data set 1
-        for(g in 1:nD){       # midpt = mid-point of each distance band
+        for(g in 1:nbins){       # midpt = mid-point of each distance band
           log(p[s,g]) <- -midpt[g] * midpt[g] / (2 * sigma[s]^2)
           pi[s,g] <- ((2 * midpt[g] ) / newB^2) * delta # prob. per interval
           f[s,g] <- p[s,g] * pi[s,g]
           fc[s,g] <- f[s,g] / pcap[s] 
         }
         # Rectangular approx. of integral that yields the Pr(capture)
-        pcap[s] <- sum(f[s,])
+        pcap[s] <- sum(f[s, ])
         
         ### Log-linear models on abundance, detectability, and availability
         # Abundance (lambda) Log-linear model for abundance
-        log(lambda[s]) <- beta0[year[s]]           # random intercept for each year of the survey
-        + beta1 * burned[s]                           # most important effect: burned vs unburned
-        + beta2 * f_year[s] * burned[s]               # Effect of years since fire only on burned routes
-        + beta3 * f_year[s]^2 * burned[s]             # effect of years since fire squared only on burned routes
-        + beta4 * precip[s]                           # Effect of precipitation
-        + beta5 * f_year[s] * precip[s] * burned[s]   # Effect of years since fire and precipitation only on burned routes
+        log(lambda[s]) <- beta0[year[s]] +           # random intercept for each year of the survey
+        beta1 * burned[s] +                          # most important effect: burned vs unburned
+        beta2 * f_year[s] * burned[s] +              # Effect of years since fire only on burned routes
+        beta3 * f_year[s]^2 * burned[s] +            # effect of years since fire squared only on burned routes
+        beta4 * precip[s] +                          # Effect of precipitation
+        beta5 * f_year[s] * precip[s] * burned[s]    # Effect of years since fire and precipitation only on burned routes
         
         # Detectability/perceptability (sigma)
-        log(sigma[s]) <- rf.alpah0[observers[s]] + eps[s]  # Log-Linear model for detection probability
+        log(sigma[s]) <- rf.alpha0[observers[s]] + eps[s]  # Log-Linear model for detection probability
 		      eps[s] ~ dnorm(0, tau.eps)        # Note here eps1 has one precision and below another
 
         # Availability (phi)
 		    # Log-linear model for availability
-        log(phi[s]) <- gamma0                        #Intercept
-        + gamma1 * day[s]                            # Effect of scaled ordinal date
-        + gamma2 * pow(day[s], 2)                    # Effect of scaled ordinal date squared
-        + gamma3 * time[s]                           # Effect of scaled time of day
-        + gamma4 * pow(time[s], 2)                   # Effect of scaled time of day aquared
+        log(phi[s]) <- gamma0 +                       #Intercept
+        gamma1 * day[s] +                            # Effect of scaled ordinal date
+        gamma2 * day[s]^2 +                    # Effect of scaled ordinal date squared
+        gamma3 * time[s] +                           # Effect of scaled time of day
+        gamma4 * time[s]^2                     # Effect of scaled time of day aquared
         
-        theta[s] <- 1-exp(-phi[s])                  # link function to convert linear comb to a probability
+        theta[s] <- 1 - exp(-phi[s])                   # link function to convert linear comb to a probability
 
         # Multiply availability with detection probability
         pDS[s] <- pcap[s] * theta[s]
@@ -331,11 +369,11 @@ cat(file="Bayes_Files//brsp_distance_model.txt",
 		  # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
         # Compute fit statistic for observed data 
         eval[s] <- pDS[s] * N_indv[s]
-        EDS[s] <- pow((sqrt(ncap[s]) - sqrt(eval[s])), 2)
+        EDS[s] <- (sqrt(ncap[s]) - sqrt(eval[s]))^2
 
         # Generate replicate DS count data and compute same fit stats for them
         ncap.new[s] ~ dbin(pDS[s], N_indv[s])
-        EDS.new[s] <- pow((sqrt(ncap.new[s]) - sqrt(eval[s])), 2)
+        EDS.new[s] <- (sqrt(ncap.new[s]) - sqrt(eval[s]))^2
 	   }
       # Add up fit stats across sites for DS data
       fit <- sum(EDS[])
@@ -343,9 +381,10 @@ cat(file="Bayes_Files//brsp_distance_model.txt",
       
       # Compute Bayesian p-value for distance sampling data
       bpv <- step(fit.new - fit)
-    }
-    "
-)
+})
+
+#set seed
+set.seed(123)
 
 # Inits ----
 inits <- function(){list(mean.sigma = runif(1, 0, 1), 
@@ -354,35 +393,115 @@ inits <- function(){list(mean.sigma = runif(1, 0, 1),
                          gamma2 = rnorm(1, 0, 0.1), 
                          gamma3 = rnorm(1, 0, 0.1), 
                          gamma4 = rnorm(1, 0, 0.1),
-                         mean.lambda = runif(1, 1, 60), 
+                         mean.lambda = runif(1, 1, 100), 
                          beta1 = rnorm(1, 0, 0.1), 
                          beta2 = rnorm(1, 0, 0.1),
                          beta3 = rnorm(1, 0, 0.1),
                          beta4 = rnorm(1, 0, 0.1),
                          beta5 = rnorm(1, 0, 0.1),
-                         sd.eps = runif(1, 0.1, 1), 
+                         sd.eps = runif(1, 0, 1), 
                          N_indv = brsp_count$Count+1)}  
 
+#Object dimessions
+dims <- list(
+  f = c(nsites, nbins),
+  fc = c(nsites, nbins),
+  EDS = nsites,
+  EDS.new = nsites
+)
+
 # Params to save ----
-params <- c("mean.sigma", "alpha0",  "sd.eps", "rf.alpha0",
+params <- c("mean.sigma", 
+            "alpha0",  
+            "sd.eps", 
+            "rf.alpha0",
             "mean.phi", 
-            "gamma0", "gamma1", "gamma2", "gamma3", "gamma4", 
-            "mean.lambda", "beta0", "beta1", "beta2", "beta3", "beta4"," beta5", "sd.beta0", "beta0.int",
-            "fit", "fit.new", "bpv")
+            "gamma0", 
+            "gamma1", 
+            "gamma2", 
+            "gamma3", 
+            "gamma4", 
+            "mean.lambda", 
+            "beta0", 
+            "beta1", 
+            "beta2", 
+            "beta3", 
+            "beta4", 
+            "beta5", 
+            "sd.beta0", 
+            "beta0.int",
+            "fit", 
+            "fit.new", 
+            "bpv")
 
-# MCMC settings ----
-# na <- 10  ;  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
-na <- 500  ;  nc <- 3  ;  ni <- 10000  ;  nb <- 3000  ;  nt <- 5 # longer test
-# na <- 10000;  nc <- 4;  ni <- 120000;  nb <- 60000;  nt <- 60   # As for the paper
-# na <- 10000;  nc <- 10;  ni <- 400000;  nb <- 200000;  nt <- 200 # takes a while...
+# MCMC settings. Pick one, comment out the rest ----
+#  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
+nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 5 # longer test
+# nc <- 4;  ni <- 120000;  nb <- 60000;  nt <- 60   # As for the paper
+# nc <- 10;  ni <- 400000;  nb <- 200000;  nt <- 200 # takes a while...
 
 
-# Launch JAGS, check convergence and summarize posteriors ----
-library(jagsUI)
-start <- Sys.time()
-set.seed(123)
-jags_out <- jags(brsp_data, inits, params, "Bayes_Files//brsp_distance_model.txt", n.adapt = na,
-                 n.chains = nc, n.iter = ni, n.burnin = nb, n.thin = nt, parallel = TRUE)
+# Launch Nimble, run my sampler, check convergence and summarize posteriors ----
+start <- Sys.time() #start time for the model
+
+# run the model
+mcmc.out <- nimbleMCMC(code = model,
+                       dimensions = dims,
+                       data = nimble_dat,
+                       constants = nimble_const,
+                       inits = inits,
+                       monitors = params,
+                       niter = ni,
+                       nburnin = nb,
+                       thin = nt,
+                       nchains = nc)
+
+# end time for the model
 difftime(Sys.time(),start)
-traceplot(jags_out)
-print(jags_out, 2) 
+
+#Save model output
+save(mcmc.out, file = "Bayes_Files/brsp_distance_model_out.rda")
+
+################################################################################
+#Model diagnostics #############################################################
+################################################################################
+
+#load the output back in
+mcmc_out <- load(file = "Bayes_Files/brsp_distance_model_out.rda")
+
+#Define which parameters I want to view
+params <- c("mean.sigma", 
+            "alpha0",  
+            "sd.eps", 
+            "rf.alpha0",
+            "mean.phi", 
+            "gamma0", 
+            "gamma1", 
+            "gamma2", 
+            "gamma3", 
+            "gamma4", 
+            "mean.lambda", 
+            "beta0", 
+            "beta1", 
+            "beta2", 
+            "beta3", 
+            "beta4", 
+            "beta5", 
+            "sd.beta0", 
+            "beta0.int",
+            "fit", 
+            "fit.new", 
+            "bpv")
+
+#View MCMC summary
+MCMCsummary(object = mcmc.out, round = 2)
+
+#View an MCMC plot
+MCMCplot(object = mcmc.output,
+         params = params)
+
+#Traceplots and density graphs 
+MCMCtrace(object = mcmc.output,
+          pdf = FALSE, # no export to PDF
+          ind = TRUE, # separate density lines per chain
+          params = params)
