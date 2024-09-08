@@ -1,0 +1,16 @@
+"","Observer.ID","Route.ID","Year","Visit","Date","Point.ID","Start.Time","Shrub.Cover","Cheatgrass.Cover","Trees.Count","Species","Distance","How.Detected","Song.Also","Direction","Sex","Group.Size","Temp.Start","Temp.End","Wind.Start","Wind.End","Sky.End","X.Coord","Y.Coord","Point.Notes","Route.Notes"
+"1","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"BRSP",67,"S",NA,"E","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"2","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"WEME",133,"S",NA,"N","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"3","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"BRSP",77,"S",NA,"E","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"4","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"SATH",107,"S",NA,"SE","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"5","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"BRSP",68,"S",NA,"W","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"6","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"WEME",155,"S",NA,"SW","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"7","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"VESP",89,"S",NA,"S","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"8","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"VESP",65,"S",NA,"S","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"9","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"BRSP",44,"V",NA,"E","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"10","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"LBCU",700,"C",NA,"SW","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"11","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"CORA",440,"V",NA,"SW","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"12","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"HOLA",78,"S",NA,"S","U",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"13","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"NOBI",NA,"",NA,"","",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"14","will_harrod","UT-C19","Y3","V1","20240422",4,"14:43",2,1,0,"NOBI",NA,"",NA,"","",NA,7,11,2,1,"Partly Cloudy",-111.80974205829,41.7440678207815,NA,NA
+"15","will_harrod","UT-C19","Y3","V1","20240422",3,"14:46",2,1,0,"BRSP",66,"S",NA,"S","U",NA,7,11,2,1,"Partly Cloudy",-111.809878837521,41.7439959269497,NA,NA
