@@ -349,6 +349,6 @@ modlist_dct_cov = list(p.null = p_null,
                        p.mas = p_mas, 
                        p.date = p_date)
 aictab(modlist_dct_cov)
-# It doesn't seem like any models outperfomrm the null
+# It doesn't seem like any models outperform the null
 
 # 2c) abundance level covariate fitting #######################
