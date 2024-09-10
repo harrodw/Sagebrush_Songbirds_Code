@@ -183,6 +183,7 @@ sobs_count %>%
   geom_smooth() +
   facet_wrap(~Species)
 
+<<<<<<< HEAD
 # How many birds did each observer see?
 sobs %>% 
   filter(Species %in% important_species) %>% 
@@ -190,6 +191,8 @@ sobs %>%
   geom_bar() +
   facet_wrap(~ Observer.ID)
 
+=======
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 #How does observer affect the count?
 sobs_count %>% 
   filter(Count > 0) %>% 

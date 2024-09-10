@@ -1,0 +1,102 @@
+
+  model{
+    #Fixed effect Priors ----
+    beta_burn ~ dnorm(0, 0.001) #Offset for burned or not
+    beta_fire_y ~ dnorm(0, 0.001) #offset for years since fire
+    beta_burn_elev ~ dnorm(0, 0.001) #offset for fire sevarity
+    beta_elev ~ dnorm(0, 0.001) #offset for elevation
+
+    #random effect hyperparameters
+    sigma_route ~ dunif(0, 50) #between route variation
+    sigma2_route <- pow(sigma_route, 2)
+    tau_route <- pow(sigma2_route, -2)
+    pd ~ dunif(0, 1) #the model calculates the probability of detection 
+
+    #Random intercept priors ---
+    for(n in 1:n_routes){
+      beta0[route[n]] ~ dnorm(0, tau_route)
+    } #end random effects loop
+
+    #State process Likelihood ------------------
+    for(k in 1:K){
+      lin_comb[k] <- beta0[route_visits[k]] + #Random intercept for route visit
+                     beta_burn * burn_yn[k]  #Fixed effect of burned vs ref
+                     + beta_fire_y * fire_y[k] * burn_yn[k]  #Fixed effect of time since fire
+                     + beta_elev * elevation[k] #Fixed effect of elevation 
+                     + beta_burn_elev * fire_y[k] * elevation[k] * burn_yn[k] #interaction between fire year and elevation
+      #linear combination of predictors
+      lambda[k] <- exp(lin_comb[k]) #log link
+      n_brsp[k] ~ dpois(lambda[k])
+    }
+
+  #Observation process Likelihood -----
+     for(k in 1:K){
+       obs_brsp[k] ~ dbin(pd, n_brsp[k])
+     }
+
+  }# end model
+
+Rows: 917
+Columns: 29
+$ Full.Point.ID     [3m[38;5;246m<chr>[39m[23m "ID-B03-P01", "ID-B03-P02", "ID-B03-P03", "ID-B03-P04", "ID-B03-P05",…
+$ Route.ID          [3m[38;5;246m<fct>[39m[23m ID-B03, ID-B03, ID-B03, ID-B03, ID-B03, ID-B03, ID-B03, ID-B03, ID-B0…
+$ Point.Time        [3m[38;5;246m<chr>[39m[23m "08:03", "07:51", "07:51", "07:51", "08:14", "08:25", "08:35", "07:17…
+$ Year              [3m[38;5;246m<chr>[39m[23m "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3…
+$ Sky.Start         [3m[38;5;246m<fct>[39m[23m Clear, Clear, Clear, Clear, Clear, Clear, Clear, Clear, Clear, Clear,…
+$ Wind.Start        [3m[38;5;246m<fct>[39m[23m 1-3 mph, 1-3 mph, 1-3 mph, 1-3 mph, 1-3 mph, 1-3 mph, 1-3 mph, 1-3 mp…
+$ Temp.Start        [3m[38;5;246m<int>[39m[23m 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1, 1, …
+$ Visit             [3m[38;5;246m<chr>[39m[23m "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1…
+$ Date              [3m[38;5;246m<chr>[39m[23m "2024-05-21", "2024-05-21", "2024-05-21", "2024-05-21", "2024-05-21",…
+$ Observer.ID       [3m[38;5;246m<fct>[39m[23m Thomas, Thomas, Thomas, Thomas, Thomas, Thomas, Thomas, Thomas, Thoma…
+$ Count             [3m[38;5;246m<dbl>[39m[23m 0, 1, 1, 4, 1, 1, 1, 2, 1, 2, 2, 0, 4, 1, 0, 2, 3, 1, 1, 3, 3, 3, 3, …
+$ Visit.ID          [3m[38;5;246m<fct>[39m[23m ID-B03-P01-Y3-V1, ID-B03-P02-Y3-V1, ID-B03-P03-Y3-V1, ID-B03-P04-Y3-V…
+$ Sagebrush.Cover   [3m[38;5;246m<dbl>[39m[23m 1.7884615, 1.8518519, 1.6481481, 2.0185185, 3.4814815, 2.5178571, 1.6…
+$ Annual.Cover      [3m[38;5;246m<dbl>[39m[23m 24.307692, 21.203704, 19.814815, 17.000000, 32.777778, 27.714286, 21.…
+$ Perennial.Cover   [3m[38;5;246m<dbl>[39m[23m 64.40385, 61.68519, 54.00000, 49.55556, 65.35185, 66.30357, 56.38889,…
+$ Shrub.Cover       [3m[38;5;246m<dbl>[39m[23m 3.711538, 3.777778, 4.407407, 4.703704, 5.685185, 4.410714, 4.407407,…
+$ Bare.Ground.Cover [3m[38;5;246m<dbl>[39m[23m 14.59615, 17.51852, 24.61111, 28.75926, 10.33333, 11.39286, 23.00000,…
+$ Shrub.Height      [3m[38;5;246m<dbl>[39m[23m 16.38462, 16.38889, 18.81481, 19.01852, 19.72222, 17.66071, 17.94444,…
+$ Burn.Sevarity     [3m[38;5;246m<fct>[39m[23m 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, …
+$ Fire.Distance     [3m[38;5;246m<dbl>[39m[23m 3086.6600, 2977.3208, 2880.1932, 2801.4393, 2855.6280, 2753.3437, 265…
+$ Elevation         [3m[38;5;246m<dbl>[39m[23m 1504.185, 1509.739, 1515.513, 1521.529, 1506.249, 1512.157, 1518.040,…
+$ TRI               [3m[38;5;246m<dbl>[39m[23m 0.6006128, 0.5876195, 0.6200322, 0.6558264, 0.5900786, 0.6194373, 0.5…
+$ Aspect            [3m[38;5;246m<fct>[39m[23m -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 3,…
+$ Road.Distance     [3m[38;5;246m<dbl>[39m[23m 243.94230, 155.35522, 48.47020, 65.00894, 174.05411, 164.67090, 84.00…
+$ Point.X           [3m[38;5;246m<int>[39m[23m 311657, 311902, 312146, 312391, 311643, 311888, 312133, 312377, 31162…
+$ Point.Y           [3m[38;5;246m<int>[39m[23m 4663449, 4663435, 466342, 466340, 466320, 466319, 466317, 466316, 466…
+$ Years.Since.Fire  [3m[38;5;246m<dbl>[39m[23m 127, 83, 107, 91, 124, 126, 99, 117, 39, 74, 85, 88, 134, 128, 105, 9…
+$ Burned            [3m[38;5;246m<fct>[39m[23m R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, B, B, B, B, B, B, B, …
+$ Visit.ID.num      [3m[38;5;246m<dbl>[39m[23m 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20…
+Rows: 917
+Columns: 2
+$ Visit.ID     [3m[38;5;246m<fct>[39m[23m ID-B03-P01-Y3-V1, ID-B03-P02-Y3-V1, ID-B03-P03-Y3-V1, ID-B03-P04-Y3-V1, ID…
+$ Visit.ID.num [3m[38;5;246m<dbl>[39m[23m 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,…
+Rows: 1,442
+Columns: 27
+$ Distance          [3m[38;5;246m<int>[39m[23m 32, 39, 48, 25, 21, 39, 45, 57, 33, 70, 51, 30, 15, 74, 45, 32, 43, 4…
+$ Minute            [3m[38;5;246m<int>[39m[23m 2, 3, 2, 4, 5, 5, 1, 1, 1, 2, 2, 1, 5, 6, 2, 2, 1, 1, 4, 4, 5, 1, 6, …
+$ How.Detected      [3m[38;5;246m<chr>[39m[23m "S", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "V", "C",…
+$ Route.ID          [3m[38;5;246m<chr>[39m[23m "ID-B03", "ID-B03", "ID-B03", "ID-B03", "ID-B03", "ID-B03", "ID-B03",…
+$ Full.Point.ID     [3m[38;5;246m<chr>[39m[23m "ID-B03-P02", "ID-B03-P03", "ID-B03-P04", "ID-B03-P04", "ID-B03-P04",…
+$ Observer.ID       [3m[38;5;246m<chr>[39m[23m "Thomas", "Thomas", "Thomas", "Thomas", "Thomas", "Thomas", "Thomas",…
+$ Year              [3m[38;5;246m<chr>[39m[23m "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3", "Y3…
+$ Visit             [3m[38;5;246m<chr>[39m[23m "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1", "V1…
+$ Burned            [3m[38;5;246m<fct>[39m[23m R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, R, …
+$ Ord.Date          [3m[38;5;246m<int>[39m[23m 141, 141, 141, 141, 141, 141, 141, 141, 141, 141, 141, 141, 141, 141,…
+$ Wind.Start        [3m[38;5;246m<chr>[39m[23m "1-3 mph", "1-3 mph", "1-3 mph", "1-3 mph", "1-3 mph", "1-3 mph", "1-…
+$ Sagebrush.Cover   [3m[38;5;246m<dbl>[39m[23m 1.8518519, 1.6481481, 2.0185185, 2.0185185, 2.0185185, 2.0185185, 3.4…
+$ Annual.Cover      [3m[38;5;246m<dbl>[39m[23m 21.203704, 19.814815, 17.000000, 17.000000, 17.000000, 17.000000, 32.…
+$ Shrub.Cover       [3m[38;5;246m<dbl>[39m[23m 3.777778, 4.407407, 4.703704, 4.703704, 4.703704, 4.703704, 5.685185,…
+$ Bare.Ground.Cover [3m[38;5;246m<dbl>[39m[23m 17.51852, 24.61111, 28.75926, 28.75926, 28.75926, 28.75926, 10.33333,…
+$ Shrub.Height      [3m[38;5;246m<dbl>[39m[23m 16.38889, 18.81481, 19.01852, 19.01852, 19.01852, 19.01852, 19.72222,…
+$ Elevation         [3m[38;5;246m<dbl>[39m[23m 1509.739, 1515.513, 1521.529, 1521.529, 1521.529, 1521.529, 1506.249,…
+$ TRI               [3m[38;5;246m<dbl>[39m[23m 0.5876195, 0.6200322, 0.6558264, 0.6558264, 0.6558264, 0.6558264, 0.5…
+$ Road.Distance     [3m[38;5;246m<dbl>[39m[23m 155.35522, 48.47020, 65.00894, 65.00894, 65.00894, 65.00894, 174.0541…
+$ Point.X           [3m[38;5;246m<int>[39m[23m 311902, 312146, 312391, 312391, 312391, 312391, 311643, 311888, 31213…
+$ Point.Y           [3m[38;5;246m<int>[39m[23m 4663435, 466342, 466340, 466340, 466340, 466340, 466320, 466319, 4663…
+$ Years.Since.Fire  [3m[38;5;246m<dbl>[39m[23m 103, 100, 85, 82, 112, 80, 65, 89, 77, 96, 102, 60, 74, 105, 91, 100,…
+$ Visit.ID          [3m[38;5;246m<chr>[39m[23m "ID-B03-P02-Y3-V1", "ID-B03-P03-Y3-V1", "ID-B03-P04-Y3-V1", "ID-B03-P…
+$ Dist.Bin          [3m[38;5;246m<dbl>[39m[23m 2, 2, 2, 2, 1, 2, 2, 3, 2, 3, 3, 2, 1, 3, 2, 2, 2, 2, 2, 3, 3, 3, 5, …
+$ Dist.Bin.Midpoint [3m[38;5;246m<dbl>[39m[23m 37, 37, 37, 37, 12, 37, 37, 62, 37, 62, 62, 37, 12, 62, 37, 37, 37, 3…
+$ Time.Bin          [3m[38;5;246m<fct>[39m[23m 1, 2, 1, 2, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 2, 2, 3, 1, 3, …
+$ Visit.ID.num      [3m[38;5;246m<dbl>[39m[23m 2, 3, 4, 4, 4, 4, 5, 6, 7, 8, 8, 9, 10, 10, 11, 11, 13, 13, 13, 13, 1…

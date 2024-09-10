@@ -21,7 +21,11 @@ rm(list = ls())
 ################################################################################
 
 # 1.a) Read in data ################################################################
+<<<<<<< HEAD
 # #Add in Data from local drive 
+=======
+# #Add in Data from local drivethe 
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
   dplyr::select(-X) %>%
   tibble()
@@ -49,7 +53,11 @@ glimpse(covs)
 #define relevant species
 soi <- "BRSP"
 
+<<<<<<< HEAD
 #define a truncation distance (km)
+=======
+#define a truncation distance
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 trunc_dist <- 0.125
 
 #make a table of important species sightings by visit
@@ -67,6 +75,7 @@ glimpse(counts_0inf)
 
 #make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
+<<<<<<< HEAD
   tidyr::expand(nesting(Full.Point.ID, 
                         Route.ID,
                         Point.Time, 
@@ -79,15 +88,24 @@ visit_count <- sobs %>%
                         Observer.ID,
                         Visit, 
                         Date))
+=======
+  tidyr::expand(nesting(Full.Point.ID, Route.ID, Point.Time, Year, Sky.Start,
+                        MAS, Ord.Date, Wind.Start, Temp.Start, Observer.ID,
+                        Visit, Date))
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 
 #...and view
 glimpse(visit_count)
 
 #Join the two, add zeros and average observations within year
 counts <-  visit_count %>% 
+<<<<<<< HEAD
   left_join(counts_0inf, by = c('Full.Point.ID', 
                                 'Route.ID',
                                 'Observer.ID',
+=======
+  left_join(counts_0inf, by = c('Full.Point.ID', 'Route.ID', 'Observer.ID',
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
                                     'Year', 'Visit', 'Date')) %>% 
   mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count)) %>% 
   mutate(Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-"))
@@ -188,6 +206,15 @@ glimpse(observations_temp)
 unique(observations_temp$Dist.Bin)
 unique(observations_temp$Dist.Bin.Midpoint)
 
+<<<<<<< HEAD
+=======
+#Histogram of distances
+# observations %>%
+# ggplot(aes(x = Distance)) +
+# geom_histogram(binwidth = 0.025, col = "darkgray", fill = "lightblue")
+#That's a great looking detection histogram right there
+
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 #Reorder visits and observations so that they are shared between the two
 counts <- counts %>% 
   arrange(Survey.ID) %>% 
@@ -230,6 +257,15 @@ points <- observations$Survey.ID.num # point number of each observation
 midpoints <- unique(observations$Dist.Bin.Midpoint) # Midpoints of distance bins
 observers <- as.numeric(counts$Observer.ID) #Random effect for observer associated with each survey
 
+<<<<<<< HEAD
+=======
+# Observation Level data 
+dist_class <- observations$Dist.Bin # Distance category for each observation
+points <- observations$Survey.ID.num # point number of each observation 
+midpoints <- unique(observations$Dist.Bin.Midpoint) # Midpoints of distance bins
+observers <- as.numeric(counts$Observer.ID) #Random effect for observer associated with each survey
+
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 # Point level data
 ncap <- counts$Count # Number of detected individuals per site
 year <- as.numeric(as.factor(counts$Year)) # year number
@@ -318,8 +354,16 @@ brsp_model_code <- nimbleCode({
       tau.eps <- sd.eps^-2
       # Magnitude of that noise
 		  sd.eps ~ T(dt(0, 1, 1), 0,)  #truncated to be greater than 0
+<<<<<<< HEAD
 
       # Parameters in the availability component of the detection model
+=======
+		    
+      # Covariates:
+      alpha1 ~ dnorm(0, 1)     # Burned or not
+
+      # Shared parameters in the availability component of the detection model
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
       gamma0 <- log(mean.phi)  # phi intercept on log scale and ...
       mean.phi ~ dunif(0, 1)   # ... on natural scale
       gamma1 ~ dnorm(0, 1)     # Effect of day of year on singing rate
@@ -362,6 +406,7 @@ brsp_model_code <- nimbleCode({
       }
       
       # Construction of the cell probabilities for the nD distance bands
+<<<<<<< HEAD
       # This is for the truncation distance for the data (here, newB = 0.125 km and delta = 0.025)
       for(s in 1:nsites){  # Loop over all sites in data set 1
         for(g in 1:nbins){       # midpt = mid-point of each distance band
@@ -371,6 +416,18 @@ brsp_model_code <- nimbleCode({
           fc[s,g] <- f[s,g] / pcap[s] # combined c ell probability
         }
         # Rectangular integral approx. of integral that yields the Pr(capture)
+=======
+      # This is for the truncation distance for the data (here, newB = 0.125 km)
+
+      for(s in 1:nsites){  # Loop over all sites in data set 1
+        for(g in 1:nbins){       # midpt = mid-point of each distance band
+          log(p[s,g]) <- -midpt[g] * midpt[g] / (2 * sigma[s]^2)
+          pi[s,g] <- ((2 * midpt[g] ) / newB^2) * delta # prob. per interval
+          f[s,g] <- p[s,g] * pi[s,g]
+          fc[s,g] <- f[s,g] / pcap[s] 
+        }
+        # Rectangular approx. of integral that yields the Pr(capture)
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
         pcap[s] <- sum(f[s, ])
         
         ### Log-linear models on abundance, detectability, and availability
@@ -388,7 +445,11 @@ brsp_model_code <- nimbleCode({
 
         # Availability (phi)
 		    # Log-linear model for availability
+<<<<<<< HEAD
 		    logit(phi[s]) <- gamma0 +                    # Intercept
+=======
+		    logit(phi[s]) <- gamma0 +                      # Intercept
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
         gamma1 * day[s] +                            # Effect of scaled ordinal date
         gamma2 * day[s]^2 +                          # Effect of scaled ordinal date squared
         gamma3 * time[s] +                           # Effect of scaled time of day
@@ -406,7 +467,11 @@ brsp_model_code <- nimbleCode({
         eval[s] <- pDS[s] * N_indv[s]
         EDS[s] <- (sqrt(ncap[s]) - sqrt(eval[s]))^2
 
+<<<<<<< HEAD
         # Generate replicate count data and compute same fit stats for them
+=======
+        # Generate replicate DS count data and compute same fit stats for them
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
         ncap.new[s] ~ dbin(pDS[s], N_indv[s])
         EDS.new[s] <- (sqrt(ncap.new[s]) - sqrt(eval[s]))^2
 	   }
@@ -420,6 +485,31 @@ brsp_model_code <- nimbleCode({
 
 # 2.c) Configure and Run the model ###########################################################
 
+<<<<<<< HEAD
+=======
+# Build the model
+brsp_model <- nimbleModel(code = brsp_model_code,
+                          name = "Brewer's Sparrow Abondance",
+                          data = brsp_dat,
+                          constants = brsp_const,
+                          inits = brsp_inits,
+                          dimensions = brsp_dims)
+
+#View noode
+brsp_model$getNodeNames()
+
+# See what did not initialize
+brsp_model$initializeInfo()
+
+niter = ni,
+nburnin = nb,
+thin = nt,
+nchains = nc,
+setSeed = 123,
+samples = TRUE,
+summary = TRUE
+
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 # Params to save
 brsp_params <- c("mean.sigma", 
             "alpha0",  
@@ -444,6 +534,7 @@ brsp_params <- c("mean.sigma",
             "fit.new", 
             "bpv")
 
+<<<<<<< HEAD
 # MCMC settings. Pick one, comment out the rest 
 #  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
 nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 3 # longer test
@@ -471,6 +562,33 @@ difftime(Sys.time(),start) # end time for the sampler
 
 #Save model output
 save(brsp_mcmc_comp, file = "Bayes_Files/brsp_distance_model_out.rda")
+=======
+#configure the sampler 
+start <- Sys.time() #start time for the configuration
+brsp_mcmc_config <- configureMCMC(mcmc_model,           # The newly built model
+                             monitors = params,    # The parameters I care about
+                             print = TRUE)
+difftime(Sys.time(),start) # end time for the configuration
+
+#Build the MCMC sampler object
+start <- Sys.time() #start time for building the sampler
+
+difftime(Sys.time(),start) # end time for building the sampler
+
+# MCMC settings. Pick one, comment out the rest 
+#  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
+nc <- 3  ;  ni <- 10000  ;  nb <- 3000  ;  nt <- 3 # longer test
+# nc <- 4;  ni <- 120000;  nb <- 60000;  nt <- 60   # Run the model for real
+# nc <- 10;  ni <- 400000;  nb <- 200000;  nt <- 200 # This takes a while...
+
+#compile the model
+start <- Sys.time() #start time for the compilation
+brsp_mcmc_comp <- compileNimble(brsp_mcmc_config) 
+difftime(Sys.time(),start) # end time for the compilation
+
+#Save model output
+save(brsp_mcmc_comp, file = "Bayes_Files/brsp_distance_model_comp.rda")
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -479,7 +597,11 @@ save(brsp_mcmc_comp, file = "Bayes_Files/brsp_distance_model_out.rda")
 # 3a) View model output
 
 #load the output back in
+<<<<<<< HEAD
 mcmc_out <- load(file = "Bayes_Files/brsp_distance_model_out.rda")
+=======
+mcmc_out <- load(file = "Bayes_Files/brsp_distance_model_comp.rda")
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
 
 #Define which parameters I want to view
 params <- c("mean.sigma", 
@@ -506,6 +628,7 @@ params <- c("mean.sigma",
             "bpv")
 
 #View MCMC summary
+<<<<<<< HEAD
 MCMCsummary(object = mcmc_out, round = 2)
 
 #View an MCMC plot
@@ -514,6 +637,16 @@ MCMCplot(object = mcmc_out,
 
 #Traceplots and density graphs 
 MCMCtrace(object = mcmc_out,
+=======
+MCMCsummary(object = mcmc.out, round = 2)
+
+#View an MCMC plot
+MCMCplot(object = mcmc.output,
+         params = params)
+
+#Traceplots and density graphs 
+MCMCtrace(object = mcmc.output,
+>>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
           pdf = FALSE, # no export to PDF
           ind = TRUE, # separate density lines per chain
           params = params)

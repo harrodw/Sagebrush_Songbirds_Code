@@ -1,0 +1,115 @@
+
+    model{
+      
+      # Priors for all parameters in DS model
+      # ------------------------------------------------------------------
+    
+      # Random noise on availability
+      tau.eps <- pow(sd.eps, -2)
+		  sd.eps ~ dt(0, 1, 1)I(0,)     # Magnitude of that noise
+		    
+      # Covariates:
+      alpha1 ~ dnorm(0, 1)     #shrub cover
+
+      # Shared parameters in the availability component of the detection model
+      gamma0 <- log(mean.phi)  # phi intercept on log scale and ...
+      mean.phi ~ dunif(0, 1)   # ... on natural scale
+	    # mean.phi ~ dbeta(2, 2)   # ... on natural scale
+      gamma1 ~ dnorm(0, 1)     # Effect of day of year on singing rate
+      gamma2 ~ dnorm(0, 1)     # Effect of day of year on singing rate (quadratic)
+      gamma3 ~ dnorm(0, 1)     # Effect of time of day on singing rate
+      gamma4 ~ dnorm(0, 1)     # Effect of time of day on singing rate (quadratic)
+
+      # Shared parameters in the abundance model
+      # Random intercept for each year
+      for (i in 1:nvst) {     # Loop over 7 years
+        beta0[i] ~ dnorm(beta0.int, tau.beta0)
+      }
+      beta0.int <- log(mean.lambda)  # lambda intercept on log scale and ...
+      mean.lambda ~ dnorm(0, 0.001)I(0,) # ... on natural scale
+      tau.beta0 <- pow(sd.beta0,-2) 
+      sd.beta0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in lambda intercept
+      
+      # Random intercept for each observer
+      for (o in 1:nobs) {     # Loop over 18 observers
+        rf.alpah0[o] ~ dnorm(alpha0, tau.alpha0)
+      }
+      alpha0 <- log(mean.sigma)  # sigma intercept on log scale and ...
+      mean.sigma ~ dunif(0, 1) # ... on the natural scale (0 - 1 km)
+      tau.alpha0 <- pow(sd.alpha0,-2) 
+      sd.alpha0 ~ dt(0, 1, 2)I(0,) # Magnitude of noise in sigma intercept
+      
+      # Covariates:
+      beta1 ~ dnorm(0, 1)      # Effect of burned vs unburned
+      beta2 ~ dnorm(0, 0.1)    # Effect of years since fire only on burned routes
+      beta3 ~ dnorm(0, 0.1)    # effect of years since fire squared only on burned routes
+      beta4 ~ dnorm(0, 0.1)    # effect of precipitation
+      beta5 ~ dnorm(0, 0.1)    # effect of years since fire and precipitation only on burned routes
+
+      # -------------------------------------------------------------------
+      # Hierarchical construction of the likelihood
+      # Model for binned distance observations of every detected individual
+      for(i in 1:nind){       # Loop over all detected individuals
+        dclass[i] ~ dcat(fc[point[i],])               # Part 1 of HM
+      }
+      
+      # Construction of the cell probabilities for the nD distance bands
+      # This is for the truncation distance for the data (here, newB = 0.125 km)
+
+      for(s in 1:nsites){  # Loop over all sites in data set 1
+        for(g in 1:nD){       # midpt = mid-point of each distance band
+          log(p[s,g]) <- -midpt[g] * midpt[g] / (2 * sigma[s]^2)
+          pi[s,g] <- ((2 * midpt[g] ) / newB^2) * delta # prob. per interval
+          f[s,g] <- p[s,g] * pi[s,g]
+          fc[s,g] <- f[s,g] / pcap[s] 
+        }
+        # Rectangular approx. of integral that yields the Pr(capture)
+        pcap[s] <- sum(f[s,])
+        
+        ### Log-linear models on abundance, detectability, and availability
+        # Abundance (lambda) Log-linear model for abundance
+        log(lambda[s]) <- beta0[year[s]]           # random intercept for each year of the survey
+        + beta1 * burned[s]                           # most important effect: burned vs unburned
+        + beta2 * f_year[s] * burned[s]               # Effect of years since fire only on burned routes
+        + beta3 * f_year[s]^2 * burned[s]             # effect of years since fire squared only on burned routes
+        + beta4 * precip[s]                           # Effect of precipitation
+        + beta5 * f_year[s] * precip[s] * burned[s]   # Effect of years since fire and precipitation only on burned routes
+        
+        # Detectability/perceptability (sigma)
+        log(sigma[s]) <- rf.alpah0[observers[s]] + eps[s]  # Log-Linear model for detection probability
+		      eps[s] ~ dnorm(0, tau.eps)        # Note here eps1 has one precision and below another
+
+        # Availability (phi)
+		    # Log-linear model for availability
+        log(phi[s]) <- gamma0                        #Intercept
+        + gamma1 * day[s]                            # Effect of scaled ordinal date
+        + gamma2 * pow(day[s], 2)                    # Effect of scaled ordinal date squared
+        + gamma3 * time[s]                           # Effect of scaled time of day
+        + gamma4 * pow(time[s], 2)                   # Effect of scaled time of day aquared
+        
+        theta[s] <- 1-exp(-phi[s])                  # link function to convert linear comb to a probability
+
+        # Multiply availability with detection probability
+        pDS[s] <- pcap[s] * theta[s]
+
+        ### Binomial mixture part (in conditional multinomial specification)
+        ncap[s] ~ dbin(pDS[s], N_indv[s])            # Part 2 of HM: number captured
+        N_indv[s] ~ dpois(area * lambda[s])          # Note use of area as an offset
+
+		  # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
+        # Compute fit statistic for observed data 
+        eval[s] <- pDS[s] * N_indv[s]
+        EDS[s] <- pow((sqrt(ncap[s]) - sqrt(eval[s])), 2)
+
+        # Generate replicate DS count data and compute same fit stats for them
+        ncap.new[s] ~ dbin(pDS[s], N_indv[s])
+        EDS.new[s] <- pow((sqrt(ncap.new[s]) - sqrt(eval[s])), 2)
+	   }
+      # Add up fit stats across sites for DS data
+      fit <- sum(EDS[])
+      fit.new <- sum(EDS.new[])
+      
+      # Compute Bayesian p-value for distance sampling data
+      bpv <- step(fit.new - fit)
+    }
+    

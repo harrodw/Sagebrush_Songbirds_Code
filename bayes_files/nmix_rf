@@ -1,0 +1,42 @@
+
+  model{
+    #Fixed effect Priors ----
+    beta_burn ~ dnorm(0, 0.001) #Offset for burned or not
+    beta_p_wind ~ dnorm(0, 0.001) 
+    
+    #random effect hyperparameters
+    sigma_a ~ dunif(0, 50)
+    sigma2_a <- pow(sigma_route, 2)
+    tau_a <- pow(sigma_route, -2)
+    
+    sigma_pd ~ dunif(0, 50)
+    sigma2_pd <- pow(sigma_route, 2)
+    tau_pd <- pow(sigma_route, -2)
+
+    #Random intercept priors ---
+    for(n in 1:n_routes){
+      beta0_a[n] ~ dnorm(0, tau_a)
+      mu_p[n] ~ dnorm(0, 0.01)
+    }
+     
+    #State process Likelihood -----
+    for(k in 1:n_points){ 
+  
+      lin_comb[k] <- beta0_a[route[k]] + beta_burn * burned[k] #linear combination of predictors
+      lambda[k] <- exp(lin_comb[k]) #log link
+      n_brsp[k] ~ dpois(lambda_eff[k]) 
+     
+    #Observation process Likelihood -----
+     for(j in 1:n_visits){
+       obs_brsp[k, j] ~ dbin(p[k, j], n_brsp[k])
+       p[k, j] <- exp(lp[k, j]) /(1+ exp(lp[k, j]))
+       lp[k, j] <- beta0_p[k] + beta_p_wind * wind[k, j] 
+       beta0_p[k] ~ dnorm(mu_p[route[k]], tau_pd)
+       
+     } #j
+    } #k
+    
+    totalN <- sum(n_brsp[])
+    
+  }# end model
+

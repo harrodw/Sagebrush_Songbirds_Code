@@ -1,0 +1,82 @@
+
+  model{
+    #Priors ################
+    
+    #Detection level priors ----
+    sigma_observer ~ dunif(0, 1)   #between observer variation in detection
+    sigma2_observer <- pow(sigma_observer, 2)
+    tau_observer <- pow(sigma_observer, -2)
+    beta_pd_mas ~ dnorm(0, 0.1) #offset in detection probability for minutes after sunrise               
+   
+    #Random intercepts for observer ----
+    for(o in 1: n_observers){
+      alpha_observer[o] ~ dnorm(0, tau_observer)
+    }
+    
+    #Abundance level priors ----
+    sigma_route ~ dunif(0, 50) #Between route variation in abundance
+    sigma2_route <- pow(sigma_route, 2)
+    tau_route <- pow(sigma_route, -2)
+    beta_lambda_burn ~ dnorm(0, 0.1) #difference in abundance between burned and ref routes
+    
+    #Random intercept for route ID
+    for(j in 1: n_routes){
+      alpha_route[j] ~ dnorm(0, tau_route) 
+    }
+    
+    #Likelihood ##############################################################
+    
+    ##DETECTION PROBABILITY ------------------------------
+    #Linear combination of covariates
+    for(k in 1:n_surveys){
+      #Log linear combination of predictors for detection probability
+      ln_sigma[k] <- alpha_observer[observers[k]] + beta_pd_mas * mas[k]
+      #Log link
+      sigma[k] <- exp(ln_sigma[k])
+
+      #Distance sampling detection probability estimation -----------------------
+      # Using summation technique - Pr(p of x)=exp(-x^2/2*sigma^2)*f(x)
+      for(b in 1:n_bins){
+        # half-normal detection function - first half of eq.,
+        ln_g[k, b] <- -(bin_midpoints[b]*bin_midpoints[b]) / (2*sigma[k]*sigma[k])
+        #Log link
+        g[k, b] <- exp(ln_g[k, b])
+        # this is f(x), the scaled radial density function
+        f[k, b] <- (2*bin_midpoints[b]*delta) / (max_dist*max_dist)
+
+        #this is the product Pr(detect)*Pr(distribution)
+        pi_pd[k, b]<- g[b, k]*f[k, b]
+        #standardizing based on overall capture probability - conditional formulation
+        pi_pd_c[k, b] <- pi_pd[k, b]/pd[k]
+      } #b
+
+      #probability of detection is the sum of all rectangular areas
+      pd[k] <- sum(pi_pd[k,])
+    }#k
+
+    ######## Observation-level model ----------------------------------
+    for(i in 1:n_observations){
+      #single trial with categorical distribution linking distance class to survey point
+      dist_class[i] ~ dcat(pi_pd_c[surveys_obs[i],])
+    } #i
+
+    ################# Abundance level model  -----------------------------
+    for(k in 1:n_surveys){
+      # Abundance
+      #Linear combination of abundance predictors
+      lin_comb_lambda[k] <- alpha_route[surveys_count[k]] + beta_lambda_burn * burned[k]
+      #Log link
+      lambda[k] <- exp(lin_comb_lambda[k])
+      #Poisson process of birds being distributed across the landscape
+      N[k] ~ dpois(lambda[k])
+      
+      #Detection process likelihood
+      n[k] ~ dbin(pd[k], N[k])
+    } #k
+  } #end model
+
+
+Processing function input....... 
+
+Done. 
+ 
