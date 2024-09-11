@@ -4,11 +4,11 @@
 #Start here ---------------------------------------------------------------------------------
 
 #Load packages
-library(dplyr)
-library(stringr)
-library(ggplot2)
+library(tidyverse)
 library(raster)
 library(sf)
+library(tmap)
+library(RColorBrewer)
 
 #add in the data
 sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
@@ -75,6 +75,41 @@ tri <- raster(paste0(ras_path, "tri_3x3.tif"))
 precip <- raster(paste0(ras_path, "precip.tif"))
 road_dist <- raster(paste0(ras_path, "road_dist.tif"))
 
+#Add vector layers
+study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
+
+#create a percent sagebrush cover layer (the percentage of the shrubs that are Artemisia ssp.)
+sage_prop <- sage_cvr / shrub_cvr * 100
+
+# view this new layer
+raster::print(sage_prop)
+
+#Define a color pallte for view numeric rasters
+ras_pal <- brewer.pal(n = 6, name = "Purples")
+
+#Pick a raster to plot
+plot_me <- shrub_cvr
+
+#Plot a specific raster
+tm_shape(study_region) +  # Add the study region layer
+  tm_polygons(fill = "transparent",  # Make the polygons clear
+              border.col = "black",  # Keep the borders visible
+              alpha = 0.2,  # Adjust transparency: 0 (fully transparent) to 1 (fully opaque)
+              title = "Study Region") +
+  tm_shape(plot_me) +  # Add the raster layer
+  tm_raster(palette = ras_pal,  # Apply the reversed purple color scale
+            title = NA,  # Provide a title for the raster layer
+            colorNA = "transparent",  # Handle NA values if any
+            legend.show = TRUE) +  # Hide the default legend
+  tm_layout(frame = FALSE, 
+            legend.outside = TRUE, 
+            legend.title.size = 1.2,
+            legend.text.size = 1,
+            title = "Raster Value",
+            title.size = 1.5)
+
+  
+
 #Create a Topographic ruggedness layer
 # #I can add this back in if needed --------------------
 # tri_3x3 <- terrain(x = elevation,
@@ -106,7 +141,7 @@ glimpse(route_summaries)
 
 #Extract values to buffers
 #summarize Sagebrush cover
-route_summaries$Sagebrush.Cover <- raster::extract(x = sage_cvr,
+route_summaries$Sagebrush.Prop <- raster::extract(x = sage_prop,
                                                    y = route_centers,
                                                    buffer = 689,
                                                    fun = mean) 
@@ -322,7 +357,7 @@ glimpse(point_summaries)
 
 #Extract values to buffers
 #summarize Sagebrush cover
-point_summaries$Sagebrush.Cover <- raster::extract(x = sage_cvr,
+point_summaries$Sagebrush.Prop <- raster::extract(x = sage_prop,
                                                    y = points,
                                                    buffer = 125,
                                                    fun = mean) 
@@ -511,12 +546,12 @@ point_summaries %>%
 #Boxplots for catigorical variables
 point_summaries %>% 
   mutate(Route.Type = as.factor(Route.Type)) %>% 
-  ggplot(aes(x = Route.Type, y = Sagebrush.Cover)) +
+  ggplot(aes(x = Route.Type, y = Sagebrush.Prop)) +
   geom_boxplot()
 
 #Plot of a single variable against another
 point_summaries %>% 
-  ggplot(aes(x = Elevation, y = Precipitation, 
+  ggplot(aes(x = Shrub.Cover, y = Sagebrush.Prop, 
              fill = Route.Type, col = Route.Type)) +
   geom_point() +
   geom_smooth() 
@@ -568,9 +603,4 @@ point_covs <- point_summaries %>%
   dplyr::select(-c(Route.ID, Route.Type, Point.X, Point.Y))
 #...and view
 glimpse(point_covs)
-
-#View correlations 
-point_covs %>% 
-  dplyr::select(-Fire.Name, -Full.Point.ID) %>% 
-  cor()
 

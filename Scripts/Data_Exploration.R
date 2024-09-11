@@ -5,13 +5,10 @@
 rm(list = ls())
 
 #Add packages
-library(stringr)
-library(tidyr)
-library(dplyr)
-library(ggplot2)
+library(tidyverse)
 library(gridExtra)
 library(extrafont)
-library(forcats)
+library(ggcorrplot)
 
 #Load fonts
 font_import()
@@ -27,14 +24,24 @@ sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>%
 glimpse(sobs)
 
 #add covariates
+
 #I'm going to start with only the route level covariates
-covs <- tibble(read.csv("Data\\Outputs\\route_summaries.csv")) %>% 
-  dplyr::select(-X) %>%  
-  tibble() %>% 
+route_covs <- tibble(read.csv("Data\\Outputs\\route_summaries.csv")) %>%
+  dplyr::select(-X) %>%
+  tibble() %>%
   mutate(Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0,
                                    TRUE ~ Burn.Sevarity))
 #View covariates
-glimpse(covs)
+glimpse(route_covs)
+
+# Also, point level covariates
+point_covs <- tibble(read.csv("Data\\Outputs\\point_summaries.csv")) %>%
+  dplyr::select(-X) %>%
+  tibble() %>%
+  mutate(Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0,
+                                   TRUE ~ Burn.Sevarity))
+#View covariates
+glimpse(point_covs)
 
 #Transform into a table with each species observations by visit ----------------
 #define relevant species
@@ -69,24 +76,32 @@ sobs_count_0inf <- sobs %>%
   #only close observations
   filter(Distance <= trunc_dist) %>%
   #Reorganize
-  group_by(Route.ID, Route.Type, Year, Visit, Date, Species, Observer.ID) %>% 
-  reframe(Route.ID, Route.Type, Year, Visit, Date, Species, Count = n(), Observer.ID) %>% 
+  group_by(Full.Point.ID, Route.ID, Route.Type, Year, Visit, Date, Species, 
+           Observer.ID, MAS, Ord.Date, Wind.Start, Sky.Start, Temp.Start) %>% 
+  reframe(Full.Point.ID, Route.ID, Route.Type, Year, Visit, Date, Species, 
+          Observer.ID, MAS, Ord.Date, Wind.Start, Sky.Start, Temp.Start, 
+          Count = n()) %>% 
   distinct()
 #...and view
 glimpse(sobs_count_0inf)
 
 #make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
-  expand(nesting(Route.ID, Route.Type, Year, Visit, Date), Species) %>% 
+  tidyr::expand(nesting(Full.Point.ID, Route.ID, Route.Type, Year, Visit, Date, 
+                        Observer.ID, MAS, Ord.Date, Wind.Start, Sky.Start, Temp.Start), Species) %>% 
   filter(Species %in% important_species)
 #...and view
 glimpse(visit_count)
 
 #Join the two, add zeros and average observations within year
 sobs_count <-  visit_count %>% 
-  left_join(sobs_count_0inf, by = c('Route.ID', 'Route.Type', 'Year', 'Visit', 'Date', 'Species')) %>% 
+  left_join(sobs_count_0inf, by = c('Full.Point.ID','Route.ID', 'Route.Type', 'Year', 'Visit', 'Date', 'Species',
+                                    'Observer.ID', 'MAS', 'Ord.Date', 'Wind.Start', 'Sky.Start', 'Temp.Start')) %>% 
   mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count)) %>% 
-  left_join(covs, by = c('Route.ID', 'Route.Type')) 
+  left_join(point_covs, by = c('Full.Point.ID','Route.ID', 'Route.Type')) %>% 
+  mutate(Visit.Count = paste(Full.Point.ID,Route.ID, Year, Visit, sep = "-")) %>% 
+  mutate(Years.Since.Fire = lubridate::year(Date) - Fire.Year)
+  
 #...and view
 glimpse(sobs_count)
 
@@ -97,7 +112,240 @@ sobs_obs <- sobs %>%
 #...and view
 glimpse(sobs_obs)
 
-#Plots #####################################################################################################3333
+# Histograms of numeric covariates ################################################################
+
+#pick a single species
+soi <- "BRSP"
+
+#View all covariates
+glimpse(sobs_count)
+
+# Define numeric covariates
+num_covs <- c("Shrub.Cover", "Sagebrush.Prop", "Shrub.Height",
+  "Bare.Ground.Cover", "Annual.Cover", "Perennial.Cover",
+  "Elevation", "Precipitation", "TRI", "Road.Distance", "Years.Since.Fire",
+  "MAS", "Ord.Date")
+
+#Pull out numeric data
+num_cov_dat <- sobs_count %>% 
+  filter(Species == soi)
+num_cov_dat <- num_cov_dat[,num_covs]
+#...and view
+glimpse(num_cov_dat)
+
+#Build a function to look at the data shape
+view_num_dat <- function(dat, cov){
+  # Histogram of the raw covariate
+  naive_hist <- dat %>% 
+    ggplot() +
+    geom_histogram(aes(x = .data[[cov]]), fill = "lightblue") +
+    theme_bw() +
+    ggtitle(paste("Naive Histogram of", cov))
+  # Histogram of scaled covariate
+  scaled_hist <- dat %>% 
+    mutate(across(cov, scale)) %>% 
+    ggplot() +
+    geom_histogram(aes(x = .data[[cov]]), fill = "lightblue") +
+    theme_bw() +
+    ggtitle(paste("Scaled Histogram of", cov))
+  # Histogram of square-rooted covariate
+  sqrt_hist <- dat %>% 
+    mutate(across(cov, sqrt)) %>% 
+    ggplot() +
+    geom_histogram(aes(x = .data[[cov]]), fill = "lightblue") +
+    theme_bw() +
+    ggtitle(paste("Square Root Histogram of", cov))
+  # Histogram of log-transformed covariate
+  log_hist <- dat %>% 
+    mutate(across(cov, log)) %>% 
+    ggplot() +
+    geom_histogram(aes(x = .data[[cov]]), fill = "lightblue") +
+    theme_bw() +
+    ggtitle(paste("Log-Transformed Histogram of", cov))
+  # Plot all four
+  grid.arrange(naive_hist, scaled_hist, sqrt_hist, log_hist, ncol = 2)
+} # end function
+
+
+# Loop to make some plots
+for(i in 1:length(num_covs)){
+  # Define a particular covariate
+  cov <- num_covs[i]
+  #Plot them using my custom function
+  view_num_dat(dat = num_cov_dat,
+           cov = cov)
+}
+
+# Make a list of important catagoorical variables
+cat_covs <- c("Observer.ID", "Wind.Start", "Sky.Start", "Route.Type", "Aspect", "Fire.Name", "Burn.Sevarity")
+
+#pull the catagorical variables out of the data
+cat_cov_dat <- sobs_count %>% 
+  filter(Species == soi)
+cat_cov_dat <- cat_cov_dat[, cat_covs]
+#... and view
+glimpse(cat_cov_dat)
+
+#make a function to view the catigorical data
+view_cat_dat <- function(dat, cov){
+  #Bar graph for number of cases of each variable
+  cat_bars <- dat %>% 
+    mutate(across(cov, factor)) %>% 
+    drop_na(cov) %>% 
+    ggplot() +
+    geom_bar(aes(x = .data[[cov]]), fill = "pink") +
+    theme_bw() +
+    ggtitle(paste("Number of surveys in each class of", cov))
+  #Plot
+  grid.arrange(cat_bars)
+} # end function
+
+# Loop to make some plots
+for(i in 1:length(cat_covs)){
+  # Define a particular covariate
+  cov <- cat_covs[i]
+  #Plot them using my custom function
+  view_cat_dat(dat = cat_cov_dat,
+               cov = cov)
+}
+
+# Transformt he things that need to be transformed
+# IMPORTANT: Here is the list of covariate adjustments I want to make ######################################
+sobs_count <- sobs_count %>% 
+  mutate(#The variables that need to be log-transformed
+         ln.Road.Distance = log(Road.Distance), 
+         ln.Shrub.Cover = log(Shrub.Cover),
+         ln.Bare.Ground.Cover = log(Bare.Ground.Cover), 
+         ln.TRI = log(TRI),
+         #Combine Alex and Ben's Data
+         Observer.ID = case_when(Observer.ID %in% c('Alex', "Ben") ~ "Alex & Ben",
+                                 TRUE ~ Observer.ID),
+         #Now many fog/smoke days. I'll just remove them
+         Sky.Start = case_when(Sky.Start %in% c("Fog or Smoke", "Cloudy") ~ "Cloudy",
+                               TRUE ~ Sky.Start))
+#...and view
+glimpse(sobs_count)
+
+#Define the new numeric variables
+num_covs_trans <- c("ln.Shrub.Cover", "Sagebrush.Prop", "Shrub.Height",
+                    "ln.Bare.Ground.Cover", "Annual.Cover", "Perennial.Cover",
+                    "Elevation", "Precipitation", "ln.TRI", "ln.Road.Distance", "Years.Since.Fire",
+                    "MAS", "Ord.Date")
+
+#Pull these out of the data
+num_cov_dat <- sobs_count 
+num_dat <- num_cov_dat[,num_covs_trans]
+#...and view
+glimpse(num_dat)
+
+#View correlations among numeric variables ########################################
+
+# Fill in years since fire
+for(i in 1:nrow(num_dat)){
+  if(is.na(num_dat$Years.Since.Fire[i])){
+    num_dat$Years.Since.Fire[i] <- floor(rnorm(1, 115, 5))
+  }
+}
+
+# Correlations 
+cor_mat <- cor(num_dat)
+cor_mat
+
+# P-value correlations
+p_mat <- cor_pmat(num_dat)
+p_mat
+
+#View correlations graphically
+ggcorrplot(cor_mat, 
+           title = "Correlation matrix for Songbird Spatial Data", 
+           lab=TRUE, 
+           p.mat = p_mat, 
+           type = "lower",
+           sig.level = .05)
+
+#I can't use:
+#    *shrub cover + shrub height,
+#    *Annual cover + perennial cover,
+#    *elevation + precipitation or TRI
+#    *bare ground cover + perennial cover, elevation, or precipitation
+
+# Build a function that plots each numeric variable against the observed counts for each species
+obs_scatter <- function(dat, cov) { 
+  test_plots <- dat %>% 
+    mutate(across(all_of(num_covs_trans), scale)) %>%  # Scale the covariates
+    ggplot(aes(x = .data[[cov]], y = Count)) +
+    geom_point(color = "cadetblue", size = 2, alpha = 0.7) +  # Use larger, semi-transparent points
+    geom_smooth(method = "glm",
+                method.args = list(family = "poisson"),
+                color = "deepskyblue3", 
+                fill = "deepskyblue1", 
+                linetype = "solid",  # Solid line
+                size = 1.2) +  # Adjust line size for better visibility
+    facet_wrap(~Species, scales = "free_y") +  # Facet by species 
+    ggtitle(paste("Number of Observations as a Function of", cov)) +
+    xlab(cov) +  # X-axis label
+    ylab("Count of Observations") +  # Y-axis label
+    theme_bw() +  
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and bold the title
+      axis.title.x = element_blank(),         # no x-axis label
+      axis.title.y = element_text(size = 14),  # Y-axis title size
+      axis.text = element_text(size = 12),  # Axis text size
+      strip.text = element_text(size = 12),  # Facet label size
+      legend.position = "none"  
+    )
+  
+  grid.arrange(test_plots)
+}  # end function
+
+# Plot these with the function
+for(i in 1:length(num_covs_trans)){
+  # Define a particular covariate
+  cov <- num_covs_trans[i]
+  #Plot them using my custom function
+  obs_scatter(dat = sobs_count,
+              cov = cov)
+}
+
+# Build a function that plots each categorical variable against the observed counts for each species
+obs_boxp <- function(dat, cov) { 
+  test_plots <- dat %>% 
+    mutate(across(all_of(cat_covs), factor)) %>%  # Convert categorical variables to factors
+    ggplot(aes(x = .data[[cov]], y = Count, fill = .data[[cov]])) +
+    geom_boxplot(color = "black",  # Black border for boxes
+                 outlier.shape = 21,  # Custom outlier shape
+                 outlier.size = 2,  # Smaller outliers
+                 outlier.fill = "gray", # all outliers the same color
+                 lwd = 0.5) +  # Line width of the box borders
+    facet_wrap(~Species, scales = "free_y") +  # Facet by species
+    scale_fill_brewer(palette = "Dark2") +  
+    ggtitle(paste("Number of Observations as a Function of", cov)) + 
+    xlab(cov) +  # X-axis label
+    ylab("Count of Observations") +  # Y-axis label
+    theme_bw() +  
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and bold the title
+      axis.title.x = element_blank(),          # no x-axis label
+      axis.title.y = element_text(size = 14),  # Y-axis title size
+      axis.text = element_text(size = 12),  # Axis text size
+      strip.text = element_text(size = 12),  # Facet label size
+      legend.position = "none"  
+    )
+  
+  grid.arrange(test_plots)
+}  # End function
+
+
+# Plot these with the function
+for(i in 1:length(cat_covs)){
+  # Define a particular covariate
+  cov <- cat_covs[i]
+  #Plot them using my custom function
+  obs_boxp(dat = sobs_count,
+              cov = cov)
+}
+
+# Other random useful plots #########################################################################
 
 #View how many of each species were seen on each route
 sobs_count %>% 
@@ -113,11 +361,11 @@ sobs_count %>%
 
 #Look at specific outlines -------------------------------------------
 #there are a lot of WEME's on ID-B07 and ID-B22
-sobs_count %>% 
+sobs_obs %>% 
   filter(Route.ID== "ID-B22") %>% 
   filter(Species == "WEME") %>% 
-  select(Species, Distance, Minute, Full.Point.ID, 
-         Observer.ID, Year, Visit, Date) %>%
+  dplyr::select(Species, Distance, Minute, Full.Point.ID, 
+                Observer.ID, Year, Visit, Date, Distance) %>%
   ggplot(aes(x = Distance)) +
   geom_histogram() +
   facet_wrap(~Observer.ID)
@@ -133,7 +381,7 @@ sobs_obs %>%
   ggplot(aes(x = Distance)) +
   geom_histogram(binwidth = 25, col = "darkgray", fill = "lightblue") +
   facet_wrap(~Species)
-  #That's a great looking detection histogram right there
+#That's a great looking detection histogram right there
 
 #At what elevation do we start seeing more birds on burned grids?
 sobs_count %>% 
@@ -154,9 +402,6 @@ sobs_count %>%
 #View time since fire
 sobs_count %>% 
   filter(!is.na(Fire.Year)) %>%
-  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                      Year == "Y2" ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>%
   ggplot(aes(x = Years.Since.Fire, y = Count, col = "darkred")) +
   geom_point() +
   geom_smooth() +
@@ -165,15 +410,13 @@ sobs_count %>%
 #And the interaction
 sobs_count %>% 
   filter(!is.na(Fire.Year)) %>%
-  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                      Year == "Y2" ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>%
   mutate(Sagebrush.Type = case_when(Elevation > 1800 ~ "Mountain",
                                     Elevation <= 1800 ~ "Wyoming")) %>% 
   mutate(Sagebrush.Type = factor(Sagebrush.Type, levels = c("Wyoming", "Mountain"))) %>% 
   ggplot(aes(x = Years.Since.Fire, y = Count, col = Sagebrush.Type)) +
   geom_point() +
   geom_smooth() +
+  theme_bw() +
   facet_wrap(~Species)
 
 #Now Precipitation
@@ -182,37 +425,3 @@ sobs_count %>%
   geom_point() +
   geom_smooth() +
   facet_wrap(~Species)
-
-<<<<<<< HEAD
-# How many birds did each observer see?
-sobs %>% 
-  filter(Species %in% important_species) %>% 
-  ggplot(aes(x = Species)) +
-  geom_bar() +
-  facet_wrap(~ Observer.ID)
-
-=======
->>>>>>> 2cc2ade0056fb127dfb3038d8473796bf5a00012
-#How does observer affect the count?
-sobs_count %>% 
-  filter(Count > 0) %>% 
-  # mutate(Observer.ID = str_sub(Observer.ID, start = 1, end = 2)) %>% 
-  ggplot(aes(x = Observer.ID, y = Count)) +
-  geom_boxplot() +
-  facet_wrap(~Species)
-
-#tests for normality ---------------------------------
-#View the covariates
-names(sobs_obs)
-
-#MAS -------------------------------
-sobs_obs %>% 
-  ggplot(aes(x = MAS)) +
-  geom_histogram() +
-  ggtitle("Observations by mintues after sunrise") +
-  xlim(0, 300) +
-  facet_wrap(~Species)
-
-#proportion of observations by minute
-obs_prop <- sobs %>% 
-  expand(nesting(Full.Point.ID, Date, Minute))
