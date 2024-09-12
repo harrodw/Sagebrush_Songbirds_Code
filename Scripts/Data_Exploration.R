@@ -166,8 +166,7 @@ view_num_dat <- function(dat, cov){
   grid.arrange(naive_hist, scaled_hist, sqrt_hist, log_hist, ncol = 2)
 } # end function
 
-
-# Loop to make some plots
+# Loop over all covariates to make some plots
 for(i in 1:length(num_covs)){
   # Define a particular covariate
   cov <- num_covs[i]
@@ -175,6 +174,11 @@ for(i in 1:length(num_covs)){
   view_num_dat(dat = num_cov_dat,
            cov = cov)
 }
+
+# Histogram of a specific covariate
+view_num_dat(dat = num_cov_dat,
+             cov = "Annual.Cover")
+
 
 # Make a list of important catagoorical variables
 cat_covs <- c("Observer.ID", "Wind.Start", "Sky.Start", "Route.Type", "Aspect", "Fire.Name", "Burn.Sevarity")
@@ -272,7 +276,6 @@ ggcorrplot(cor_mat,
 # Build a function that plots each numeric variable against the observed counts for each species
 obs_scatter <- function(dat, cov) { 
   test_plots <- dat %>% 
-    mutate(across(all_of(num_covs_trans), scale)) %>%  # Scale the covariates
     ggplot(aes(x = .data[[cov]], y = Count)) +
     geom_point(color = "cadetblue", size = 2, alpha = 0.7) +  # Use larger, semi-transparent points
     geom_smooth(method = "glm",
@@ -298,7 +301,7 @@ obs_scatter <- function(dat, cov) {
   grid.arrange(test_plots)
 }  # end function
 
-# Plot these with the function
+# Plot all of these with the function
 for(i in 1:length(num_covs_trans)){
   # Define a particular covariate
   cov <- num_covs_trans[i]
@@ -306,6 +309,17 @@ for(i in 1:length(num_covs_trans)){
   obs_scatter(dat = sobs_count,
               cov = cov)
 }
+
+#View a covariate on its own
+obs_scatter(dat = sobs_count,
+            cov = "Precipitation")
+
+#View a specific variable before and after the log transformation
+scat_plot1 <- obs_scatter(dat = sobs_count,
+                          cov = "ln.Shrub.Cover")
+scat_plot2 <- obs_scatter(dat = sobs_count,
+                     cov = "Shrub.Cover")
+grid.arrange(scat_plot1, scat_plot2)
 
 # Build a function that plots each categorical variable against the observed counts for each species
 obs_boxp <- function(dat, cov) { 

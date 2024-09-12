@@ -3,9 +3,9 @@
 #Utah State University
 #Creadted 09/08/2024
 
-# 0) Clear environments and load packages ######################################
+# 0) Clear environments, install, and load packages#####################################
 rm(list = ls())
-install.packages("tidyverse", "unmarked", "AICcmodavg", "DHARMa")
+# install.packages("tidyverse", "unmarked", "AICcmodavg", "DHARMa")
 library(tidyverse)
 library(unmarked)
 library(AICcmodavg)
@@ -91,59 +91,6 @@ glimpse(dist_dat)
 dist_dat %>%
   filter(`(0- 25]` != 0)
 
-#### Extra code if I want to move to the Amundson 2024 model#####################
-# # Calculate the time removal bins
-# y_rmv <- sobs %>%
-#   filter(Species == soi) %>%
-#   filter(Distance <= trunc_dist) %>%
-#   mutate(Minute.Interval = case_when(Minute %in% c(1, 2) ~ "1st",
-#                                    Minute %in% c(3, 4) ~ "2nd",
-#                                    Minute %in% c(5, 6) ~ "3rd")) %>%
-#   mutate(Time.Interval = paste(Year, Visit, Minute.Interval, sep = "-")) %>%
-#   dplyr::select(Visit.ID, Time.Interval)
-# #... and view
-# glimpse(y_rmv)
-#
-# #count up the time removal data by site
-# rmv_dat_0inf <- y_rmv %>%
-#   group_by(Visit.ID, Time.Interval) %>%
-#   reframe(Visit.ID, Time.Interval, Count = n()) %>%
-#   distinct(Visit.ID, Time.Interval, Count) %>%
-#   pivot_wider(names_from = Time.Interval,
-#               values_from = Count)
-# #... and view
-# glimpse(y_rmv)
-#
-# # Merge with your observations data
-# rmv_dat <- points %>%
-#   left_join(rmv_dat_0inf,
-#             by = "Visit.ID") %>%
-#   mutate(across(everything(), ~ replace_na(., 0))) %>%
-#   dplyr::select(Visit.ID,
-#          `Y1-V1-1st`,
-#          `Y1-V1-2nd`,
-#          `Y1-V1-3rd`,
-#          `Y1-V2-1st`,
-#          `Y1-V2-2nd`,
-#          `Y1-V2-3rd`,
-#          `Y2-V1-1st`,
-#          `Y2-V1-2nd`,
-#          `Y2-V1-3rd`,
-#          `Y2-V2-1st`,
-#          `Y2-V2-2nd`,
-#          `Y2-V2-3rd`,
-#          `Y3-V1-1st`,
-#          `Y3-V1-2nd`,
-#          `Y3-V1-3rd`,
-#          `Y3-V2-1st`,
-#          `Y3-V2-2nd`,
-#          `Y3-V2-3rd`) %>%
-#   arrange(Visit.ID)
-# #... and view
-# glimpse(rmv_dat)
-# rmv_dat %>%
-#   filter(`1st` != 0)
-
 # 1b) Covariates ###############################################################
 
 # Add covariate data
@@ -162,12 +109,26 @@ glimpse(sobs)
 covs_tbl <- sobs %>%
   mutate(Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>%
   dplyr::select(Visit.ID, Year, Visit, Full.Point.ID, Route.ID, Observer.ID,
-                Ord.Date, MAS, Temp.Start, Wind.Start, Sky.Start,
+                Ord.Date, Date, MAS, Temp.Start, Wind.Start, Sky.Start,
                 UTM.X, UTM.Y) %>%
   distinct(Visit.ID, Year, Visit, Full.Point.ID, Route.ID, Observer.ID,
-           Ord.Date, MAS, Temp.Start, Wind.Start, Sky.Start,
-           UTM.X, UTM.Y) %>%
-  #Update the variabls based on my exploratory analysis
+           Ord.Date, Date, MAS, Temp.Start, Wind.Start, Sky.Start,
+           UTM.X, UTM.Y)
+  
+
+#...and view
+glimpse(covs_tbl)
+
+#make sure this is the same as the actual number of points surveyed
+nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
+# good good
+
+# combine these with the covariates
+covs_dat <- covs_tbl %>%
+  left_join(covs, by = c("Full.Point.ID")) %>% 
+  # How long since each fire
+  mutate(Years.Since.Fire = lubridate::year(Date) - Fire.Year) %>% 
+  #Update the variables based on my exploratory analysis
   mutate(
     #The variables that need to be log-transformed
     ln.Road.Distance = log(Road.Distance),
@@ -182,19 +143,8 @@ covs_tbl <- sobs %>%
                           TRUE ~ Sky.Start))
 
 #...and view
-glimpse(covs_tbl)
-
-#make sure this is the same as the actual number of points surveyed
-nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
-# good good
-
-# combine these with the covariates
-covs_dat <- covs_tbl %>%
-  left_join(covs, by = c("Full.Point.ID")) %>%
-  mutate(Years.Since.Fire = case_when())
-
-#...and view
 glimpse(covs_dat)
+
 #Make sure there are still the proper number of points
 nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
 
@@ -214,30 +164,6 @@ dist_mat <- as.matrix(hdm_dat %>%
 head(dist_mat)
 dim(dist_mat)
 
-#### Extra code if I want to move to the Amundson 2024 model#####################
-# # Time interval data
-# time_mat <- as.matrix(hdm_dat %>%
-#                         dplyr::select(`Y1-V1-1st`,
-#                                `Y1-V1-2nd`,
-#                                `Y1-V1-3rd`,
-#                                `Y1-V2-1st`,
-#                                `Y1-V2-2nd`,
-#                                `Y1-V2-3rd`,
-#                                `Y2-V1-1st`,
-#                                `Y2-V1-2nd`,
-#                                `Y2-V1-3rd`,
-#                                `Y2-V2-1st`,
-#                                `Y2-V2-2nd`,
-#                                `Y2-V2-3rd`,
-#                                `Y3-V1-1st`,
-#                                `Y3-V1-2nd`,
-#                                `Y3-V1-3rd`,
-#                                `Y3-V2-1st`,
-#                                `Y3-V2-2nd`,
-#                                `Y3-V2-3rd`))
-# head(time_mat)
-# dim(time_mat)
-
 #Distance breaks already exist, just need to view them
 dist_breaks
 
@@ -247,26 +173,28 @@ site_covs <- hdm_dat %>%
   #Scall and factoize covariates
   mutate(Area = pi * trunc_dist^2 * 0.0001, # calculate area
          # Abundance level covariates
-         Shrub.Cover.scl = scale(Shrub.Cover)[,1],
-         Bare.Ground.Cover.scl = scale(Bare.Ground.Cover)[,1],
-         Annual.Cover.scl = scale(Annual.Cover)[,1],
-         TRI.scl = scale(TRI)[,1],
-         Precipitation.scl = scale(Precipitation)[,1],
+         ln.Shrub.Cover = scale(ln.Shrub.Cover)[,1],
+         ln.Bare.Ground.Cover = scale(ln.Bare.Ground.Cover)[,1],
+         Annual.Cover = scale(Annual.Cover)[,1],
+         ln.TRI = scale(TRI)[,1],
+         Precipitation = scale(Precipitation)[,1],
+         Sagebrush.Prop = scale(Sagebrush.Prop)[,1],
          # Availability and detection level covariates
-         Observer.ID.fct = factor(Observer.ID, levels = sort(unique(Observer.ID))),
-         MAS.scl = scale(MAS)[,1],
-         Ord.Date.scl = scale(Ord.Date)[,1]) %>%
+         Observer.ID = factor(Observer.ID, levels = sort(unique(Observer.ID))),
+         MAS = scale(MAS)[,1],
+         Ord.Date = scale(Ord.Date)[,1]) %>%
   dplyr::select(#Pick which observation and site level covariates are interesting
     #These are for the process based model
-    Shrub.Cover.scl,
-    Bare.Ground.Cover.scl,
-    Annual.Cover.scl,
-    TRI.scl,
-    Precipitation.scl,
+    ln.Shrub.Cover,
+    ln.Bare.Ground.Cover,
+    Annual.Cover,
+    ln.TRI,
+    Precipitation,
+    Sagebrush.Prop,
     #and observation level covariates
-    Observer.ID.fct,
-    MAS.scl,
-    Ord.Date.scl
+    Observer.ID,
+    MAS,
+    Ord.Date
   ) %>%
   as.data.frame()
 
@@ -283,19 +211,6 @@ umf <- unmarkedFrameGDS(y = dist_mat,
 # View the unmarked data frame
 str(umf)
 head(umf)
-
-#### Extra code if I want to move to the Amundson 2024 model#####################
-#Combine these into an unmarked frame
-# umf <- unmarkedFrameGDR(yDistance = dist_mat,
-#                         yRemoval = time_mat,
-#                         numPrimary = 6,
-#                         siteCovs = site_covs,
-#                         survey = "point",
-#                         obsCovs = ??,
-#                         yearlySiteCovs = ??,
-#                         unitsIn = "m",
-#                         dist.breaks = dist_breaks,
-#                         numPrimary = 1) # I should probably change this to six later
 
 # 2) Model Fitting #############################################################
 
@@ -349,7 +264,7 @@ mod_dct_null <- mod_kf_exp
 # Observer model
 mod_dct_obs <- gdistsamp(lambdaformula = ~1,
                          phiformula = ~1,
-                         pformula = ~ Observer.ID.fct,
+                         pformula = ~ Observer.ID,
                          data = umf,
                          output = "density",
                          mixture ="P",
@@ -360,7 +275,7 @@ save(mod_dct_obs, file = "Model_Files/umk_mod_dct_obs.RData")
 # Time after sunrise model
 mod_dct_mas <- gdistsamp(lambdaformula = ~1,
                          phiformula = ~1,
-                         pformula =  ~MAS.scl,
+                         pformula =  ~MAS,
                          data = umf,
                          output = "density",
                          mixture = "P",
@@ -371,7 +286,7 @@ save(mod_dct_mas, file = "Model_Files/umk_mod_dct_mas.RData")
 #Date model
 mod_dct_date <- gdistsamp(lambdaformula = ~1,
                           phiformula = ~1,
-                          pformula = ~Ord.Date.scl,
+                          pformula = ~Ord.Date,
                           data = umf,
                           output = "density",
                           mixture = "P",
@@ -389,10 +304,7 @@ aictab(modlist_dct)
 # All of these perform better than the null but observer is the best predictor
 
 #Explore the observer data. I want to reclassify Alex's observations
-mod_out <- summary(mod_dct_obs)$det
-
-#Pull out the observer names
-mod_out <- names(mod_dct_obs@estimates@estimates$det@estimates)[2:nrow(mod_out)]
+summary(mod_dct_obs)
 
 #I'll lump Alex in with Ben
 
@@ -406,9 +318,9 @@ plot(mod_dct_obs)
 mod_abd_null <- mod_dct_obs
 
 # Shrub cover model
-mod_abd_shrub <- gdistsamp(lambdaformula = ~Shrub.Cover.scl,
+mod_abd_shrub <- gdistsamp(lambdaformula = ~ln.Shrub.Cover,
                            phiformula = ~1,
-                           pformula = ~ Observer.ID.fct,
+                           pformula = ~ Observer.ID,
                            data = umf,
                            output = "density",
                            mixture = "P",
@@ -417,9 +329,9 @@ mod_abd_shrub <- gdistsamp(lambdaformula = ~Shrub.Cover.scl,
 save(mod_abd_shrub, file = "Model_Files/umk_mod_abd_shrub.RData")
 
 # Bare ground cover model
-mod_abd_bg <- gdistsamp(lambdaformula = ~Bare.Ground.Cover.scl,
+mod_abd_bg <- gdistsamp(lambdaformula = ~ln.Bare.Ground.Cover,
                         phiformula = ~1,
-                        pformula = ~ Observer.ID.fct,
+                        pformula = ~ Observer.ID,
                         data = umf,
                         output = "density",
                         mixture = "P",
@@ -429,9 +341,9 @@ save(mod_abd_bg, file = "Model_Files/umk_mod_abd_bg.RData")
 
 
 # Topographic ruggedness model
-mod_abd_tri <- gdistsamp(lambdaformula = ~TRI.scl,
+mod_abd_tri <- gdistsamp(lambdaformula = ~ln.TRI,
                          phiformula = ~1,
-                         pformula = ~ Observer.ID.fct,
+                         pformula = ~ Observer.ID,
                          data = umf,
                          output = "density",
                          mixture = "P",
@@ -439,10 +351,32 @@ mod_abd_tri <- gdistsamp(lambdaformula = ~TRI.scl,
 #save the model
 save(mod_abd_tri, file = "Model_Files/umk_mod_abd_tri.RData")
 
+# Proportion of sagebrush cover model
+mod_abd_sage_prop <- gdistsamp(lambdaformula = ~Sagebrush.Prop * ln.Shrub.Cover,
+                         phiformula = ~1,
+                         pformula = ~ Observer.ID,
+                         data = umf,
+                         output = "density",
+                         mixture = "P",
+                         keyfun = "exp")
+#save the model
+save(mod_abd_sage_prop, file = "Model_Files/umk_mod_abd_sage_prop.RData")
+
+# Annual grass model model
+mod_abd_annu <- gdistsamp(lambdaformula = ~Annual.Cover,
+                               phiformula = ~1,
+                               pformula = ~ Observer.ID,
+                               data = umf,
+                               output = "density",
+                               mixture = "P",
+                               keyfun = "exp")
+#save the model
+save(mod_abd_annu, file = "Model_Files/umk_mod_abd_annu.RData")
+
 # Precipitation model
-mod_abd_precip <- gdistsamp(lambdaformula = ~Precipitation.scl,
+mod_abd_precip <- gdistsamp(lambdaformula = ~Precipitation,
                             phiformula = ~1,
-                            pformula = ~ Observer.ID.fct,
+                            pformula = ~ Observer.ID,
                             data = umf,
                             output = "density",
                             mixture = "P",
@@ -455,6 +389,8 @@ load("Model_Files/umk_mod_dct_obs.RData")
 load("Model_Files/umk_mod_abd_shrub.RData")
 load("Model_Files/umk_mod_abd_bg.RData")
 load("Model_Files/umk_mod_abd_tri.RData")
+load("Model_Files/umk_mod_abd_sage_prop.RData")
+load("Model_Files/umk_mod_abd_annu.RData")
 load("Model_Files/umk_mod_abd_precip.RData")
 
 #compare adundance models using AIC
@@ -462,6 +398,92 @@ modlist_abd = list(mod_null = mod_dct_obs,
                    mod_shrub = mod_abd_shrub,
                    mod_bg = mod_abd_bg,
                    mod_tri = mod_abd_tri,
+                   mod_sage_prop = mod_abd_sage_prop,
+                   mod_annual = mod_abd_annu,
                    mod_precip = mod_abd_precip)
 aictab(modlist_abd)
-#Everything except for TRI helps the mode. I still need to log-transform TRI
+# Everything has higher AIC than the null aexcept for proportion of sagebrush
+
+# A Full model that uses all of these covariates
+mod_abd_process1 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + Annual.Cover + ln.TRI, 
+                                  phiformula = ~1,
+                                  pformula = ~ Observer.ID,
+                                  data = umf,
+                                  output = "density",
+                                  mixture = "P",
+                                  keyfun = "exp")
+#save the model
+save(mod_abd_process1, file = "Model_Files/umk_mod_abd_process1.RData")
+
+#Remove Ruggedness
+mod_abd_process2 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + Annual.Cover, 
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process2, file = "Model_Files/umk_mod_abd_process2.RData")
+
+#Remove annual cover
+mod_abd_process3 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + ln.TRI, 
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process3, file = "Model_Files/umk_mod_abd_process3.RData")
+
+
+#Remove Ruggedness and annual cover
+mod_abd_process4 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation, 
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process4, file = "Model_Files/umk_mod_abd_process4.RData")
+
+# Summaries and diagnostics on process model 1condidate models #################################
+
+#Load the candidate models
+load("Model_Files/umk_mod_abd_shrub.RData")
+load("Model_Files/umk_mod_abd_process1.RData")
+load("Model_Files/umk_mod_abd_process2.RData")
+load("Model_Files/umk_mod_abd_process3.RData")
+load("Model_Files/umk_mod_abd_process4.RData")
+
+#Model summaries
+summary(mod_abd_shrub)
+summary(mod_abd_process1)
+summary(mod_abd_process2)
+summary(mod_abd_process3)
+summary(mod_abd_process4)
+
+# Combine all five candidate models
+modlist_abd = list(mod_null = mod_abd_shrub,
+                   mod_process1 = mod_abd_process1,
+                   mod_process2 = mod_abd_process2,
+                   mode_process3 = mod_abd_process3,
+                   mod_process4 = mod_abd_process4)
+
+# Check to confirm that all candidate models converged
+sapply(modlist_abd, checkConv)
+
+# Check the condition number from each model's Hessian matrix to see if they are overparameterized
+sapply(modlist_abd, extractCN)
+
+# Check the standard errors of thecandidate models
+lapply(modlist_abd, checkParms)
+
+# Compare goodness of fit between two models 
+anovaOD(mod.simple = mod_abd_shrub,
+                      mod.complex = mod_abd_process1)
+
+# Compare AIC scores among all candidate models
+aictab(modlist_abd)
