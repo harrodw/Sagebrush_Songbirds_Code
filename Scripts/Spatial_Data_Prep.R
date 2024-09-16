@@ -350,6 +350,9 @@ glimpse(precip_vals)
 #################################################################################################
 #Extract values to 125m buffers around each point ------------------------------------------------
 
+#Define the circle's radius
+radius <- 125
+
 #make an object to store all of the raster summaries
 point_summaries <- points %>% 
   tibble()
@@ -359,44 +362,44 @@ glimpse(point_summaries)
 #summarize Sagebrush cover
 point_summaries$Sagebrush.Prop <- raster::extract(x = sage_prop,
                                                    y = points,
-                                                   buffer = 125,
+                                                   buffer = radius,
                                                    fun = mean) 
 #summarize annual cover
 point_summaries$Annual.Cover <- raster::extract(x = anu_cvr,
                                                 y = points,
-                                                buffer = 125,
+                                                buffer = radius,
                                                 fun = mean)
 
 #summarize perennial cover
 point_summaries$Perennial.Cover <- raster::extract(x = perin_cvr,
                                                    y = points,
-                                                   buffer = 125,
+                                                   buffer = radius,
                                                    fun = mean) 
 #summarize shrub cover 
 point_summaries$Shrub.Cover <- raster::extract(x = shrub_cvr,
                                                y = points,
-                                               buffer = 125,
+                                               buffer = radius,
                                                fun = mean)
 
 #summarize bare gound cover
 point_summaries$Bare.Ground.Cover <- raster::extract(x = bg_cvr,
                                                y = points,
-                                               buffer = 125,
+                                               buffer = radius,
                                                fun = mean)
 #summarize shrub height
 point_summaries$Shrub.Height <- raster::extract(x = shrub_hgt,
                                                 y = points,
-                                                buffer = 125,
+                                                buffer = radius,
                                                 fun = mean)
 #summarize burn sevarity
 point_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
                                                  y = points,
-                                                 buffer = 125,
+                                                 buffer = radius,
                                                  fun = modal) 
 #summarize distance to fire edge
 point_summaries$Fire.Distance <- raster::extract(x = fire_dist,
                                                  y = points,
-                                                 buffer = 125,
+                                                 buffer = radius,
                                                  fun = mean) 
 #define inside vs outside of fire
 point_summaries <- point_summaries %>% 
@@ -406,23 +409,23 @@ point_summaries <- point_summaries %>%
 #summarize elevation
 point_summaries$Elevation <- raster::extract(x = elevation,
                                              y = points,
-                                             buffer = 125,
+                                             buffer = radius,
                                              fun = mean) 
 #summarize topographic ruggedness index
 point_summaries$TRI <- raster::extract(x = tri,
                                        y = points,
-                                       buffer = 125,
+                                       buffer = radius,
                                        fun = mean)
 #summarize aspect
 point_summaries$Aspect <- raster::extract(x = aspect,
                                           y = points,
-                                          buffer = 125,
+                                          buffer = radius,
                                           fun = modal)
 
 #summarize road distance
 point_summaries$Road.Distance <- raster::extract(x = road_dist,
                                                  y = points,
-                                                 buffer = 125,
+                                                 buffer = radius,
                                                  fun = mean)
 
 #Take the precipitation values from the route summaries
