@@ -5,11 +5,9 @@
 
 # 0) Clear environments, install, and load packages#####################################
 rm(list = ls())
-# install.packages("tidyverse", "unmarked", "AICcmodavg", "DHARMa")
 library(tidyverse)
 library(unmarked)
 library(AICcmodavg)
-library(DHARMa)
 library(raster)
 library(sf)
 library(tmap)
@@ -18,7 +16,7 @@ library(viridis)
 
 # 1) Data Prep #################################################################
 
-# 1a) Prepare the data #########################################################
+# 1.1) Prepare point count data #########################################################
 
 # Add point count data
 sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
@@ -96,7 +94,7 @@ glimpse(dist_dat)
 dist_dat %>%
   filter(`(0- 25]` != 0)
 
-# 1b) Covariates ###############################################################
+# 1.2) Prepare ovariate data  ###############################################################
 
 # Add covariate data
 covs <- tibble(read.csv("Data/Outputs/point_summaries.csv")) %>%
@@ -129,7 +127,7 @@ nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
 # good good
 
 # combine these with the covariates
-covs_dat <- covs_tbl %>%
+hdm_dat <- covs_tbl %>%
   left_join(covs, by = c("Full.Point.ID")) %>% 
   # How long since each fire
   mutate(Years.Since.Fire = lubridate::year(Date) - Fire.Year) %>% 
@@ -145,25 +143,23 @@ covs_dat <- covs_tbl %>%
                             TRUE ~ Observer.ID),
     #Now many fog/smoke days. I'll just remove them
     Sky.Start = case_when(Sky.Start %in% c("Fog or Smoke", "Cloudy") ~ "Cloudy",
-                          TRUE ~ Sky.Start))
+                          TRUE ~ Sky.Start)) %>% 
+    # Fill in missing values for routes witout fire information
+    mutate(Years.Since.Fire = case_when(is.na(Years.Since.Fire) ~ 115,
+           TRUE ~ Years.Since.Fire)) # Random value from the lit. Not used in model
+  
 
-#...and view
-glimpse(covs_dat)
-
-#Make sure there are still the proper number of points
-nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
-
-# Combine covariates with data
-hdm_dat <- dist_dat %>%
-  # left_join(rmv_dat) %>%
-  left_join(covs_dat)
 #...and view
 glimpse(hdm_dat)
 
-# 1c) Formating these into unmarked objects ######################################
+#Make sure there are still the proper number of points
+nrow(hdm_dat) == length(unique(covs_tbl$Visit.ID))
+
+
+# 1.3) Formating these into unmarked objects ######################################
 
 # distance data
-dist_mat <- as.matrix(hdm_dat %>%
+dist_mat <- as.matrix(dist_dat %>%
                         dplyr::select(`(0- 25]`, `(25- 50]`, `(50- 75]`, `(75- 100]`, `(100- 125]`))
 # view
 head(dist_mat)
@@ -184,10 +180,17 @@ site_covs <- hdm_dat %>%
          ln.TRI = scale(TRI)[,1],
          Precipitation = scale(Precipitation)[,1],
          Sagebrush.Prop = scale(Sagebrush.Prop)[,1],
+         Elevation = scale(Elevation)[1],
+         Perennial.Cover = scale(Perrenial.Cover)[1],
          # Availability and detection level covariates
          Observer.ID = factor(Observer.ID, levels = sort(unique(Observer.ID))),
          MAS = scale(MAS)[,1],
-         Ord.Date = scale(Ord.Date)[,1]) %>%
+         Ord.Date = scale(Ord.Date)[,1],
+         # Fire ecology covariates
+         Burned = as.numeric(factor(hdm_dat$Route.Type, levels = c("R", "B"))) -1,
+         Years.Since.Fire = scale(Years.Since.Fire)[,1],
+         Burn.Sevarity = factor(Burn.Sevarity)
+         ) %>%
   dplyr::select(#Pick which observation and site level covariates are interesting
     #These are for the process based model
     ln.Shrub.Cover,
@@ -199,7 +202,11 @@ site_covs <- hdm_dat %>%
     #and observation level covariates
     Observer.ID,
     MAS,
-    Ord.Date
+    Ord.Date,
+    # For the fire ecology model
+    Burned,
+    Years.Since.Fire,
+    Burn.Sevarity
   ) %>%
   as.data.frame()
 
@@ -219,7 +226,7 @@ head(umf)
 
 # 2) Model Fitting #############################################################
 
-# 2a) Asses which key function fits the data best ##############################
+# 2.1) Asses which key function fits the data best ##############################
 
 # #Half-normal
 # mod_kf_half_norm <- gdistsamp(lambdaformula = ~1,
@@ -261,7 +268,7 @@ head(umf)
 # aictab(modlist_key)
 # # The exponential key function seams to perform best
 # 
-# # 2b) Detection level covariate fitting #######################################
+# # 2.2) Detection level covariate fitting #######################################
 # 
 # # Null model is the best fitting model from the privious section of the heiarchy
 # mod_dct_null <- mod_kf_exp
@@ -319,7 +326,7 @@ head(umf)
 # par(mfrow = c(2, 2))
 # plot(mod_dct_obs)
 # 
-# # 2c) abundance level covariate fitting #######################
+# # 2.3) abundance level covariate fitting #######################
 # 
 # # Null model is the best fitting model from the privious section of the heiarchy
 # mod_abd_null <- mod_dct_obs
@@ -411,7 +418,7 @@ head(umf)
 # aictab(modlist_abd)
 # # Everything has higher AIC than the null aexcept for proportion of sagebrush
 # 
-# # 2d) multi-covariate abundance models ##################################################################
+# # 2.4) multi-covariate abundance models ##################################################################
 # mod_abd_process1 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + Annual.Cover + ln.TRI,
 #                                   phiformula = ~1,
 #                                   pformula = ~ Observer.ID,
@@ -456,7 +463,51 @@ head(umf)
 # #save the model
 # save(mod_abd_process4, file = "Model_Files/umk_mod_abd_process4.RData")
 
-# 3) Summaries and diagnostics on candidate process models #################################
+#Remove bare ground cover. It fits the data well but is heavily correlated with Elevation, Precipitation, and perenial cover
+mod_abd_process5 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Precipitation + Annual.Cover + ln.TRI,
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process5, file = "Model_Files/umk_mod_abd_process5.RData")
+
+# Swap elevation for precipitation
+mod_abd_process6 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Annual.Cover + ln.TRI,
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process6, file = "Model_Files/umk_mod_abd_process6.RData")
+
+# Swap perennial cover for annual cover
+mod_abd_process7 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Precipitation + Perennial.Cover + ln.TRI,
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process7, file = "Model_Files/umk_mod_abd_process7.RData")
+
+# Swap perennial cover for annual cover
+mod_abd_process8 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
+                              phiformula = ~1,
+                              pformula = ~ Observer.ID,
+                              data = umf,
+                              output = "density",
+                              mixture = "P",
+                              keyfun = "exp")
+#save the model
+save(mod_abd_process8, file = "Model_Files/umk_mod_abd_process8.RData")
+
+# 3.1) Summaries and diagnostics on candidate process models #################################
 
 #Load the candidate models
 load("Model_Files/umk_mod_abd_shrub.RData")
@@ -464,6 +515,10 @@ load("Model_Files/umk_mod_abd_process1.RData")
 load("Model_Files/umk_mod_abd_process2.RData")
 load("Model_Files/umk_mod_abd_process3.RData")
 load("Model_Files/umk_mod_abd_process4.RData")
+load("Model_Files/umk_mod_abd_process5.RData")
+load("Model_Files/umk_mod_abd_process6.RData")
+load("Model_Files/umk_mod_abd_process7.RData")
+load("Model_Files/umk_mod_abd_process8.RData")
 
 #Model summaries
 summary(mod_abd_shrub)
@@ -471,13 +526,21 @@ summary(mod_abd_process1)
 summary(mod_abd_process2)
 summary(mod_abd_process3)
 summary(mod_abd_process4)
+summary(mod_abd_process5)
+summary(mod_abd_process6)
+summary(mod_abd_process7)
+summary(mod_abd_process8)
 
 # Combine all five candidate models
 modlist_abd = list(mod_null = mod_abd_shrub,
                    mod_process1 = mod_abd_process1,
                    mod_process2 = mod_abd_process2,
                    mode_process3 = mod_abd_process3,
-                   mod_process4 = mod_abd_process4)
+                   mod_process4 = mod_abd_process4,
+                   mod_process5 = mod_abd_process5,
+                   mod_process6 = mod_abd_process6,
+                   mode_process7 = mod_abd_process7,
+                   mod_process8 = mod_abd_process8)
 
 # Check to confirm that all candidate models converged
 sapply(modlist_abd, checkConv)
@@ -531,7 +594,42 @@ modavgShrink(cand.set = modlist_abd,
              parm = "ln.TRI",
              parm.type = "lambda")
 
-# 4.1) Predictions based on the best performing model ##################################################
+
+# 3.3) Try out the "best" model with Negative Binomial and ZIP ########################################
+
+#Negative Binomial
+mod_abd_process1_NB <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
+                                  phiformula = ~1,
+                                  pformula = ~ Observer.ID,
+                                  data = umf,
+                                  output = "density",
+                                  mixture = "NB",
+                                  keyfun = "exp")
+#save the model
+save(mod_abd_process1, file = "Model_Files/umk_mod_abd_process1_NB.RData")
+
+# Zero inflated Poisson
+mod_abd_process1_ZIP <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
+                                 phiformula = ~1,
+                                 pformula = ~ Observer.ID,
+                                 data = umf,
+                                 output = "density",
+                                 mixture = "ZIP",
+                                 keyfun = "exp")
+#save the model
+save(mod_abd_process1, file = "Model_Files/umk_mod_abd_process1_ZIP.RData")
+
+
+# Combine all five candidate models
+modlist_mix = list(mod_abd_process1_P = mod_abd_process1,
+                   mod_process1_NB = mod_abd_process1_NB,
+                   mode_process1_ZIP = mod_abd_process1_ZIP)
+
+# Compare AIC scores among all candidate models
+aictab(modlist_mix)
+
+
+# 4.1) Graphical predictions based on the best performing model ##################################################
 
 # Load the current best performing model 
 load("Model_Files/umk_mod_abd_process1.RData")
@@ -551,7 +649,7 @@ head(lam_dat)
 #Define the size of the simulated data set
 N_sim <- 1000
 
-# 4.2) simulating data that for model predictions ##################################################################################
+# simulating data that for model predictions 
 
 #Write a function that undoes scaling
 unscale <- function(x, mu, sd){
@@ -665,7 +763,8 @@ sim_precip <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_si
                          Precipitation = seq(from = min(lam_dat$Precipitation), 
                                              to = max(lam_dat$Precipitation), length.out = N_sim),
                          ln.TRI = rep(mean(lam_dat$ln.TRI), N_sim))
-# Make predictions baed on precipitation
+
+# Make predictions based on precipitation
 abund_est_precip <- unmarked::predict(object = mod_best,
                                       type = "lambda",
                                       newdata = sim_precip,
@@ -831,3 +930,157 @@ tm_shape(study_region) +
             legend.text.size = 1.1,  
             legend.title.size = 2.0) +
   tm_basemap(leaflet::providers$Esri.WorldTopoMap) 
+
+# 5) Modeling fire effects ###############################################################
+
+# 5.1) Individual fire covariates########################################################
+
+# #Load the null model
+# load("Model_Files/umk_mod_dct_obs.RData")
+# 
+# # Model that includes burned vs unburned
+# mod_abd_burned <- gdistsamp(lambdaformula = ~ Burned,
+#                               phiformula = ~1,
+#                               pformula = ~ Observer.ID,
+#                               data = umf,
+#                               output = "density",
+#                               mixture = "P",
+#                               keyfun = "exp")
+# #save the model
+# save(mod_abd_burned, file = "Model_Files/umk_mod_abd_burned.RData")
+# 
+# # Model that includes time since fire
+# mod_abd_fireY <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned,
+#                             phiformula = ~1,
+#                             pformula = ~ Observer.ID,
+#                             data = umf,
+#                             output = "density",
+#                             mixture = "P",
+#                             keyfun = "exp")
+# #save the model
+# save(mod_abd_fireY, file = "Model_Files/umk_mod_abd_fireY.RData")
+# 
+# # Model that includes quadratic time since fire
+# mod_abd_fireY2 <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned + Years.Since.Fire^2 * Burned,
+#                             phiformula = ~1,
+#                             pformula = ~ Observer.ID,
+#                             data = umf,
+#                             output = "density",
+#                             mixture = "P",
+#                             keyfun = "exp")
+# #save the model
+# save(mod_abd_fireY2, file = "Model_Files/umk_mod_abd_fireY2.RData")
+# 
+# # Model that includes burn sevarity
+# mod_abd_burn_sev <- gdistsamp(lambdaformula = ~ Burn.Sevarity * Burned,
+#                            phiformula = ~1,
+#                            pformula = ~ Observer.ID,
+#                            data = umf,
+#                            output = "density",
+#                            mixture = "P",
+#                            keyfun = "exp")
+# #save the model
+# save(mod_abd_burn_sev, file = "Model_Files/umk_mod_abd_burn_sev.RData")
+# 
+# # Interaction between fire and precipitation
+# mod_abd_burn_precip <- gdistsamp(lambdaformula = ~ Precipitation * Burned,
+#                               phiformula = ~1,
+#                               pformula = ~ Observer.ID,
+#                               data = umf,
+#                               output = "density",
+#                               mixture = "P",
+#                               keyfun = "exp")
+# #save the model
+# save(mod_abd_burn_precip, file = "Model_Files/umk_mod_abd_burn_precip.RData")
+
+# Load New models
+load("Model_Files/umk_mod_abd_burned.RData")
+load("Model_Files/umk_mod_abd_fireY.RData")
+load("Model_Files/umk_mod_abd_fireY2 .RData")
+load("Model_Files/umk_mod_abd_burn_sev.RData")
+load("Model_Files/umk_mod_abd_burn_precip.RData")
+
+# Combine all five candidate models
+modlist_fire = list(mod_null = mod_dct_obs,
+                   mod_burned = mod_abd_burned,
+                   mod_fireY = mod_abd_fireY,
+                   mode_fireY2 = mod_abd_fireY2 ,
+                   mod_burn_sev = mod_abd_burn_sev,
+                   mod_abd_burn_precip = mod_abd_burn_precip)
+
+# Check to confirm that all candidate models converged
+sapply(modlist_fire, checkConv)
+
+#compare AIC among models
+aictab(modlist_fire)
+
+# 5.2) Combined fire models #############################################################################################################################
+
+# #Load the null model
+# load("Model_Files/umk_mod_dct_obs.RData")
+# 
+# # Full model
+# mod_abd_fire1 <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned + Years.Since.Fire^2 * Burned + Burn.Sevarity * Burned + Precipitation * Burned,
+#                             phiformula = ~1,
+#                             pformula = ~ Observer.ID,
+#                             data = umf,
+#                             output = "density",
+#                             mixture = "P",
+#                             keyfun = "exp")
+# #save the model
+# save(mod_abd_fire1, file = "Model_Files/mod_abd_fire1.RData")
+# 
+# # Take away burn sevatrity
+# mod_abd_fire2 <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned + Years.Since.Fire^2 * Burned + Precipitation * Burned,
+#                            phiformula = ~1,
+#                            pformula = ~ Observer.ID,
+#                            data = umf,
+#                            output = "density",
+#                            mixture = "P",
+#                            keyfun = "exp")
+# #save the model
+# save(mod_abd_fire2, file = "Model_Files/mod_abd_fire2.RData")
+# 
+# # Take away precipitation
+# mod_abd_fire3 <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned + Years.Since.Fire^2 * Burned + Burn.Sevarity * Burned,
+#                            phiformula = ~1,
+#                            pformula = ~ Observer.ID,
+#                            data = umf,
+#                            output = "density",
+#                            mixture = "P",
+#                            keyfun = "exp")
+# #save the model
+# save(mod_abd_fire3, file = "Model_Files/mod_abd_fire3.RData")
+# 
+# # Load these models
+# load("Model_Files/mod_abd_fire1.RData")
+# load("Model_Files/mod_abd_fire2.RData")
+# load("Model_Files/mod_abd_fire3.RData")
+# 
+# #View model summaries
+# summary(mod_fire1)
+# summary(mod_fire2)
+# summary(mod_fire3)
+# 
+# # Make a list of these models
+# modlist_fire <- liust(mod_null = mod_dct_obs,
+#                       mod_fire1l = mod_abd_fire1,
+#                       mod_fire2 = mod_abd_fire2,
+#                       mod_fire3 = mod_abd_fire3)
+# 
+# # Check to confirm that all candidate models converged
+# sapply(modlist_fire, checkConv)
+# 
+# #compare AIC among models
+# aictab(modlist_fire)
+
+# 5.3) Model diagnostics on the "best" fire model ##############################################################################################
+
+# Load the best model
+load()
+
+
+
+# 5.4 Graphical predictions based on the best performing fire model #####################################################################################
+
+

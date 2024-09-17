@@ -14,7 +14,7 @@ library(ggcorrplot)
 font_import()
 loadfonts(device = "win")
 
-#add in the data ---------------------------------------------------------------
+# 1) Prep ################################################################################
 
 #Add point count data
 sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
@@ -112,7 +112,7 @@ sobs_obs <- sobs %>%
 #...and view
 glimpse(sobs_obs)
 
-# Histograms of numeric covariates ################################################################
+# 2) Histograms of numeric covariates ################################################################
 
 #pick a single species
 soi <- "BRSP"
@@ -214,7 +214,7 @@ for(i in 1:length(cat_covs)){
 }
 
 # Transformt he things that need to be transformed
-# IMPORTANT: Here is the list of covariate adjustments I want to make ######################################
+# IMPORTANT: Here is the list of covariate adjustments I want to make ------------------------------
 sobs_count <- sobs_count %>% 
   mutate(#The variables that need to be log-transformed
          ln.Road.Distance = log(Road.Distance), 
@@ -242,7 +242,7 @@ num_dat <- num_cov_dat[,num_covs_trans]
 #...and view
 glimpse(num_dat)
 
-#View correlations among numeric variables ########################################
+# 3) View correlations among numeric variables #####################################################
 
 # Fill in years since fire
 for(i in 1:nrow(num_dat)){
@@ -272,6 +272,9 @@ ggcorrplot(cor_mat,
 #    *Annual cover + perennial cover,
 #    *elevation + precipitation or TRI
 #    *bare ground cover + perennial cover, elevation, or precipitation
+
+
+# 4) How does each covariate predict species abundance? ###########################################
 
 # Build a function that plots each numeric variable against the observed counts for each species
 obs_scatter <- function(dat, cov) { 
@@ -359,7 +362,7 @@ for(i in 1:length(cat_covs)){
               cov = cov)
 }
 
-# Other random useful plots #########################################################################
+# 5) Other random useful plots #########################################################################
 
 #View how many of each species were seen on each route
 sobs_count %>% 
