@@ -237,7 +237,7 @@ head(umf)
 #                               pformula = ~1,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "halfnorm")
 # #save the model
 # save(mod_kf_half_norm, file = paste0("Model_Files/umk_", species_to_model, "_brsp_mod_kf_half_norm.RData"))
@@ -248,7 +248,7 @@ head(umf)
 #                            pformula = ~1,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "hazard")
 # #save the model
 # save(mod_kf_hazard, file = paste0("Model_Files/umk_", species_to_model, "_brsp_mod_kf_hazard.RData"))
@@ -259,7 +259,7 @@ head(umf)
 #                         pformula = ~1,
 #                         data = umf,
 #                         output ="density",
-#                         mixture = "P",
+#                         mixture = "NB",
 #                         keyfun = "exp")
 # #save the model
 # save(mod_kf_exp, file = paste0("Model_Files/umk_", species_to_model, "_brsp_mod_kf_exp.RData"))
@@ -284,7 +284,7 @@ head(umf)
 # #save the model
 # save(mod_mix_P, file = paste0("Model_Files/umk", species_to_model, "_mod_mix_P.RData"))
 # 
-# # Zero inflated Poisson
+# # egative Binomial
 # mod_mix_NB <- gdistsamp(lambdaformula = ~1,
 #                         phiformula = ~1,
 #                         pformula = ~1,
@@ -311,7 +311,8 @@ head(umf)
 #                     mod_mix_NB = mod_mix_NB,
 #                     mod_mix_ZIP = mod_mix_ZIP)
 # aictab(modlist_mix)
-# The ZIP model is by far the best
+# The ZIP model is by far the best but the negative binomial is okay
+# Since the ZIP fitting is confusing, I'm going with a negative binomial for nwo
 
 # # 2.3) Detection level covariate fitting #######################################
 #
@@ -335,7 +336,7 @@ head(umf)
 #                          pformula =  ~MAS,
 #                          data = umf,
 #                          output = "density",
-#                          mixture = "P",
+#                          mixture = "NB",
 #                          keyfun = "exp")
 # #save the model
 # save(mod_dct_mas, file = paste0("Model_Files/umk_", species_to_model, "_mod_dct_mas.RData"))
@@ -346,7 +347,7 @@ head(umf)
 #                           pformula = ~Ord.Date,
 #                           data = umf,
 #                           output = "density",
-#                           mixture = "P",
+#                           mixture = "NB",
 #                           keyfun = "exp")
 # #save the model
 # save(mod_dct_date, file = paste0("Model_Files/umk_", species_to_model, "_mod_dct_date.RData"))
@@ -382,7 +383,7 @@ head(umf)
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun  = "exp")
 # #save the model
 # save(mod_abd_shrub, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_shrub.RData"))
@@ -393,7 +394,7 @@ head(umf)
 #                         pformula = ~ Observer.ID,
 #                         data = umf,
 #                         output = "density",
-#                         mixture = "P",
+#                         mixture = "NB",
 #                         keyfun =  "exp")
 # #save the model
 # save(mod_abd_bg, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_bg.RData"))
@@ -405,7 +406,7 @@ head(umf)
 #                          pformula = ~ Observer.ID,
 #                          data = umf,
 #                          output = "density",
-#                          mixture = "P",
+#                          mixture = "NB",
 #                          keyfun = "exp")
 # #save the model
 # save(mod_abd_tri, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_tri.RData"))
@@ -416,7 +417,7 @@ head(umf)
 #                          pformula = ~ Observer.ID,
 #                          data = umf,
 #                          output = "density",
-#                          mixture = "P",
+#                          mixture = "NB",
 #                          keyfun = "exp")
 # #save the model
 # save(mod_abd_sage_prop, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_sage_prop.RData"))
@@ -427,7 +428,7 @@ head(umf)
 #                                pformula = ~ Observer.ID,
 #                                data = umf,
 #                                output = "density",
-#                                mixture = "P",
+#                                mixture = "NB",
 #                                keyfun = "exp")
 # #save the model
 # save(mod_abd_annu, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_annu.RData"))
@@ -438,7 +439,7 @@ head(umf)
 #                             pformula = ~ Observer.ID,
 #                             data = umf,
 #                             output = "density",
-#                             mixture = "P",
+#                             mixture = "NB",
 #                             keyfun = "exp")
 # #save the model
 # save(mod_abd_precip, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_precip.RData"))
@@ -469,7 +470,7 @@ head(umf)
 #                                   pformula = ~ Observer.ID,
 #                                   data = umf,
 #                                   output = "density",
-#                                   mixture = "P",
+#                                   mixture = "NB",
 #                                   keyfun = "exp")
 # #save the model
 # save(mod_abd_process1, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process1.RData"))
@@ -480,7 +481,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process2, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process2.RData"))
@@ -491,7 +492,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process3, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process3.RData"))
@@ -503,7 +504,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process4, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process4.RData"))
@@ -514,7 +515,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process5, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5.RData"))
@@ -525,7 +526,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process6, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process6.RData"))
@@ -536,7 +537,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process7, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
@@ -547,7 +548,7 @@ head(umf)
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
 #                               output = "density",
-#                               mixture = "P",
+#                               mixture = "NB",
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process8, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
@@ -565,41 +566,6 @@ head(umf)
 # 
 # # Compare AIC scores among all candidate models
 # aictab(modlist_abd)
-
-# 2.6) Try out the "best" model with Negative Binomial and ZIP ########################################
-
-# #Negative Binomial
-# mod_abd_process5_NB <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
-#                                  phiformula = ~1,
-#                                  pformula = ~ Observer.ID,
-#                                  data = umf,
-#                                  output = "density",
-#                                  mixture = "NB",
-#                                  keyfun = "exp")
-# #save the model
-# save(mod_abd_process5_NB, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5_NB.RData"))
-# 
-# # Zero inflated Poisson
-# mod_abd_process5_ZIP <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
-#                                   phiformula = ~1,
-#                                   pformula = ~ Observer.ID,
-#                                   data = umf,
-#                                   output = "density",
-#                                   mixture = "ZIP",
-#                                   keyfun = "exp")
-# #save the model
-# save(mod_abd_process5_ZIP, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5_ZIP.RData"))
-
-#load those models
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5_ZIP.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5_NB.RData"))
-
-#view model summarires
-summary(mod_abd_process6)
-summary(mod_abd_process5_NB)
-summary(mod_abd_process5_ZIP)
-
 
 # Combine all candidate models
 modlist_mix = list(mod_abd_process5_P = mod_abd_process6,
@@ -1014,7 +980,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire1, file = paste0("Model_Files/umk_", species_to_model,"_mod_abd_fire1.RData"))
@@ -1027,7 +993,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire2, file = paste0("Model_Files/umk_", species_to_model,"_mod_abd_fire2.RData"))
@@ -1040,7 +1006,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire3, file = paste0("Model_Files/umk_", species_to_model,"_mod_abd_fire3.RData"))
@@ -1053,7 +1019,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire4, file = paste0("Model_Files/umk_", species_to_model,"_mod_abd_fire4.RData"))
@@ -1068,7 +1034,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire5, file = paste0("Model_Files/umk_", species_to_model,"Model_Files/_mod_abd_fire5.RData"))
@@ -1081,7 +1047,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire5, file = paste0("Model_Files/umk_", species_to_model,"Model_Files/_mod_abd_fire5.RData"))
@@ -1093,7 +1059,7 @@ tm_shape(study_region) +
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
 #                            output = "density",
-#                            mixture = "P",
+#                            mixture = "NB",
 #                            keyfun = "exp")
 # #save the model
 # save(mod_abd_fire6, file = paste0("Model_Files/umk_", species_to_model,"Model_Files/_mod_abd_fire6.RData"))
