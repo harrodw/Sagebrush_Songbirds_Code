@@ -319,9 +319,9 @@ obs_scatter(dat = sobs_count,
 
 #View a specific variable before and after the log transformation
 scat_plot1 <- obs_scatter(dat = sobs_count,
-                          cov = "ln.Shrub.Cover")
+                          cov = "Perennial.Cover")
 scat_plot2 <- obs_scatter(dat = sobs_count,
-                     cov = "Shrub.Cover")
+                     cov = "Annual.Cover")
 grid.arrange(scat_plot1, scat_plot2)
 
 # Build a function that plots each categorical variable against the observed counts for each species
