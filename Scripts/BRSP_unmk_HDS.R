@@ -524,53 +524,65 @@ head(umf)
 #                               keyfun = "exp")
 # #save the model
 # save(mod_abd_process5, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5.RData"))
-
-# Swap elevation for precipitation
-mod_abd_process6 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Annual.Cover + ln.TRI,
-                              phiformula = ~1,
-                              pformula = ~ Observer.ID,
-                              data = umf,
-                              output = "density",
-                              unitsOut = "ha",
-                              mixture = "NB",
-                              keyfun = "exp")
-#save the model
-save(mod_abd_process6, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process6.RData"))
-
-# Swap perennial cover for annual cover
-mod_abd_process7 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Precipitation + Perennial.Cover + ln.TRI,
-                              phiformula = ~1,
-                              pformula = ~ Observer.ID,
-                              data = umf,
-                              output = "density", unitsOut = "ha",
-                              mixture = "NB",
-                              keyfun = "exp")
-#save the model
-save(mod_abd_process7, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
-
-# Swap perennial cover for annual cover and include elevation
-mod_abd_process8 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
-                              phiformula = ~1,
-                              pformula = ~ Observer.ID,
-                              data = umf,
-                              output = "density",
-                              unitsOut = "ha",
-                              mixture = "NB",
-                              keyfun = "exp")
-#save the model
-save(mod_abd_process8, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
-
-# Same as m8 but without TRI
-mod_abd_process9 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover,
-                              phiformula = ~1,
-                              pformula = ~ Observer.ID,
-                              data = umf,
-                              output = "density",
-                              unitsOut = "ha",
-                              mixture = "NB",
-                              keyfun = "exp")
-#save the model
-save(mod_abd_process9, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process9.RData"))
+# 
+# # Swap elevation for precipitation
+# mod_abd_process6 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Annual.Cover + ln.TRI,
+#                               phiformula = ~1,
+#                               pformula = ~ Observer.ID,
+#                               data = umf,
+#                               output = "density",
+#                               unitsOut = "ha",
+#                               mixture = "NB",
+#                               keyfun = "exp")
+# #save the model
+# save(mod_abd_process6, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process6.RData"))
+# 
+# # Swap perennial cover for annual cover
+# mod_abd_process7 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Precipitation + Perennial.Cover + ln.TRI,
+#                               phiformula = ~1,
+#                               pformula = ~ Observer.ID,
+#                               data = umf,
+#                               output = "density", unitsOut = "ha",
+#                               mixture = "NB",
+#                               keyfun = "exp")
+# #save the model
+# save(mod_abd_process7, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
+# 
+# # Swap perennial cover for annual cover and include elevation
+# mod_abd_process8 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
+#                               phiformula = ~1,
+#                               pformula = ~ Observer.ID,
+#                               data = umf,
+#                               output = "density",
+#                               unitsOut = "ha",
+#                               mixture = "NB",
+#                               keyfun = "exp")
+# #save the model
+# save(mod_abd_process8, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
+# 
+# # Same as m7 but without TRI
+# mod_abd_process9 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover,
+#                               phiformula = ~1,
+#                               pformula = ~ Observer.ID,
+#                               data = umf,
+#                               output = "density",
+#                               unitsOut = "ha",
+#                               mixture = "NB",
+#                               keyfun = "exp")
+# #save the model
+# save(mod_abd_process9, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process9.RData"))
+# 
+# # Same as m7 but with sagebrush proportion
+# mod_abd_process10 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover * Sagebrush.Prop + Elevation + Perennial.Cover + ln.TRI,
+#                                phiformula = ~1,
+#                                pformula = ~ Observer.ID,
+#                                data = umf,
+#                                output = "density",
+#                                unitsOut = "ha",
+#                                mixture = "NB",
+#                                keyfun = "exp")
+# #save the model
+# save(mod_abd_process10, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process10.RData"))
 
 # 3.1) Summaries and diagnostics on candidate process models #################################
 
@@ -585,6 +597,7 @@ load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process6.RData"))
 load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
 load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
 load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process9.RData"))
+load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process10.RData"))
 
 # Combine all candidate models
 modlist_abd = list(mod_null = mod_abd_shrub,
@@ -596,7 +609,8 @@ modlist_abd = list(mod_null = mod_abd_shrub,
                    mod_process6 = mod_abd_process6,
                    mode_process7 = mod_abd_process7,
                    mod_process8 = mod_abd_process8,
-                   mod_process9 = mod_abd_process9)
+                   mod_process9 = mod_abd_process9,
+                   mod_process10= mod_abd_process10)
 
 # Check to confirm that all candidate models converged
 sapply(modlist_abd, checkConv)
@@ -679,10 +693,10 @@ fitstats <- function(mod) {
 # 4.1) Load and view the best performing model  ##################################################
 
 # Load the current best performing model
-# I'm chosing the elev, sb_cvr, pern, tri model based on a combination of prior knowledge, AIC, and other fit statistics
+# I'm chosing the Precipitation, sb_cvr, pern, tri model based on a combination of prior knowledge, AIC, and other fit statistics
 # The precipitation model has slightly lower AIC (4.75) but I like the predicitve flexability of using smaller rasters
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
-mod_best <- mod_abd_process8
+load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
+mod_best <- mod_abd_process7
 
 #View model output again
 summary(mod_best)
@@ -701,13 +715,13 @@ N_sim <- 1000
 # Pull out the original covariate means ----
 mean_shrub <- mean(hdm_dat$ln.Shrub.Cover)
 mean_pern <- mean(hdm_dat$Perennial.Cover)
-mean_elv <- mean(hdm_dat$Elevation)
+mean_precip <- mean(hdm_dat$Precipitation)
 mean_tri <- mean(hdm_dat$ln.TRI)
 
 # Pull out the original covariate sd's ----
 sd_shrub <- sd(hdm_dat$ln.Shrub.Cover)
 sd_pern <- sd(hdm_dat$Perennial.Cover)
-sd_elv <- sd(hdm_dat$Elevation)
+sd_precip <- sd(hdm_dat$Precipitation)
 sd_tri <- sd(hdm_dat$ln.TRI)
 
 #Write a function that undoes scaling
@@ -722,8 +736,8 @@ unscale <- function(x, mu, sd){
 sim_shb <- data.frame(ln.Shrub.Cover = seq(from = min(lam_dat$ln.Shrub.Cover),
                                            to = max(lam_dat$ln.Shrub.Cover), length.out = N_sim),
                       Perennial.Cover = rep(mean(lam_dat$Perennial.Cover), N_sim),
-                      Elevation = rep(mean(lam_dat$Elevation), N_sim),
-                      ln.TRI = rep(mean(lam_dat$Elevation), N_sim))
+                      Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
+                      ln.TRI = rep(mean(lam_dat$Precipitation), N_sim))
 
 # Make predictions based on shrub cover
 abund_est_shrub <- unmarked::predict(object = mod_best,
@@ -750,7 +764,7 @@ shrub_est_plot <- ggplot(data = abund_est_shrub, aes(x = Shrub.Cover, y = exp(Pr
 sim_pern <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_sim),
                        Perennial.Cover = seq(from = min(lam_dat$Perennial.Cover),
                                              to = max(lam_dat$Perennial.Cover), length.out = N_sim),
-                       Elevation = rep(mean(lam_dat$Elevation), N_sim),
+                       Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
                        ln.TRI = rep(mean(lam_dat$ln.TRI), N_sim))
 
 # Make predictions based on perennial cover
@@ -761,7 +775,7 @@ abund_est_pern <- unmarked::predict(object = mod_best,
 abund_est_pern <- abund_est_pern %>%
   mutate(Perennial.Cover.naiv = unscale(x = abund_est_pern$Perennial.Cover,
                                         mu = mean_annu,
-                                        sd = sd_annu))
+                                        sd = sd_pern))
 
 # Make a perennial grass cover plot
 pern_est_plot <- ggplot(data = abund_est_pern, aes(x = Perennial.Cover.naiv, y = exp(Predicted))) +
@@ -774,30 +788,30 @@ pern_est_plot <- ggplot(data = abund_est_pern, aes(x = Perennial.Cover.naiv, y =
 
 #-------------------------------------------------------------------------------------
 
-# Simulate Elevation
-sim_elv <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_sim),
+# Simulate Precipitation
+sim_precip <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_sim),
                       Perennial.Cover = rep(mean(lam_dat$Perennial.Cover), N_sim),
-                      Elevation = seq(from = min(lam_dat$Elevation),
-                                      to = max(lam_dat$Elevation), length.out = N_sim),
+                      Precipitation = seq(from = min(lam_dat$Precipitation),
+                                      to = max(lam_dat$Precipitation), length.out = N_sim),
                       ln.TRI = rep(mean(lam_dat$ln.TRI), N_sim))
 
-# Make predictions based on Elevation
-abund_est_elv <- unmarked::predict(object = mod_best,
+# Make predictions based on Precipitation
+abund_est_precip <- unmarked::predict(object = mod_best,
                                    type = "lambda",
-                                   newdata = sim_elv,
+                                   newdata = sim_precip,
                                    appendData = TRUE)
-abund_est_elv <- abund_est_elv %>%
-  mutate(Elevation.naiv = unscale(x = abund_est_elv$Elevation,
-                                  mu = mean_elv,
-                                  sd = sd_elv))
+abund_est_precip <- abund_est_precip %>%
+  mutate(Precipitation.naiv = unscale(x = abund_est_precip$Precipitation,
+                                  mu = mean_precip,
+                                  sd = sd_precip))
 
-# make a Elevation plot
-elv_est_plot <- ggplot(data = abund_est_elv, aes(x = Elevation.naiv, y = exp(Predicted))) +
+# make a Precipitation plot
+precip_est_plot <- ggplot(data = abund_est_precip, aes(x = Precipitation.naiv, y = exp(Predicted))) +
   geom_point(alpha = 0.5) +
   geom_ribbon(aes(ymin = exp(lower), ymax = exp(upper)), stat = "identity",
               color = "blue", fill = "lightblue", alpha = 0.3) +
   labs(x = NULL, y = NULL,
-       title = "Elevation (m)") +
+       title = "Precipitation (mm)") +
   theme_minimal()
 
 # ---------------------------------------------------------------------------------------------------------
@@ -805,7 +819,7 @@ elv_est_plot <- ggplot(data = abund_est_elv, aes(x = Elevation.naiv, y = exp(Pre
 # simulate log of ruggedness
 sim_tri <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_sim),
                       Perennial.Cover = rep(mean(lam_dat$Perennial.Cover), N_sim),
-                      Elevation = rep(mean(lam_dat$Elevation), N_sim),
+                      Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
                       ln.TRI = seq(from = min(lam_dat$ln.TRI), to = max(lam_dat$ln.TRI), length.out = N_sim))
 
 
@@ -833,7 +847,7 @@ tri_est_plot <- ggplot(data = abund_est_tri, aes(x = ln.TRI, y = exp(Predicted))
 # View prediction graphs
 gridExtra::grid.arrange(shrub_est_plot,
                         pern_est_plot,
-                        elv_est_plot,
+                        precip_est_plot,
                         tri_est_plot,
                         nrow = 2, ncol = 2)
 
@@ -844,11 +858,22 @@ gridExtra::grid.arrange(shrub_est_plot,
 ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
 # Add in raster layers
-ras_shrub <- raster(paste0(ras_path, "shrub_cvr.tif"))
-ras_bg <- raster(paste0(ras_path, "bg_cvr.tif"))
-ras_annu <- raster(paste0(ras_path, "anu_cvr.tif"))
-ras_precip <- raster(paste0(ras_path, "precip.tif"))
-ras_tri <- raster(paste0(ras_path, "tri_3x3.tif"))
+ras_shrub_lg <- raster(paste0(ras_path, "shrub_cvr.tif"))
+ras_pern_lg <- raster(paste0(ras_path, "herb_cvr.tif"))
+ras_precip_lg <- raster(paste0(ras_path, "precip.tif"))
+ras_tri_lg <- raster(paste0(ras_path, "tri_3x3.tif"))
+
+# Add the study region polygon
+study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
+
+# plot these rasters
+plot(study_region)
+
+# Clip rasters to the study region
+ras_shrub <- raster::mask(ras_shrub_lg, study_region)
+ras_pern <- raster::mask(ras_pern_lg, study_region)
+ras_precip <- raster::mask(ras_precip_lg, study_region)
+ras_tri <- raster::mask(ras_tri_lg, study_region)
 
 # Write a function to log-transform rasters 
 log_ras <- function(ras) {
@@ -860,21 +885,15 @@ log_ras <- function(ras) {
 
 # Log-transform the rasters that need to be logged 
 ras_ln_shrub <- log_ras(ras_shrub)
-ras_ln_bg <- log_ras(ras_bg)
 ras_ln_tri <- log_ras(ras_tri)
 
 # Change the rasters to the mean or mode of an 8x8 grid (240m x 240m)
 ras_agg_shrub <- raster::aggregate(ras_ln_shrub, fact = 8, fun = mean)
-ras_agg_bg <- raster::aggregate(ras_ln_bg, fact = 8, fun = mean)
-ras_agg_annu <- raster::aggregate(ras_annu, fact = 8, fun = mean)
-# ras_agg_elev <- raster::aggregate(ras_elv, fact = 8, fun = mean)
+ras_agg_pern <- raster::aggregate(ras_pern, fact = 8, fun = mean)
 ras_agg_tri <- raster::aggregate(ras_ln_tri , fact = 8, fun = mean)
-  
-# line up other rasters with shrub cover
-ras_res_bg <- resample(scale(ras_agg_bg), ras_agg_shrub)
-ras_res_annu <- resample(scale(ras_agg_annu), ras_agg_shrub)
-ras_res_precip <- resample(scale(ras_precip), ras_agg_shrub)
-ras_res_tri <- resample(scale(ras_agg_tri), ras_agg_shrub)
+
+# line up precipitation with shrub cover
+ras_res_precip <- resample(ras_precip, ras_agg_shrub)
 
 # Write a function to scale all rasters based on the MODEL'S scaling 
 scale_ras <- function(ras, mu, sd) {
@@ -886,18 +905,19 @@ scale_ras <- function(ras, mu, sd) {
 
 # scale all rasters and resample them to line up with shub cover
 ras_scl_shrub <- scale_ras(ras_agg_shrub, mean_shrub, sd_shrub)
-ras_scl_bg <- scale_ras(ras_res_bg, mean_bg, sd_bg)
-ras_scl_annu <- scale_ras(ras_res_annu, mean_annu, sd_annu)
+ras_scl_pern <- scale_ras(ras_agg_pern, mean_pern, sd_pern)
 ras_scl_precip <- scale_ras(ras_res_precip, mean_precip, sd_precip)
-ras_scl_tri <- scale_ras(ras_res_tri, mean_tri, sd_tri)
+ras_scl_tri <- scale_ras(ras_agg_tri, mean_tri, sd_tri)
+
+# View model estimates
+summary(mod_best)
 
 # Extract model beta coefficients
 beta0 <- mod_best@estimates@estimates$lambda@estimates[1]
 beta_shb <- mod_best@estimates@estimates$lambda@estimates[2]
-beta_bg <- mod_best@estimates@estimates$lambda@estimates[3]
-beta_precip <- mod_best@estimates@estimates$lambda@estimates[4]
-beta_annu <- mod_best@estimates@estimates$lambda@estimates[5]
-beta_tri <- mod_best@estimates@estimates$lambda@estimates[6]
+beta_precip <- mod_best@estimates@estimates$lambda@estimates[3]
+beta_pern <- mod_best@estimates@estimates$lambda@estimates[4]
+beta_tri <- mod_best@estimates@estimates$lambda@estimates[5]
 
 # Make a raster for the intercept
 ras_beta0 <- raster::calc(ras_scl_shrub, function(x){x * 0 + beta0})
@@ -912,67 +932,64 @@ ras_pred <- function(ras, beta){
 # Multiply each raster by it's coefficient
 ras_shrb_pred <- ras_pred(ras = ras_scl_shrub, 
                           beta = beta_shb)
-ras_bg_pred <- ras_pred(ras = ras_scl_bg, 
-                          beta = beta_bg)
 ras_precip_pred <- ras_pred(ras = ras_scl_precip, 
                           beta = beta_precip)
-ras_annu_pred <- ras_pred(ras = ras_scl_annu, 
-                          beta = beta_annu)
+ras_pern_pred <- ras_pred(ras = ras_scl_pern, 
+                          beta = beta_pern)
 ras_tri_pred <- ras_pred(ras = ras_scl_tri, 
                           beta = beta_tri)
 
-# Full linear cobination of rasters
+# Full linear combination of rasters
 ras_ln_pred <- ras_beta0 + 
                ras_shrb_pred +
-               ras_bg_pred +
-               ras_annu_pred +
+               ras_pern_pred +
                ras_tri_pred
 
 # Move back to the native scale
 ras_pred <- raster::calc(ras_ln_pred, function(x){exp(x)})
 
-# Add the study region polygon
-study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
+# View a histogram of the raster output
+hist(ras_pred)
 
 # Add the fire perimeter polygon 
 fire_perims_multi <- st_read(paste0(ras_path, "Fire_Perimeters.shp"))
 
-# Desolve overlapping fire perimeters
-fire_perims <- fire_perims_multi %>%
+# Dissolve overlapping fire perimeters
+fire_perims_lg <- fire_perims_multi %>%
   st_union() %>%
   st_make_valid() %>%
   st_cast("POLYGON") %>%
   st_as_sf()
+
+#Crop to the size of the study area
+fire_perims <- st_intersection(fire_perims_lg, study_region) 
 
 # Switch between plotting and interactive modes
 tmap_mode("plot")
 # tmap_mode("view")
 
 # Plot predicted Brewer's Sparrow abundance
-# tm_shape(ras_pred) +
-#   tm_raster(palette = "YlGnBu", 
-#             title = paste0("Estimated Brewer's\nSparrow Abundance\n(Birds/ha)"),
-#             style = "cont") +  
-
-tm_shape(study_region) +
+tm_shape(ras_pred) +
+  tm_raster(palette = "YlGnBu",
+            title = paste0("Estimated Brewer's\nSparrow Abundance\n(Birds/ha)"),
+            n = 7,
+            style = "cont") +
+  tm_shape(study_region) +
   tm_fill(alpha = 0.1) + 
   tm_borders(lwd = 2, col = "black") +
-tm_shape(fire_perims) +
-  tm_fill(alpha = 0.1, col = "red1") + 
-  tm_borders(col = NULL) +
-  tm_layout(
-    frame = FALSE,
-    legend.outside = FALSE,
-    legend.text.size = 1.1,  
-    legend.title.size = 2.0,
-    legend.position = c("left", "bottom") 
-  ) +
+  # tm_shape(fire_perims, title = "Fire Perimeters") +
+  # tm_borders(lwd = 0.05, alpha = 0.5, col = "red4") +
+  tm_layout(frame = FALSE,
+            legend.outside = TRUE,
+            legend.title.size = 1.4,
+            legend.title.fontface = "bold",
+            legend.position = c(0, 0.3),
+            legend.text.size = 1.3) +
   tm_scale_bar(
-    position = c("right", "bottom"), # Position the scale bar
+    position = c(0.38, 0.16), # Position the scale bar
     text.size = 1.0, # Adjust text size
     color.light = "white", # Background color of the scale bar
-    color.dark = "black" 
-  ) 
+    color.dark = "black")
 
 
 # 5) Modeling fire effects ###############################################################
