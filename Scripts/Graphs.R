@@ -31,8 +31,9 @@ glimpse(covs)
 
 #Transform into a table with each species observations by visit ----------------
 #define relevant species
-important_species <- c("BRSP", "SATH", "SABS", "GTTO",
-                       "WEME", "HOLA", "VESP")
+important_species <- c("BRSP", "SATH", 
+                       # "SABS", "GTTO", "WEME", 
+                       "HOLA", "VESP")
 
 #Truncate observations beyond a cirtain distance
 trunc_dist <- 125
@@ -208,9 +209,10 @@ sobs_count %>%
   ylim(0, 75) +
   facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
                                          "Sagebrush Sparrow", "Green-Tailed Towhee",
-                                         "Gray Flycatcher","Vesper Sparrow", 
-                                         "Western Meadowlark", "Horned Lark", 
-                                         "Lark Sparrow")))
+                                         "Gray Flycatcher","Western Meadowlark",
+                                         "Vesper Sparrow", "Horned Lark", 
+                                         "Lark Sparrow"
+                                         )))
 
 #Total number of observations between burned and unburned plots ----------------------------
 sobs_count %>% 
@@ -376,10 +378,52 @@ sobs_count %>%
                                          "Lark Sparrow")))
 
 
-#Species counts and fire year
-sobs_count %>% 
-  filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
-                        "VESP", "WEME", "HOLA")) %>% 
+#Species counts and fire year ---------------------------------------------------------
+
+# View the number of species
+n_species <- length(important_species)
+
+# Storage object for stats
+ref_stats <- tibble(Species = rep(NA, n_species),
+                    Mean = rep(NA, n_species),
+                    sd = rep(NA, n_species),
+                    lb = rep(NA, n_species),
+                    ub = rep(NA, n_species))
+
+# Pull out the mean and 95% confidence interval count on reference grids
+for(i in 1:n_species){
+  #Define a bird
+  bird <- important_species[i]
+  # Isolate the counts for that bird in reference grids
+  counts <- sobs_count %>% 
+    filter(Species == bird & Route.Type == "R") %>%
+    select(Species, Count) %>% 
+    arrange(Count)
+  #Pull out stats
+  mean <- mean(counts$Count) 
+  sd <- sd(counts$Count)
+  lb <- counts$Count[floor(0.25*nrow(counts))]
+  ub <- counts$Count[floor(0.75*nrow(counts))]
+  
+  # Add the variables to the stats object
+  ref_stats$Species[i] <- bird
+  ref_stats$Mean[i] <- mean
+  ref_stats$sd[i] <- sd
+  ref_stats$lb[i] <- lb
+  ref_stats$ub[i] <- ub 
+  
+} # End loop
+
+# View the stats object
+print(ref_stats)
+
+# Join these to the data 
+sobs_count <- sobs_count %>% 
+  left_join(ref_stats, by = "Species")
+#... and view
+glimpse(sobs_count)
+
+time_since_fire <- sobs_count %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -392,24 +436,63 @@ sobs_count %>%
   filter(Route.Type == "B") %>% 
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2"   ~ 2023 - Fire.Year,
+                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
+  ggplot(aes(x = Years.Since.Fire)) +
+  geom_point(aes(y = Count, color = "Observations"), size = 1) +
+  geom_smooth(aes(y = Count, color = "Trend Line"), fill = "red1") +
+  geom_ribbon(aes(y = Mean, ymin = lb, ymax = ub, fill = "75% Confidence Interval"), 
+              alpha = 0.3, size = 0.6) +
+  labs(x = "Years Since Fire", y = "Number of Observations", color = "Legend", fill = "Legend") +
+  theme_bw() +
+  theme(axis.title.x = element_text(size = 14, family = "sans"),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 14, family = "sans"),
+        strip.text = element_text(size = 12, family = "sans")) +
+  ylim(0, max(sobs_count$Count)) +
+  facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
+                                         "Sagebrush Sparrow", "Green-Tailed Towhee",
+                                         "Gray Flycatcher","Vesper Sparrow", 
+                                         "Western Meadowlark", "Horned Lark", 
+                                         "Lark Sparrow"))) +
+  scale_color_manual(values = c("Observations" = "red4", "Trend Line" = "red4")) +
+  scale_fill_manual(values = c("Confidence Interval" = "lightblue"))
+
+
+#Graph 
+time_since_fire <- sobs_count %>% 
+  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
+                             Species == "SATH" ~ "Sage Thrasher",
+                             Species == "VESP" ~ "Vesper Sparrow",
+                             Species == "HOLA" ~ "Horned Lark")) %>% 
+  filter(Route.Type == "B") %>% 
+  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
+                                      Year == "Y2"   ~ 2023 - Fire.Year,
                                        Year == "Y3" ~ 2024 - Fire.Year)) %>% 
-  ggplot(aes(x = Years.Since.Fire, y = Count)) +
-  geom_point(col = "red", size = 1) +
-  geom_smooth(fill = "red", col = "red4") +
-  labs(x = "Years Since Fire",
-       y = "Number of Observations") +
-  theme_bw()+
+  ggplot() +
+  geom_point(aes(x = Years.Since.Fire, y = Count), col = "red4", size = 1) +
+  geom_smooth(aes(x = Years.Since.Fire, y = Count), 
+              method = "lm", fill = "red1", col = "red4") +
+  geom_ribbon(aes(x = Years.Since.Fire, y = Mean, ymin = lb, ymax = ub), 
+              fill = "lightblue", col = "navyblue", alpha = 0.2, size = 0.6) +
+  labs(x = "Years Since Fire", y = "Number of Observations") +
+  theme_bw() +
   theme(axis.title.x = element_text(size = 14, family = "sans"),
         axis.text.x = element_text(size = 12),
         axis.text.y = element_text(size = 12),
         axis.title.y = element_text(size = 14, family = "sans"),
         strip.text = element_text(size= 12, family = "sans")) +
+  ylim(-1, max(sobs_count$Count)) +
   facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
                                          "Sagebrush Sparrow", "Green-Tailed Towhee",
                                          "Gray Flycatcher","Vesper Sparrow", 
                                          "Western Meadowlark", "Horned Lark", 
-                                         "Lark Sparrow")))
-#Species counts and fire sevarety 
+                                         "Lark Sparrow"))) +
+  scale_fill_manual(values = c("75% Confidence Interval" = "lightblue"))
+# View the graph
+time_since_fire
+
+#Species counts and fire sevarety #################################################
 fire_sev_cols <- c("yellow1", "darkorange1", "red1", "red4")
 sobs_count %>% 
   filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
