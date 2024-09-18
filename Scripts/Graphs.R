@@ -423,43 +423,7 @@ sobs_count <- sobs_count %>%
 #... and view
 glimpse(sobs_count)
 
-time_since_fire <- sobs_count %>% 
-  mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
-                             Species == "SATH" ~ "Sage Thrasher",
-                             Species == "SABS" ~ "Sagebrush Sparrow",
-                             Species == "GTTO" ~ "Green-Tailed Towhee",
-                             Species == "VESP" ~ "Vesper Sparrow",
-                             Species == "WEME" ~ "Western Meadowlark",
-                             Species == "HOLA" ~ "Horned Lark",
-                             Species == "GRFL" ~ "Gray Flycatcher",
-                             Species == "LASP" ~ "Lark Sparrow")) %>% 
-  filter(Route.Type == "B") %>% 
-  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                      Year == "Y2"   ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
-  ggplot(aes(x = Years.Since.Fire)) +
-  geom_point(aes(y = Count, color = "Observations"), size = 1) +
-  geom_smooth(aes(y = Count, color = "Trend Line"), fill = "red1") +
-  geom_ribbon(aes(y = Mean, ymin = lb, ymax = ub, fill = "75% Confidence Interval"), 
-              alpha = 0.3, size = 0.6) +
-  labs(x = "Years Since Fire", y = "Number of Observations", color = "Legend", fill = "Legend") +
-  theme_bw() +
-  theme(axis.title.x = element_text(size = 14, family = "sans"),
-        axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title.y = element_text(size = 14, family = "sans"),
-        strip.text = element_text(size = 12, family = "sans")) +
-  ylim(0, max(sobs_count$Count)) +
-  facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
-                                         "Sagebrush Sparrow", "Green-Tailed Towhee",
-                                         "Gray Flycatcher","Vesper Sparrow", 
-                                         "Western Meadowlark", "Horned Lark", 
-                                         "Lark Sparrow"))) +
-  scale_color_manual(values = c("Observations" = "red4", "Trend Line" = "red4")) +
-  scale_fill_manual(values = c("Confidence Interval" = "lightblue"))
-
-
-#Graph 
+# Graph time since fire
 time_since_fire <- sobs_count %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
@@ -468,27 +432,32 @@ time_since_fire <- sobs_count %>%
   filter(Route.Type == "B") %>% 
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2"   ~ 2023 - Fire.Year,
-                                       Year == "Y3" ~ 2024 - Fire.Year)) %>% 
+                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
   ggplot() +
-  geom_point(aes(x = Years.Since.Fire, y = Count), col = "red4", size = 1) +
-  geom_smooth(aes(x = Years.Since.Fire, y = Count), 
-              method = "lm", fill = "red1", col = "red4") +
-  geom_ribbon(aes(x = Years.Since.Fire, y = Mean, ymin = lb, ymax = ub), 
-              fill = "lightblue", col = "navyblue", alpha = 0.2, size = 0.6) +
-  labs(x = "Years Since Fire", y = "Number of Observations") +
+  geom_point(aes(x = Years.Since.Fire, y = Count, color = "Burn Grid Counts"), size = 1) +
+  geom_smooth(aes(x = Years.Since.Fire, y = Count, , color = "Burn Grid Counts"), 
+              method = "lm", fill = "red1") +
+  geom_ribbon(aes(x = Years.Since.Fire, ymin = lb, ymax = ub, fill = "75% CI for Reference Grid Counts"), 
+              alpha = 0.2, size = 0.1, color = "navyblue") +
+  labs(x = "Years Since Fire", y = "Number of Observations", 
+       color = "", fill = "") +
   theme_bw() +
-  theme(axis.title.x = element_text(size = 14, family = "sans"),
-        axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title.y = element_text(size = 14, family = "sans"),
-        strip.text = element_text(size= 12, family = "sans")) +
-  ylim(-1, max(sobs_count$Count)) +
+  theme(axis.title.x = element_text(size = 18, family = "sans"),
+        axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 18),
+        axis.title.y = element_text(size = 18, family = "sans"),
+        strip.text = element_text(size= 20, family = "sans"),
+        legend.position = "bottom",         
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 20), 
+        legend.key.size = unit(0.75, "cm")) +    
+  ylim(0, max(sobs_count$Count)) +
   facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
-                                         "Sagebrush Sparrow", "Green-Tailed Towhee",
-                                         "Gray Flycatcher","Vesper Sparrow", 
-                                         "Western Meadowlark", "Horned Lark", 
-                                         "Lark Sparrow"))) +
-  scale_fill_manual(values = c("75% Confidence Interval" = "lightblue"))
+                                         "Vesper Sparrow", "Horned Lark"))) +
+  scale_color_manual(values = c("Burn Grid Counts" = "red4")) +
+  guides(color = guide_legend(override.aes = list(size = 2))) +
+  scale_fill_manual(values = c("75% CI for Reference Grid Counts" = "lightblue"))
+
 # View the graph
 time_since_fire
 
@@ -557,7 +526,7 @@ brsp_vs_hola <- sobs_count %>%
 #View both plots
 grid.arrange(brsp_vs_sath, brsp_vs_hola, ncol = 2)
 
-#Spercies on burned plots at different elevations
+#Species on burned plots at different elevations
 sobs_count %>% 
   filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
                         "VESP", "WEME", "HOLA")) %>% 
@@ -585,11 +554,11 @@ sobs_count %>%
        y = "Average Number of Observations") +
   theme_bw()+
   theme(axis.text.x = element_blank(),
-        axis.text.y = element_text(size = 14),
+        axis.text.y = element_text(size = 18),
         axis.title.x = element_blank(),
-        axis.title.y = element_text(size = 14),
+        axis.title.y = element_text(size = 18),
         legend.position = "none",
-        strip.text = element_text(size= 12, family = "sans")) +
+        strip.text = element_text(size= 20, family = "sans")) +
   facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
                                          "Sagebrush Sparrow", "Green-Tailed Towhee",
                                          "Gray Flycatcher","Vesper Sparrow", 
