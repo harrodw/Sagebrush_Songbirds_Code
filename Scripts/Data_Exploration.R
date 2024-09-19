@@ -25,21 +25,10 @@ glimpse(sobs)
 
 #add covariates
 
-#I'm going to start with only the route level covariates
-route_covs <- tibble(read.csv("Data\\Outputs\\route_summaries.csv")) %>%
-  dplyr::select(-X) %>%
-  tibble() %>%
-  mutate(Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0,
-                                   TRUE ~ Burn.Sevarity))
-#View covariates
-glimpse(route_covs)
-
 # Also, point level covariates
 point_covs <- tibble(read.csv("Data\\Outputs\\point_summaries.csv")) %>%
   dplyr::select(-X) %>%
-  tibble() %>%
-  mutate(Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0,
-                                   TRUE ~ Burn.Sevarity))
+  tibble() 
 #View covariates
 glimpse(point_covs)
 
@@ -121,10 +110,10 @@ soi <- "BRSP"
 glimpse(sobs_count)
 
 # Define numeric covariates
-num_covs <- c("Shrub.Cover", "Sagebrush.Prop", "Shrub.Height",
-  "Bare.Ground.Cover", "Annual.Cover", "Perennial.Cover",
-  "Elevation", "Precipitation", "TRI", "Road.Distance", "Years.Since.Fire",
-  "MAS", "Ord.Date")
+num_covs <- c("Sage.Cover", "Bare.Ground.Cover", "Perennial.Cover",
+  "Elevation", "Years.Since.Fire", "MAS", "Ord.Date" 
+  # "Burn.Severity",
+  )
 
 #Pull out numeric data
 num_cov_dat <- sobs_count %>% 
@@ -177,11 +166,11 @@ for(i in 1:length(num_covs)){
 
 # Histogram of a specific covariate
 view_num_dat(dat = num_cov_dat,
-             cov = "Annual.Cover")
+             cov = "Sage.Cover")
 
 
 # Make a list of important catagoorical variables
-cat_covs <- c("Observer.ID", "Wind.Start", "Sky.Start", "Route.Type", "Aspect", "Fire.Name", "Burn.Sevarity")
+cat_covs <- c("Observer.ID", "Wind.Start", "Sky.Start", "Route.Type", "Fire.Name", "Burn.Sevarity")
 
 #pull the catagorical variables out of the data
 cat_cov_dat <- sobs_count %>% 
@@ -216,12 +205,10 @@ for(i in 1:length(cat_covs)){
 # Transformt he things that need to be transformed
 # IMPORTANT: Here is the list of covariate adjustments I want to make ------------------------------
 sobs_count <- sobs_count %>% 
-  mutate(#The variables that need to be log-transformed
-         ln.Road.Distance = log(Road.Distance), 
-         ln.Shrub.Cover = log(Shrub.Cover),
-         ln.Bare.Ground.Cover = log(Bare.Ground.Cover), 
-         ln.TRI = log(TRI),
-         #Combine Alex and Ben's Data
+  mutate( # Log-transform the things that need to be
+    ln.Sage.Cover = log(Sage.Cover),
+    ln.Bare.Ground.Cover = log(Bare.Ground.Cover),
+    #Combine Alex and Ben's Data
          Observer.ID = case_when(Observer.ID %in% c('Alex', "Ben") ~ "Alex & Ben",
                                  TRUE ~ Observer.ID),
          #Now many fog/smoke days. I'll just remove them
@@ -230,33 +217,31 @@ sobs_count <- sobs_count %>%
 #...and view
 glimpse(sobs_count)
 
-#Define the new numeric variables
-num_covs_trans <- c("ln.Shrub.Cover", "Sagebrush.Prop", "Shrub.Height",
-                    "ln.Bare.Ground.Cover", "Annual.Cover", "Perennial.Cover",
-                    "Elevation", "Precipitation", "ln.TRI", "ln.Road.Distance", "Years.Since.Fire",
-                    "MAS", "Ord.Date")
-
-#Pull these out of the data
-num_cov_dat <- sobs_count 
-num_dat <- num_cov_dat[,num_covs_trans]
-#...and view
-glimpse(num_dat)
-
 # 3) View correlations among numeric variables #####################################################
 
+# Pull out all the variables I am interested in
+# Define numeric covariates
+num_covs2 <- c(num_covs, "ln.Sage.Cover", "ln.Bare.Ground.Cover")
+
+#Pull out numeric data
+num_cov_dat <- sobs_count %>% 
+  filter(Species == soi)
+num_cov_dat <- num_cov_dat[,num_covs2]
+
 # Fill in years since fire
-for(i in 1:nrow(num_dat)){
-  if(is.na(num_dat$Years.Since.Fire[i])){
-    num_dat$Years.Since.Fire[i] <- floor(rnorm(1, 115, 5))
+for(i in 1:nrow(num_cov_dat)){
+  if(is.na(num_cov_dat$Years.Since.Fire[i])){
+    num_cov_dat$Years.Since.Fire[i] <- floor(rnorm(1, 115, 5))
   }
 }
 
+
 # Correlations 
-cor_mat <- cor(num_dat)
+cor_mat <- cor(num_cov_dat)
 cor_mat
 
 # P-value correlations
-p_mat <- cor_pmat(num_dat)
+p_mat <- cor_pmat(num_cov_dat)
 p_mat
 
 #View correlations graphically

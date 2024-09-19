@@ -96,17 +96,10 @@ dist_dat %>%
 
 # 1.2) Prepare covariate data  ###############################################################
 
-# Add covariate data
-covs <- tibble(read.csv("Data/Outputs/point_summaries.csv")) %>%
+# Add point level covariates
+covs <- tibble(read.csv("Data\\Outputs\\point_summaries.csv")) %>%
   dplyr::select(-X, -Point.X, -Point.Y) %>%
-  tibble()
-#...and view
-glimpse(covs)
-
-#Make a "percent sagebrush cover" layer
-
-#View the initial data again
-glimpse(sobs)
+  tibble() 
 
 # Transform the observation data into an object that can receive the covariates
 covs_tbl <- sobs %>%
@@ -117,8 +110,6 @@ covs_tbl <- sobs %>%
   distinct(Visit.ID, Year, Visit, Full.Point.ID, Route.ID, Observer.ID,
            Ord.Date, Date, MAS, Temp.Start, Wind.Start, Sky.Start,
            UTM.X, UTM.Y)
-
-
 #...and view
 glimpse(covs_tbl)
 
@@ -128,16 +119,13 @@ nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
 
 # combine these with the covariates
 hdm_dat <- covs_tbl %>%
-  left_join(covs, by = c("Full.Point.ID")) %>%
+  left_join(covs, by = c("Full.Point.ID", "Route.ID")) %>%
   # How long since each fire
   mutate(Years.Since.Fire = lubridate::year(Date) - Fire.Year) %>%
   #Update the variables based on my exploratory analysis
-  mutate(
-    #The variables that need to be log-transformed
-    ln.Road.Distance = log(Road.Distance),
-    ln.Shrub.Cover = log(Shrub.Cover),
+  mutate(# Log-transform the things that need to be
+    ln.Sage.Cover = log(Sage.Cover),
     ln.Bare.Ground.Cover = log(Bare.Ground.Cover),
-    ln.TRI = log(TRI),
     #Combine Alex and Ben's Data
     Observer.ID = case_when(Observer.ID %in% c('Alex', "Ben") ~ "Alex & Ben",
                             TRUE ~ Observer.ID),
@@ -174,32 +162,24 @@ site_covs <- hdm_dat %>%
   #Scale and factorize covariates
   mutate(area = pi * trunc_dist^2 * 0.0001, # calculate area
          # Abundance level covariates
-         ln.Shrub.Cover = scale(ln.Shrub.Cover)[,1],
-         ln.Bare.Ground.Cover = scale(ln.Bare.Ground.Cover)[,1],
-         Annual.Cover = scale(Annual.Cover)[,1],
-         ln.TRI = scale(TRI)[,1],
-         Precipitation = scale(Precipitation)[,1],
-         Sagebrush.Prop = scale(Sagebrush.Prop)[,1],
-         Elevation = scale(Elevation)[,1],
+         ln.Shrub.Cover = scale(ln.Sage.Cover)[,1],
          Perennial.Cover = scale(Perennial.Cover)[,1],
+         ln.Bare.Ground.Cover = scale(ln.Bare.Ground.Cover)[,1],
+         Elevation = scale(Elevation)[,1],
          # Availability and detection level covariates
          Observer.ID = factor(Observer.ID, levels = sort(unique(Observer.ID))),
          MAS = scale(MAS)[,1],
          Ord.Date = scale(Ord.Date)[,1],
          # Fire ecology covariates
          Burned = as.numeric(factor(hdm_dat$Route.Type, levels = c("R", "B"))) -1,
-         Years.Since.Fire = scale(Years.Since.Fire)[,1],
-         Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0, TRUE ~ Burn.Sevarity)
+         # Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0, TRUE ~ Burn.Sevarity),
+         Years.Since.Fire = scale(Years.Since.Fire)[,1]
   ) %>%
-  mutate(Burn.Sevarity = factor(Burn.Sevarity)) %>%
+  # mutate(Burn.Sevarity = factor(Burn.Sevarity)) %>%
   dplyr::select(#Pick which observation and site level covariates are interesting
     #These are for the process based model
-    ln.Shrub.Cover,
+    ln.Sage.Cover,
     ln.Bare.Ground.Cover,
-    Annual.Cover,
-    ln.TRI,
-    Precipitation,
-    Sagebrush.Prop,
     Elevation,
     Perennial.Cover,
     #and observation level covariates
@@ -208,8 +188,8 @@ site_covs <- hdm_dat %>%
     Ord.Date,
     # For the fire ecology model
     Burned,
-    Years.Since.Fire,
-    Burn.Sevarity
+    # Burn.Sevarity, 
+    Years.Since.Fire
   ) %>%
   as.data.frame()
 
@@ -378,7 +358,18 @@ head(umf)
 # mod_abd_null <- mod_dct_obs
 #
 # # Shrub cover model
-# mod_abd_shrub <- gdistsamp(lambdaformula = ~ln.Shrub.Cover,
+# mod_abd_sage<- gdistsamp(lambdaformula = ~ln.Sage.Cover,
+#                            phiformula = ~1,
+#                            pformula = ~ Observer.ID,
+#                            data = umf,
+#                            output = "density", unitsOut = "ha",
+#                            mixture = "NB",
+#                            keyfun  = "exp")
+# #save the model
+# save(mod_abd_sage, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_sage.RData"))
+#
+# # Perenial forb and grass cover model
+# mod_abd_pern <- gdistsamp(lambdaformula = ~Perennial.Cover,
 #                            phiformula = ~1,
 #                            pformula = ~ Observer.ID,
 #                            data = umf,
@@ -399,42 +390,8 @@ head(umf)
 # #save the model
 # save(mod_abd_bg, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_bg.RData"))
 #
-#
-# # Topographic ruggedness model
-# mod_abd_tri <- gdistsamp(lambdaformula = ~ln.TRI,
-#                          phiformula = ~1,
-#                          pformula = ~ Observer.ID,
-#                          data = umf,
-#                          output = "density", unitsOut = "ha",
-#                          mixture = "NB",
-#                          keyfun = "exp")
-# #save the model
-# save(mod_abd_tri, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_tri.RData"))
-#
-# # Proportion of sagebrush cover model
-# mod_abd_sage_prop <- gdistsamp(lambdaformula = ~Sagebrush.Prop * ln.Shrub.Cover,
-#                          phiformula = ~1,
-#                          pformula = ~ Observer.ID,
-#                          data = umf,
-#                          output = "density", unitsOut = "ha",
-#                          mixture = "NB",
-#                          keyfun = "exp")
-# #save the model
-# save(mod_abd_sage_prop, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_sage_prop.RData"))
-#
-# # Annual grass model model
-# mod_abd_annu <- gdistsamp(lambdaformula = ~Annual.Cover,
-#                                phiformula = ~1,
-#                                pformula = ~ Observer.ID,
-#                                data = umf,
-#                                output = "density", unitsOut = "ha",
-#                                mixture = "NB",
-#                                keyfun = "exp")
-# #save the model
-# save(mod_abd_annu, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_annu.RData"))
-#
-# # Precipitation model
-# mod_abd_precip <- gdistsamp(lambdaformula = ~Precipitation,
+# # Elevation Model model
+# mod_abd_elv <- gdistsamp(lambdaformula = ~Elevation,
 #                             phiformula = ~1,
 #                             pformula = ~ Observer.ID,
 #                             data = umf,
@@ -442,30 +399,27 @@ head(umf)
 #                             mixture = "NB",
 #                             keyfun = "exp")
 # #save the model
-# save(mod_abd_precip, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_precip.RData"))
+# save(mod_abd_elv, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_elc.RData"))
 #
 # # Load the single covariate abundance models back into R
 # load(paste0("Model_Files/umk_", species_to_model, "_mod_dct_obs.RData"))
-# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_shrub.RData"))
+# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_sage.RData"))
+# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_pern.RData"))
 # load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_bg.RData"))
-# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_tri.RData"))
-# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_sage_prop.RData"))
-# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_annu.RData"))
-# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_precip.RData"))
+# load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_elv.RData"))
 #
 # #compare adundance models using AIC
 # modlist_abd = list(mod_null = mod_dct_obs,
 #                    mod_shrub = mod_abd_shrub,
+#                    mod_pern = mod_abd_pern,
 #                    mod_bg = mod_abd_bg,
-#                    mod_tri = mod_abd_tri,
-#                    mod_sage_prop = mod_abd_sage_prop,
 #                    mod_annual = mod_abd_annu,
-#                    mod_precip = mod_abd_precip)
+#                    mod_elv = mod_abd_elv)
 # aictab(modlist_abd)
 # # Everything has higher AIC than the null except for proportion of sagebrush
 #
 # # 2.5) multi-covariate abundance models ##################################################################
-# mod_abd_process1 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + Annual.Cover + ln.TRI,
+# mod_abd_process1 <- gdistsamp(lambdaformula = ~ ln.Sage.Cover + ln.Bare.Ground.Cover + Perennial.Cover + Elevation
 #                               phiformula = ~1,
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
@@ -476,8 +430,8 @@ head(umf)
 # #save the model
 # save(mod_abd_process1, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process1.RData"))
 #
-# #Remove Ruggedness
-# mod_abd_process2 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + Annual.Cover,
+# #Remove Bare Ground Cover
+# mod_abd_process2 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Perennial.Cover + Elevation,
 #                               phiformula = ~1,
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
@@ -488,8 +442,8 @@ head(umf)
 # #save the model
 # save(mod_abd_process2, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process2.RData"))
 #
-# #Remove annual cover
-# mod_abd_process3 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation + ln.TRI,
+# #Remove perennial cover
+# mod_abd_process3 <- gdistsamp(lambdaformula = ~ ln.Sage.Cover + ln.Bare.Ground.Cover + Elevation
 #                               phiformula = ~1,
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
@@ -501,8 +455,8 @@ head(umf)
 # save(mod_abd_process3, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process3.RData"))
 #
 #
-# #Remove Ruggedness and annual cover
-# mod_abd_process4 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + ln.Bare.Ground.Cover + Precipitation,
+# #Remove Elevation
+# mod_abd_process4 <- gdistsamp(lambdaformula = ~ ln.Sage.Cover + ln.Bare.Ground.Cover + Perennial.Cover 
 #                               phiformula = ~1,
 #                               pformula = ~ Observer.ID,
 #                               data = umf,
@@ -512,77 +466,6 @@ head(umf)
 #                               keyfun = "exp")
 # # #save the model
 # save(mod_abd_process4, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process4.RData"))
-#
-# #Remove bare ground cover. It fits the data well but is highly correlated with Elevation, Precipitation, and perennial cover
-# mod_abd_process5 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Precipitation + Annual.Cover + ln.TRI,
-#                               phiformula = ~1,
-#                               pformula = ~ Observer.ID,
-#                               data = umf,
-#                               output = "density",
-#                               unitsOut = "ha",
-#                               mixture = "NB",
-#                               keyfun = "exp")
-# #save the model
-# save(mod_abd_process5, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5.RData"))
-# 
-# # Swap elevation for precipitation
-# mod_abd_process6 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Annual.Cover + ln.TRI,
-#                               phiformula = ~1,
-#                               pformula = ~ Observer.ID,
-#                               data = umf,
-#                               output = "density",
-#                               unitsOut = "ha",
-#                               mixture = "NB",
-#                               keyfun = "exp")
-# #save the model
-# save(mod_abd_process6, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process6.RData"))
-# 
-# # Swap perennial cover for annual cover
-# mod_abd_process7 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Precipitation + Perennial.Cover + ln.TRI,
-#                               phiformula = ~1,
-#                               pformula = ~ Observer.ID,
-#                               data = umf,
-#                               output = "density", unitsOut = "ha",
-#                               mixture = "NB",
-#                               keyfun = "exp")
-# #save the model
-# save(mod_abd_process7, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
-# 
-# # Swap perennial cover for annual cover and include elevation
-# mod_abd_process8 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover + ln.TRI,
-#                               phiformula = ~1,
-#                               pformula = ~ Observer.ID,
-#                               data = umf,
-#                               output = "density",
-#                               unitsOut = "ha",
-#                               mixture = "NB",
-#                               keyfun = "exp")
-# #save the model
-# save(mod_abd_process8, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
-# 
-# # Same as m7 but without TRI
-# mod_abd_process9 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover + Elevation + Perennial.Cover,
-#                               phiformula = ~1,
-#                               pformula = ~ Observer.ID,
-#                               data = umf,
-#                               output = "density",
-#                               unitsOut = "ha",
-#                               mixture = "NB",
-#                               keyfun = "exp")
-# #save the model
-# save(mod_abd_process9, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process9.RData"))
-# 
-# # Same as m7 but with sagebrush proportion
-# mod_abd_process10 <- gdistsamp(lambdaformula = ~ ln.Shrub.Cover * Sagebrush.Prop + Elevation + Perennial.Cover + ln.TRI,
-#                                phiformula = ~1,
-#                                pformula = ~ Observer.ID,
-#                                data = umf,
-#                                output = "density",
-#                                unitsOut = "ha",
-#                                mixture = "NB",
-#                                keyfun = "exp")
-# #save the model
-# save(mod_abd_process10, file = paste0("Model_Files/umk_", species_to_model, "_mod_abd_process10.RData"))
 
 # 3.1) Summaries and diagnostics on candidate process models #################################
 
@@ -592,25 +475,13 @@ load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process1.RData"))
 load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process2.RData"))
 load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process3.RData"))
 load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process4.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process5.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process6.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process8.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process9.RData"))
-load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process10.RData"))
 
 # Combine all candidate models
-modlist_abd = list(mod_null = mod_abd_shrub,
+modlist_abd = list(mod_null = mod_abd_sage,
                    mod_process1 = mod_abd_process1,
                    mod_process2 = mod_abd_process2,
                    mode_process3 = mod_abd_process3,
-                   mod_process4 = mod_abd_process4,
-                   mod_process5 = mod_abd_process5,
-                   mod_process6 = mod_abd_process6,
-                   mode_process7 = mod_abd_process7,
-                   mod_process8 = mod_abd_process8,
-                   mod_process9 = mod_abd_process9,
-                   mod_process10= mod_abd_process10)
+                   mod_process4 = mod_abd_process4)
 
 # Check to confirm that all candidate models converged
 sapply(modlist_abd, checkConv)
@@ -653,11 +524,6 @@ c_hat_modlist
 # summaryOD(mod_abd_process1, c.hat = c_hat_modlist[2])
 # summaryOD(mod_abd_process2, c.hat = c_hat_modlist[3])
 # summaryOD(mod_abd_process3, c.hat = c_hat_modlist[4])
-# summaryOD(mod_abd_process4, c.hat = c_hat_modlist[5])
-# summaryOD(mod_abd_process5, c.hat = c_hat_modlist[6])
-# summaryOD(mod_abd_process6, c.hat = c_hat_modlist[7])
-# summaryOD(mod_abd_process7, c.hat = c_hat_modlist[8])
-# summaryOD(mod_abd_process8, c.hat = c_hat_modlist[9])
 
 # Compare QAIC scores among all candidate models
 aictab(modlist_abd, c.hat = mean(c_hat_modlist))
@@ -774,7 +640,7 @@ abund_est_pern <- unmarked::predict(object = mod_best,
                                     appendData = TRUE)
 abund_est_pern <- abund_est_pern %>%
   mutate(Perennial.Cover.naiv = unscale(x = abund_est_pern$Perennial.Cover,
-                                        mu = mean_annu,
+                                        mu = mean_pern,
                                         sd = sd_pern))
 
 # Make a perennial grass cover plot
@@ -859,15 +725,13 @@ ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Ge
 
 # Add in raster layers
 ras_shrub_lg <- raster(paste0(ras_path, "shrub_cvr.tif"))
+ras_sage <- raster(paste0(ras_path, "sage_cvr.tif"))
 ras_pern_lg <- raster(paste0(ras_path, "herb_cvr.tif"))
 ras_precip_lg <- raster(paste0(ras_path, "precip.tif"))
 ras_tri_lg <- raster(paste0(ras_path, "tri_3x3.tif"))
 
 # Add the study region polygon
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
-
-# plot these rasters
-plot(study_region)
 
 # Clip rasters to the study region
 ras_shrub <- raster::mask(ras_shrub_lg, study_region)
@@ -971,25 +835,35 @@ tmap_mode("plot")
 # Plot predicted Brewer's Sparrow abundance
 tm_shape(ras_pred) +
   tm_raster(palette = "YlGnBu",
-            title = paste0("Estimated Brewer's\nSparrow Abundance\n(Birds/ha)"),
+            title = paste0("(Birds/ha)"),
             n = 7,
             style = "cont") +
   tm_shape(study_region) +
   tm_fill(alpha = 0.1) + 
   tm_borders(lwd = 2, col = "black") +
-  # tm_shape(fire_perims, title = "Fire Perimeters") +
-  # tm_borders(lwd = 0.05, alpha = 0.5, col = "red4") +
+  tm_shape(fire_perims, title = "Fire Perimeters") +
+  tm_borders(lwd = 0.05, alpha = 0.5, col = "red4") +
   tm_layout(frame = FALSE,
             legend.outside = TRUE,
-            legend.title.size = 1.4,
-            legend.title.fontface = "bold",
+            legend.title.size = 1.6,
             legend.position = c(0, 0.3),
             legend.text.size = 1.3) +
+  tm_add_legend(type = "line", 
+                labels = "Fire Perimeters", 
+                col = "red4",
+                lwd = 3, 
+                alpha = 0.5) + 
   tm_scale_bar(
-    position = c(0.38, 0.16), # Position the scale bar
+    position = c(0.45, 0.16), # Position the scale bar
     text.size = 1.0, # Adjust text size
     color.light = "white", # Background color of the scale bar
     color.dark = "black")
+
+# Path to where I'm storing the plots
+# plot_path <- "C:\Users\willh\Box\Will Harrod MS Project\Thesis_Documents\Maps"
+
+# Export map
+tmap_save(paste0(plot_path, "brsp_umk_mod_abd"))
 
 
 # 5) Modeling fire effects ###############################################################
@@ -1068,7 +942,7 @@ tm_shape(ras_pred) +
 # save(mod_abd_fire5, file = paste0("Model_Files/umk_", species_to_model,"Model_Files/_mod_abd_fire5.RData"))
 # 
 # # Interaction between burn severity and time since fire
-# mod_abd_fire5 <- gdistsamp(lambdaformula = ~ Years.Since.Fire^2 * Burned +
+# mod_abd_fire5 <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned +
 #                              Elevation * Burned +
 #                              Burn.Sevarity * Years.Since.Fire * Burned,
 #                            phiformula = ~1,
@@ -1081,7 +955,7 @@ tm_shape(ras_pred) +
 # save(mod_abd_fire5, file = paste0("Model_Files/umk_", species_to_model,"Model_Files/_mod_abd_fire5.RData"))
 # 
 # # Interaction between burn severity elevation and time since fire
-# mod_abd_fire6 <- gdistsamp(lambdaformula = ~ Years.Since.Fire^2 * Burned +
+# mod_abd_fire6 <- gdistsamp(lambdaformula = ~ Years.Since.Fire * Burned +
 #                              Burn.Sevarity * Years.Since.Fire * Elevation * Burned,
 #                            phiformula = ~1,
 #                            pformula = ~ Observer.ID,
