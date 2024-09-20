@@ -30,7 +30,7 @@ sobs <- sobs %>%
   mutate(Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-"))
 
 # Define a single species of interest
-species_to_model <- "BRSP"
+species_to_model <- "VESP"
 
 # Define a truncation distance
 trunc_dist <- 125

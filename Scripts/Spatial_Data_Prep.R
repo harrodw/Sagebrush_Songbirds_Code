@@ -10,7 +10,6 @@ library(sf)
 library(tmap)
 library(RColorBrewer)
 
-
 # 1.1) Prepare points ########################################################################
 
 #add in the data
@@ -91,7 +90,7 @@ bg_map <- plot_ras(bg_cvr)
 elevation_map <- plot_ras(elevation)
 
 # Plot all rasters
-# tmap_arrange(sage_map, pern_map, bg_map, elevation_map)
+tmap_arrange(sage_map, pern_map, bg_map, elevation_map)
 
 # View histograms of rasters
 # par(mfrow = c(2, 2))
