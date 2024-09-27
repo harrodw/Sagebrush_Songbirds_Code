@@ -17,10 +17,10 @@ library(MCMCvis)
 rm(list = ls())
 
 ################################################################################
-# 1) Data Prep  ################################################################
+# 1.0) Data Prep  ################################################################
 ################################################################################
 
-# 1.a) Read in data ################################################################
+# 1.1) Read in data ################################################################
 # #Add in Data from local drive 
 sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
   dplyr::select(-X) %>%
@@ -33,7 +33,11 @@ sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
 #view the data
 glimpse(sobs)
 
-#add covariates from the local drive
+# add covariates from the local drive
+# Aspect == -1 means that the area is flat other classes start at 1=NE clockwise
+# Fire Distance == 1000000 mean that the area is outside of a fire
+# Burn sevarity == 0 mean that the area did not burn
+# Fire year == 1850 means there are no recorded fires in the area
 covs <- tibble(read.csv("Data/Outputs/point_summaries.csv")) %>%
   dplyr::select(-X) %>%
   tibble()
@@ -45,7 +49,7 @@ covs <- tibble(read.csv("Data/Outputs/point_summaries.csv")) %>%
 #View covariates
 glimpse(covs)
 
-# 1.b) Prepare the count level data ################################################################
+# 1.2) Prepare the count level data ################################################################
 #define relevant species
 soi <- "BRSP"
 
@@ -57,11 +61,10 @@ counts_0inf <- sobs %>%
   mutate(Distance = Distance/1000) %>% #Switch from m to km
   filter(Species  == soi) %>%
   filter(Distance <= trunc_dist) %>% 
-  group_by(Full.Point.ID, Route.ID, Observer.ID, Year, Visit, Date, Species) %>% 
-  reframe(Full.Point.ID, Route.ID, Observer.ID, Year, Visit, Date, Species,
+  group_by(Full.Point.ID, Route.Type, Route.ID, Observer.ID, Year, Visit, Date, Species) %>% 
+  reframe(Full.Point.ID, Route.Type, Route.ID, Observer.ID, Year, Visit, Date, Species,
           Count = n()) %>% 
   distinct()
-
 #...and view
 glimpse(counts_0inf)
 
@@ -69,6 +72,7 @@ glimpse(counts_0inf)
 visit_count <- sobs %>% 
   tidyr::expand(nesting(Full.Point.ID, 
                         Route.ID,
+                        Route.Type, 
                         Point.Time, 
                         Year, 
                         Sky.Start,
@@ -84,30 +88,26 @@ visit_count <- sobs %>%
 glimpse(visit_count)
 
 #Join the two, add zeros and average observations within year
-counts <-  visit_count %>% 
+counts_temp <-  visit_count %>% 
   left_join(counts_0inf, by = c('Full.Point.ID', 
                                 'Route.ID',
+                                "Route.Type",
                                 'Observer.ID',
                                     'Year', 'Visit', 'Date')) %>% 
-  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count)) %>% 
-  mutate(Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-"))
+  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count))
 
 #...and view
-glimpse(counts)
+glimpse(counts_temp)
 
 #Change necessary variables to scales and factors
-counts <- counts %>%
+counts <- counts_temp %>%
   #Add covariates
-  left_join(covs, by = c("Route.ID", "Full.Point.ID")) %>% 
+  left_join(covs, by = c("Route.ID", "Full.Point.ID", "Route.Type")) %>% 
   #Sort the data
   arrange(Year, Visit, Route.ID, Full.Point.ID) %>% 
-  #Change the visit to a factor
-  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>%
-  #Change fire information to factors
-  mutate(Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0,
-                                   TRUE ~ Burn.Sevarity)) %>%
-  mutate(Burned = as.numeric(factor(Route.Type, levels = c("R", "B"))) - 1) %>% 
-  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
+  #Reclassify some of the variables
+  mutate(Burned = as.numeric(factor(Route.Type, levels = c("R", "B"))) - 1,
+         Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>%
   #change the wind data to a factor
@@ -117,19 +117,12 @@ counts <- counts %>%
                                                     "8-12 mph", "13-18 mph", "Unknown"))) %>%
   #Change the sky data to a factor
   mutate(Sky.Start = factor(Sky.Start, levels = c("Clear", "Partly Cloudy", "Cloudy",
-                                                  "Drizzle", "Fog or Smoke"))) %>%
-  mutate_at(c("Aspect", "Burn.Sevarity", "Route.ID",
-              "Fire.Name", "Visit.ID", "Observer.ID"
+                                                  "Drizzle", "Fog or Smoke"))) %>% 
+  mutate_at(c("Aspect", "Burn.Sevarity", "Route.ID", "Full.Point.ID",
+              "Fire.Name", "Observer.ID", "Year", "Visit"
   ), factor) %>% 
   #Remove columns that are no longer needed
   dplyr::select(-Species, -Route.Type, -Fire.Name, -Fire.Year) 
-
-# Fill in years since fire so there are no NA's for BUGs to get mad about
-for(i in 1:nrow(counts)) {
-  if(is.na(counts$Years.Since.Fire[i])){
-    counts$Years.Since.Fire[i] <- floor(rnorm(1, 115, 10))
-  }
-}
 
 #...and view
 glimpse(counts)
@@ -145,28 +138,28 @@ sd_burnY <- sd(fire_stats$Years.Since.Fire)
 #...and view
 print(c(mean_burnY, sd_burnY))
 
-#1.c) Prepare the observation level data ################################################################
+# 1.3) Prepare the observation level data ################################################################
 
 #define a bin size
 bin_size <- 0.025
 
-#Create all observations of a single species for the detection function
+#Create an object with all observations of a single species for the detection function
 observations_temp <- sobs %>% 
-  mutate(Distance = Distance/1000) %>% #Switch from m to km
-  filter(Species == soi) %>% #only one species
+  # Going to remove this but it simplifies the model for now ----
+  filter(Year == "Y3" & Visit == "V1") %>% 
+  mutate(Distance = Distance / 1000) %>%            # Switch from m to km
+  filter(Species == soi) %>%                        # only one species
   arrange(Year, Visit, Route.ID, Full.Point.ID) %>% # Same order as the others
-  filter(Distance <= trunc_dist) %>% #Only close observations
+  filter(Distance <= trunc_dist) %>%                # Only close observations
   mutate(Burned = as.numeric(factor(Route.Type, levels = c("R", "B"))) - 1) %>%
   dplyr::select(Distance, Minute, How.Detected, 
                 Route.ID, Full.Point.ID, Observer.ID, Year, Visit,
                 Burned, Ord.Date, 
                 MAS) %>% 
-  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   left_join(covs, by = c("Route.ID", "Full.Point.ID")) %>% 
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>% 
-  mutate(Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>% 
   #Add in the bin sizes
   mutate(Dist.Bin = round_any(Distance, bin_size, floor)) %>% 
   #Name the first and last distance bin
@@ -181,61 +174,61 @@ observations_temp <- sobs %>%
                               Dist.Bin == 0.100 ~ 4,
                               Dist.Bin == 0.125 ~ 5
   )) %>% 
-  dplyr::select(Dist.Bin, Dist.Bin.Midpoint, Survey.ID)
+  dplyr::select(Dist.Bin, Dist.Bin.Midpoint, Full.Point.ID, Year, Visit)
 
 #view the whole object
 glimpse(observations_temp)
 unique(observations_temp$Dist.Bin)
 unique(observations_temp$Dist.Bin.Midpoint)
 
-#Reorder visits and observations so that they are shared between the two
+# Make sure the same numeric values for factors are shaped between the two datasets
 counts <- counts %>% 
-  arrange(Survey.ID) %>% 
-  mutate(Survey.ID.Fact = as.factor(Survey.ID)) %>% 
-  mutate(Survey.ID.num = as.numeric(Survey.ID.Fact)) %>% 
-  dplyr::select(-Survey.ID.Fact) %>% 
-  mutate(Visit.ID.num = as.numeric(Visit.ID))
-
-#...and view
-print("Counts:")
-glimpse(counts)
+  arrange(Year, Visit, Full.Point.ID) %>% 
+  mutate(Full.Point.ID.num = as.numeric(Full.Point.ID),
+         Year.num = as.numeric(Year),
+         Visit.num = as.numeric(Visit)) 
 
 #Pull out just the visit ID
-survey_ids <- counts %>% 
-  dplyr::select(Survey.ID, Survey.ID.num, Visit.ID.num)
-
+point_ids <- counts %>% 
+  mutate_at(c("Full.Point.ID", "Year", "Visit"), as.character) %>% 
+  dplyr::select(Full.Point.ID, Full.Point.ID.num, Year, Year.num, Visit, Visit.num)
 #...and view
-glimpse(survey_ids)
+glimpse(point_ids)
 
 #Link the factor levels from the count dataset to the observation dataset
 observations <- observations_temp %>% 
-  left_join(survey_ids, by = "Survey.ID")
+  left_join(point_ids, by = c("Full.Point.ID", "Year", "Visit"))
 
-#...and view
+# View Counts
+print("Counts:")
+glimpse(counts)
+
+# View Observations
 print("Observations:")
 glimpse(observations)
 
-# 1.d) prepare objects for NIMBLE ################################################################
+# 1.4) prepare objects for NIMBLE ################################################################
 
 # Loop sizes 
-nsites <- nrow(counts) # Number of sites
+npoints <- nrow(counts) # Number of sites
 nind <- nrow(observations) # Number of individuals detected 
 nobs <- length(unique(as.numeric(counts$Observer.ID))) # Number of unique observers
 nbins <- length(unique(observations$Dist.Bin)) # Number of distance bins
-nvst <- length(unique(counts$Visit.ID.num)) # number of visits in data
+nyears <- length(unique(counts$Year)) # Number of Years we surveyed
+nvst <- length(unique(counts$Visit)) # number of visits in each year
 
 # Observation Level data 
 dist_class <- observations$Dist.Bin # Distance category for each observation
-points <- observations$Survey.ID.num # point number of each observation 
+points <- observations$Full.Point.ID.num # point number of each observation 
 midpoints <- unique(observations$Dist.Bin.Midpoint) # Midpoints of distance bins
 observers <- as.numeric(counts$Observer.ID) #Random effect for observer associated with each survey
 
 # Point level data
 ncap <- counts$Count # Number of detected individuals per site
-year <- as.numeric(as.factor(counts$Year)) # year number
-burned <- counts$Burned # Habitat covariate
-fire_year <- (counts$Years.Since.Fire -mean_burnY)/ sd_burnY
-precip <- (counts$Precipitation -mean(counts$Precipitation)) / sd(counts$Precipitation) #scaled precipitation covariate
+year <- counts$Year.num # year number
+sage_cvr <- (counts$Elevation -mean(counts$Elevation)) / sd(counts$Elevation) #scaled elevation covariate
+pern_cvr <- (counts$Elevation -mean(counts$Elevation)) / sd(counts$Elevation) #scaled elevation covariate
+elevation <- (counts$Elevation -mean(counts$Elevation)) / sd(counts$Elevation) #scaled elevation covariate
 time <- (counts$MAS - mean(counts$MAS)) / sd(counts$MAS) # scaled based on mean time after sunrise
 day <- (counts$Ord.Date - mean(counts$Ord.Date)) / sd(counts$Ord.Date) #scaled data covariate
 
@@ -243,7 +236,7 @@ day <- (counts$Ord.Date - mean(counts$Ord.Date)) / sd(counts$Ord.Date) #scaled d
 # 2) Build and run the model ############################################################################
 #########################################################################################################
 
-# 2.a) Constants, data, Initial values, and dimensions #############################################
+# 2.1) Constants, data, Initial values, and dimensions #############################################
 
 # Constants to be fed into Nimble
 brsp_const <- list (
@@ -253,27 +246,32 @@ brsp_const <- list (
   newB = trunc_dist, # Truncation distance
   
   #For loop sizes
-  nsites = nsites, # Number of sites
+  npoints = npoints, # Number of sites
   nind = nind, # Number of individuals detected 
   nobs = nobs, # Number of unique observers
+  nyears = nyears, # Number of years we surveyed
+  # nvst = nvst, # number of visits per year
   nbins = nbins, # Number of distance bins
-  nvst = nvst # number of visits in data
+  
+  # Random effects
+  points = points, # point number of each observation
+  observers = observers, #Random effect for observer associated with each survey
+  year = as.numeric(as.factor(counts$Year)) # year number
 )
 
 # Data to be fed into Nimble 
 brsp_dat <- list(
   # Observation Level data 
   dclass = dist_class, # Distance category for each observation
-  point = points, # point number of each observation 
+   
   midpt = midpoints, # Midpoints of distance bins
-  observers = observers, #Random effect for observer associated with each survey
+  
   
   #Point level data
   ncap = ncap, # Number of detected individuals per site
-  year = as.numeric(as.factor(counts$Year)), # year number
-  burned = burned, # Habitat covariate
-  f_year = fire_year,
-  precip = precip, #scaled precipitation covariate
+  sage_cvr = sage_cvr,
+  pern_cvr = pern_cvr,
+  elevation = elevation, #scaled elevation covariate
   time = time, # scaled based on mean time after sunrise
   day = day #scaled data covariate
 )
@@ -300,12 +298,12 @@ brsp_inits <- list(
 
 #Object dimensions
 brsp_dims <- list(
-  f = c(nsites, nbins),
-  fc = c(nsites, nbins),
-  EDS = nsites,
-  EDS.new = nsites)
+  f = c(npoints, nbins),
+  fc = c(npoints, nbins),
+  EDS = npoints,
+  EDS.new = npoints)
 
-# 2.b) Model definition ################################################################
+# 2.3) Model definition ################################################################
 # Add random noise in the detection function intercepts
 # Note all distances are in units of 1km (and area in 1km2 units)
 
@@ -327,9 +325,9 @@ brsp_model_code <- nimbleCode({
       gamma3 ~ dnorm(0, 1)     # Effect of time of day on singing rate
       gamma4 ~ dnorm(0, 1)     # Effect of time of day on singing rate (quadratic)
 
-      # Shared parameters in the abundance model
+      # Parameters for the abundance model
       # Random intercept for each year
-      for (i in 1:nvst) {     # Loop over 3 years
+      for (i in 1:nyears) {     # Loop over 3 years
         beta0[i] ~ dnorm(beta0.int, tau.beta0)
       }
       beta0.int <- log(mean.lambda)  # lambda intercept on log scale and ...
@@ -340,30 +338,30 @@ brsp_model_code <- nimbleCode({
       
       # Random intercept for each observer
       for (o in 1:nobs) {     # Loop over 18 observers
-        rf.alpha0[o] ~ dnorm(alpha0, tau.alpha0)
+        alpha0[o] ~ dnorm(alpha0.int, tau.alpha0)
       }
-      alpha0 <- log(mean.sigma)  # sigma intercept on log scale and ...
+      alpha0.int <- log(mean.sigma)  # sigma intercept on log scale and ...
       mean.sigma ~ dunif(0, 1) # ... on the natural scale (0 - 1 km)
       tau.alpha0 <- sd.alpha0^-2
       sd.alpha0 ~ T(dt(0, 1, 2), 0,) # Magnitude of noise in sigma intercept
       
       # Covariates:
-      beta1 ~ dnorm(0, 1)      # Effect of burned vs unburned
-      beta2 ~ dnorm(0, 0.1)    # Effect of years since fire only on burned routes
-      beta3 ~ dnorm(0, 0.1)    # effect of years since fire squared only on burned routes
-      beta4 ~ dnorm(0, 0.1)    # effect of precipitation
-      beta5 ~ dnorm(0, 0.1)    # effect of years since fire and precipitation only on burned routes
+      beta1 ~ dnorm(0, 1)      # Effect of sagebrush cover
+      beta2 ~ dnorm(0, 0.1)    # Effect of Perennial Cover
+      beta3 ~ dnorm(0, 0.1)    # Effect of elevation
+      beta4 ~ dnorm(0, 0.1)    # Effect of sagebrush cover squared
+      beta5 ~ dnorm(0, 0.1)    # Effect of perrenial cover squared
+      beta6 ~ dnorm(0, 0.1)    # Effect of elevation squared
 
       # -------------------------------------------------------------------
       # Hierarchical construction of the likelihood
       # Model for binned distance observations of every detected individual
       for(i in 1:nind){       # Loop over all detected individuals
-        dclass[i] ~ dcat(fc[point[i], ])      # distance classes follow a multinational distribution
+        dclass[i] ~ dcat(fc[points[i], ])      # distance classes follow a multinational distribution
       }
       
       # Construction of the cell probabilities for the nD distance bands
-      # This is for the truncation distance for the data (here, newB = 0.125 km and delta = 0.025)
-      for(s in 1:nsites){  # Loop over all sites in data set 1
+      for(s in 1:npoints){  # Loop over all survey points
         for(g in 1:nbins){       # midpt = mid-point of each distance band
           log(p[s,g]) <- -midpt[g] * midpt[g] / (2 * sigma[s]^2) # half-normal detection function
           pi[s,g] <- ((2 * midpt[g] ) / newB^2) * delta # prob density function out to max trucation distance 
@@ -375,16 +373,17 @@ brsp_model_code <- nimbleCode({
         
         ### Log-linear models on abundance, detectability, and availability
         # Abundance (lambda) Log-linear model for abundance
-        log(lambda[s]) <- beta0[year[s]] +           # random intercept for each year of the survey
-        beta1 * burned[s] +                          # most important effect: burned vs unburned
-        beta2 * f_year[s] * burned[s] +              # Effect of years since fire only on burned routes
-        beta3 * f_year[s]^2 * burned[s] +            # effect of years since fire squared only on burned routes
-        beta4 * precip[s] +                          # Effect of precipitation
-        beta5 * f_year[s] * precip[s] * burned[s]    # Effect of years since fire and precipitation only on burned routes
+        log(lambda[s]) <- beta0[year[s]] +           # random effect of year
+        beta1 * sage_cvr[s] +                        # Effect of sagebrush cover
+        beta2 *  pern_cvr[s] +                       # Effect of Perennial Cover
+        beta3 * elevation[s] +                       # Effect of elevation
+        beta4 * sage_cvr[s]^2 +                      # Effect of sagebrush cover squared
+        beta5 * pern_cvr[s]^2 +                      # Effect of perennial cover squared
+        beta6 * elevation[s]^2                       # Effect of elevation squared 
         
         # Detectability/perceptability (sigma)
-        log(sigma[s]) <- rf.alpha0[observers[s]] + eps[s]  # Log-Linear model for detection probability
-		      eps[s] ~ dnorm(0, tau.eps)        # Note here eps1 has one precision and below another
+        log(sigma[s]) <- alpha0[observers[s]] + eps[s]  # Log-Linear model for detection probability
+		      eps[s] ~ dnorm(0, tau.eps)                    # Note here eps1 has one precision and below another
 
         # Availability (phi)
 		    # Log-linear model for availability
@@ -418,7 +417,7 @@ brsp_model_code <- nimbleCode({
       bpv <- step(fit.new - fit)
 })
 
-# 2.c) Configure and Run the model ###########################################################
+# 2.4) Configure and Run the model ###########################################################
 
 # Params to save
 brsp_params <- c("mean.sigma", 
@@ -438,6 +437,7 @@ brsp_params <- c("mean.sigma",
             "beta3", 
             "beta4", 
             "beta5", 
+            "beta6",
             "sd.beta0", 
             "beta0.int",
             "fit", 
@@ -445,8 +445,8 @@ brsp_params <- c("mean.sigma",
             "bpv")
 
 # MCMC settings. Pick one, comment out the rest 
-#  nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
-nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 3 # longer test
+ nc <- 3  ;  ni <- 50  ;  nb <- 2  ;  nt <- 2 # test, 30 sec
+# nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 3 # longer test
 # nc <- 4;  ni <- 120000;  nb <- 60000;  nt <- 60   # Run the model for real
 # nc <- 10;  ni <- 400000;  nb <- 200000;  nt <- 200 # This takes a while...
 
@@ -476,7 +476,7 @@ save(brsp_mcmc_comp, file = "Bayes_Files/brsp_distance_model_out.rda")
 # 3) Model output and diagnostics ##############################################
 ################################################################################
 
-# 3a) View model output
+# 3.1) View model output
 
 #load the output back in
 mcmc_out <- load(file = "Bayes_Files/brsp_distance_model_out.rda")
@@ -499,6 +499,7 @@ params <- c("mean.sigma",
             "beta3", 
             "beta4", 
             "beta5", 
+            "beta6",
             "sd.beta0", 
             "beta0.int",
             "fit", 
@@ -514,6 +515,7 @@ MCMCplot(object = mcmc_out,
 
 #Traceplots and density graphs 
 MCMCtrace(object = mcmc_out,
-          pdf = FALSE, # no export to PDF
-          ind = TRUE, # separate density lines per chain
+          pdf = FALSE,
+          ind = TRUE, 
           params = params)
+

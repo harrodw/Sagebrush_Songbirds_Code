@@ -427,7 +427,7 @@ sobs_count <- sobs_count %>%
 glimpse(sobs_count)
 
 # Graph time since fire
-time_since_fire <- sobs_count %>% 
+sobs_count %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "VESP" ~ "Vesper Sparrow",
                              Species == "HOLA" ~ "Horned Lark")) %>% 
@@ -439,11 +439,18 @@ time_since_fire <- sobs_count %>%
                                       Year == "Y2"   ~ 2023 - Fire.Year,
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>% 
   ggplot() +
-  geom_point(aes(x = Years.Since.Fire, y = Count, color = "Burn Grid Counts"), size = 1) +
-  geom_smooth(aes(x = Years.Since.Fire, y = Count, color = "Burn Grid Counts"), 
-              method = "lm", fill = "red1") +
-  geom_ribbon(aes(x = Years.Since.Fire, ymin = lb, ymax = ub, fill = "75% CI for Reference Grid Counts"), 
-              alpha = 0.2, linewidth = 0.1, color = "navyblue") +
+  geom_jitter(aes(x = Years.Since.Fire, y = Count, color = "Burn Grid Counts"), 
+              width = 0.2, height = 0.4, size = 1) +
+  geom_smooth(aes(x = Years.Since.Fire, y = Count, color = "Trend"), 
+              method = "glm", 
+              fill = "red1",
+              method.args = list(family = "poisson"),
+              # se = FALSE,
+              size = 2) +
+  geom_line(aes(x = Years.Since.Fire, y = Mean),
+            linewidth = 1, col = "navyblue", alpha = 0.7) +
+  geom_ribbon(aes(x = Years.Since.Fire, ymin = lb, ymax = ub, fill = "Mean and 75% CI for Reference Grid Counts"), 
+              alpha = 0.2, linewidth = 0.5, color = "navyblue") +
   labs(x = "Years Since Fire", y = "Number of Observations on a Survey Grid", 
        color = "", fill = "") +
   theme_bw() +
@@ -452,22 +459,20 @@ time_since_fire <- sobs_count %>%
         axis.text.y = element_text(size = 25),
         axis.title.y = element_text(size = 22, family = "sans"),
         strip.text = element_text(size= 23, family = "sans"),
+        # legend.position = "right",
         legend.position = "none",
-        legend.text = element_text(size = 18),
+        legend.text = element_text(size = 25),
         legend.title = element_text(size = 20), 
-        legend.key.size = unit(0.75, "cm")) +    
+        legend.key.size = unit(2, "cm")) +    
   ylim(0, 60) +
   facet_wrap(~Species, dir = "h") +
-  scale_color_manual(values = c("Burn Grid Counts" = "red4")) +
-  scale_fill_manual(values = c("75% CI for Reference Grid Counts" = "lightblue")) +
+  scale_color_manual(values = c("Burn Grid Counts" = "black",
+                                "Trend" = "red4")) +
+  scale_fill_manual(values = c("Mean and 75% CI for Reference Grid Counts" = "lightblue")) +
   guides(color = guide_legend(ncol = 1),   
          fill = guide_legend(ncol = 1))
-  
 
-# View the graph
-time_since_fire
-
-#Species counts and fire sevarety #################################################
+#Species counts and fire sevarety #################fill_()#Species counts and fire sevarety #################################################
 fire_sev_cols <- c("yellow1", "darkorange1", "red1", "red4")
 sobs_count %>% 
   filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
@@ -541,28 +546,27 @@ sobs_count %>%
                                       Elevation < 1800 & Route.Type == "R" ~ "LR",
                                       Elevation >= 1800 & Route.Type == "R" ~ "HR"),
                                levels = c("LB", 
-                                          "HB", 
-                                          "LR",
+                                          "LR", 
+                                          "HB",
                                           "HR"))) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "VESP" ~ "Vesper Sparrow",
                              Species == "HOLA" ~ "Horned Lark")) %>% 
   ggplot(aes(x = Elevation, y = Count)) +
   geom_boxplot(aes(color = Elevation, fill = Elevation), color = "black") +
-  scale_fill_manual(values = c("darkgoldenrod2", "darkorange2", "cadetblue", "darkslategray")) +
+  scale_fill_manual(values = c("darkgoldenrod2", "cadetblue", "darkorange2", "darkslategray")) +
   labs(x = "",
        y = "Average Number of Observations on a Survey Grid") +
   theme_bw()+
   theme(axis.text.x = element_blank(),
-        axis.text.y = element_text(size = 18),
-        axis.title.y = element_text(size = 18, family = "sans"),
-        strip.text = element_text(size= 20, family = "sans"),
+        axis.text.y = element_text(size = 14),
+        axis.title.y = element_text(size = 14, family = "sans"),
+        strip.text = element_text(size= 14, family = "sans"),
         legend.position = "none") +    
   ylim(0, 60) +
   facet_wrap(~ factor(Species, levels = c("Brewer's Sparrow",
                                           "Vesper Sparrow",
-                                          "Horned Lark")), 
-             dir = "v")
+                                          "Horned Lark")), dir = "v")
 
 #Combine grassland and shrubland species ##############################################################
 grass_sp <- c("WEME", "HOLA", "VESP")
@@ -714,4 +718,3 @@ sobs_count %>%
         legend.position = "none") +
   ylim(0, 75) +
   facet_wrap(~Elevation)
-

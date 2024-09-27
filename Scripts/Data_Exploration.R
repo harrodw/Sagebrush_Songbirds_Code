@@ -101,19 +101,46 @@ sobs_obs <- sobs %>%
 #...and view
 glimpse(sobs_obs)
 
-# 2) Histograms of numeric covariates ################################################################
+# 2) View correlations among numeric variables #####################################################
 
 #pick a single species
 soi <- "BRSP"
 
-#View all covariates
-glimpse(sobs_count)
-
+# Pull out all the variables I am interested in
 # Define numeric covariates
-num_covs <- c("Sage.Cover", "Bare.Ground.Cover", "Perennial.Cover",
-  "Elevation", "Years.Since.Fire", "MAS", "Ord.Date" 
-  # "Burn.Severity",
-  )
+num_covs <- c( "Sage.Cover", "Perennial.Cover", "Elevation",  
+               "Burn.Sevarity", "Years.Since.Fire", "Fire.Distance",
+               "MAS", "Ord.Date")
+
+#Pull out numeric data
+num_cov_dat <- sobs_count %>% 
+  filter(Species == soi)
+num_cov_dat <- num_cov_dat[,num_covs]
+
+# Fill in years since fire
+for(i in 1:nrow(num_cov_dat)){
+  if(is.na(num_cov_dat$Years.Since.Fire[i])){
+    num_cov_dat$Years.Since.Fire[i] <- floor(rnorm(1, 115, 5))
+  }
+}
+
+# Correlations 
+cor_mat <- cor(num_cov_dat)
+cor_mat
+
+# P-value correlations
+p_mat <- cor_pmat(num_cov_dat)
+p_mat
+
+#View correlations graphically
+ggcorrplot(cor_mat, 
+           title = "Correlation matrix for Songbird Spatial Data", 
+           lab=TRUE, 
+           p.mat = p_mat, 
+           type = "lower",
+           sig.level = .05)
+
+# 3) Histograms of numeric covariates ################################################################
 
 #Pull out numeric data
 num_cov_dat <- sobs_count %>% 
@@ -205,9 +232,12 @@ for(i in 1:length(cat_covs)){
 # Transformt he things that need to be transformed
 # IMPORTANT: Here is the list of covariate adjustments I want to make ------------------------------
 sobs_count <- sobs_count %>% 
-  mutate( # Log-transform the things that need to be
-    ln.Sage.Cover = log(Sage.Cover),
-    ln.Bare.Ground.Cover = log(Bare.Ground.Cover),
+  # Remove Fire Distance for things outside the fire
+  filter(Fire.Distance < 500000) %>% 
+  #log transform the things that need to be
+  mutate(ln.Sage.Cover = log(Sage.Cover),
+         ln.Fire.Distance = log(Fire.Distance),
+          ln.Fire.Distance = log(Fire.Distance),
     #Combine Alex and Ben's Data
          Observer.ID = case_when(Observer.ID %in% c('Alex', "Ben") ~ "Alex & Ben",
                                  TRUE ~ Observer.ID),
@@ -217,72 +247,37 @@ sobs_count <- sobs_count %>%
 #...and view
 glimpse(sobs_count)
 
-# 3) View correlations among numeric variables #####################################################
-
-# Pull out all the variables I am interested in
-# Define numeric covariates
-num_covs2 <- c(num_covs, "ln.Sage.Cover", "ln.Bare.Ground.Cover")
-
-#Pull out numeric data
-num_cov_dat <- sobs_count %>% 
-  filter(Species == soi)
-num_cov_dat <- num_cov_dat[,num_covs2]
-
-# Fill in years since fire
-for(i in 1:nrow(num_cov_dat)){
-  if(is.na(num_cov_dat$Years.Since.Fire[i])){
-    num_cov_dat$Years.Since.Fire[i] <- floor(rnorm(1, 115, 5))
-  }
-}
-
-
-# Correlations 
-cor_mat <- cor(num_cov_dat)
-cor_mat
-
-# P-value correlations
-p_mat <- cor_pmat(num_cov_dat)
-p_mat
-
-#View correlations graphically
-ggcorrplot(cor_mat, 
-           title = "Correlation matrix for Songbird Spatial Data", 
-           lab=TRUE, 
-           p.mat = p_mat, 
-           type = "lower",
-           sig.level = .05)
-
-#I can't use:
-#    *shrub cover + shrub height,
-#    *Annual cover + perennial cover,
-#    *elevation + precipitation or TRI
-#    *bare ground cover + perennial cover, elevation, or precipitation
-
-
 # 4) How does each covariate predict species abundance? ###########################################
+
+# Build an object of transformed numeric covariates
+num_covs_trans <- c("ln.Sage.Cover", "Perennial.Cover", "Elevation",  
+                    "Burn.Sevarity", "Years.Since.Fire", "ln.Fire.Distance",
+                    "MAS", "Ord.Date")
+
 
 # Build a function that plots each numeric variable against the observed counts for each species
 obs_scatter <- function(dat, cov) { 
   test_plots <- dat %>% 
     ggplot(aes(x = .data[[cov]], y = Count)) +
-    geom_point(color = "cadetblue", size = 2, alpha = 0.7) +  # Use larger, semi-transparent points
+    geom_jitter(color = "cadetblue", size = 2, alpha = 0.7,
+                height = 0.5, width = 0) +  
     geom_smooth(method = "glm",
                 method.args = list(family = "poisson"),
                 color = "deepskyblue3", 
                 fill = "deepskyblue1", 
-                linetype = "solid",  # Solid line
-                size = 1.2) +  # Adjust line size for better visibility
-    facet_wrap(~Species, scales = "free_y") +  # Facet by species 
+                linetype = "solid",  
+                size = 1.2) +  
+    facet_wrap(~Species, scales = "free_y") +  
     ggtitle(paste("Number of Observations as a Function of", cov)) +
-    xlab(cov) +  # X-axis label
-    ylab("Count of Observations") +  # Y-axis label
+    xlab(cov) + 
+    ylab("Count of Observations") +  
     theme_bw() +  
     theme(
-      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  # Center and bold the title
-      axis.title.x = element_blank(),         # no x-axis label
-      axis.title.y = element_text(size = 14),  # Y-axis title size
-      axis.text = element_text(size = 12),  # Axis text size
-      strip.text = element_text(size = 12),  # Facet label size
+      plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),  
+      axis.title.x = element_blank(),         
+      axis.title.y = element_text(size = 14), 
+      axis.text = element_text(size = 12),  
+      strip.text = element_text(size = 12),  
       legend.position = "none"  
     )
   
@@ -299,14 +294,15 @@ for(i in 1:length(num_covs_trans)){
 }
 
 #View a covariate on its own
-obs_scatter(dat = sobs_count,
-            cov = "Precipitation")
+sobs_count %>% 
+  filter(ln.Fire.Distance < 15) %>% 
+  obs_scatter(cov = "ln.Fire.Distance")
 
 #View a specific variable before and after the log transformation
 scat_plot1 <- obs_scatter(dat = sobs_count,
-                          cov = "Perennial.Cover")
+                          cov = "Sage.Cover")
 scat_plot2 <- obs_scatter(dat = sobs_count,
-                     cov = "Annual.Cover")
+                     cov = "ln.Sage.Cover")
 grid.arrange(scat_plot1, scat_plot2)
 
 # Build a function that plots each categorical variable against the observed counts for each species

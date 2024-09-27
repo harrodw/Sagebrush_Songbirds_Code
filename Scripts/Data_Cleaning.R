@@ -4330,17 +4330,44 @@ glimpse(sobs_clean_point)
 #After learning more about fire history in this area I have realized that 
 #UT-C24 and UT-C25 burned in 1999 and ID-B03 did not burn
 
+burn_points_99 <- c("UT-C24-P02",
+                    "UT-C24-P03",
+                    "UT-C24-P04",
+                    "UT-C24-P06",
+                    "UT-C24-P07",
+                    "UT-C24-P08",
+                    "UT-C24-P11",
+                    "UT-C24-P12",
+                    "UT-C24-P15",
+                    "UT-C24-P16",
+                    "UT-C25-P01",
+                    "UT-C25-P02",
+                    "UT-C25-P03",
+                    "UT-C25-P04",
+                    "UT-C25-P05",
+                    "UT-C25-P06",
+                    "UT-C25-P07",
+                    "UT-C25-P08",
+                    "UT-C25-P09",
+                    "UT-C25-P11",
+                    "UT-C25-P12",
+                    "UT-C25-P13",
+                    "UT-C25-P14",
+                    "UT-C30-P13")
+
 #Redefine the incorrect route types
 sobs_clean_nobi <- sobs_clean_point %>% 
   #Reverse the new point column that I created 
   mutate(Full.Point.ID = New.Point.ID) %>% 
   dplyr::select(-New.Point.ID) %>% 
   #Redefine some of the route types
-  mutate(Route.Type = case_when(Route.ID == "UT-C24" ~ "B",
+  mutate(Route.Type = case_when(Full.Point.ID %in% burn_points_99 ~ "B",
                                 Route.ID == "UT-C25" ~ "B",
                                 Route.ID == "UT-C30" ~ "R",
                                 Route.ID == "ID-B03" ~ "R",
-                                TRUE ~ Route.Type))
+                                TRUE ~ Route.Type)) %>% 
+  mutate(Route.Type = case_when(Full.Point.ID == "UT-C25-P10" ~ "R",
+                                TRUE ~ Route.Type ))
 
 #Many of the counts do not have NOBI for minutes where no birds were detected
 #Add in NOBI Observations ############################################################
