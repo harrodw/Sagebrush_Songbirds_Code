@@ -2,6 +2,7 @@
 #Creator: Will Harrod
 #Created: 02/02/2024
 #Start here ---------------------------------------------------------------------------------
+rm(list = ls())
 
 #Load packages
 library(tidyverse)
