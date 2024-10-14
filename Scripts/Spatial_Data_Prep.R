@@ -38,9 +38,9 @@ points <- sobs %>%
 
 #View points
 points
-points %>% ggplot(aes(col = Route.Type)) + geom_sf()
+# points %>% ggplot(aes(col = Route.Type)) + geom_sf()
 
-#1.2 ) Add rasters ############################################################################
+#1.2) Add rasters ############################################################################
 #primary file path for rasters
 #This is the geoprocessing outputs folder for my arc pro project
 ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Geoprocessing_Outputs\\"
@@ -49,9 +49,10 @@ ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Ge
 sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
 pern_cvr <- raster(paste0(ras_path, "pern_cvr.tif"))
 elevation <- raster(paste0(ras_path, "elevation.tif"))
-fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
 aspect <- raster(paste0(ras_path, "aspect.tif"))
-burn_sev <- raster(paste0(ras_path, "burn_sev.tif"))
+
+# burn_sev <- raster(paste0(ras_path, "burn_sev.tif"))
+# fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
 
 #Other rasters I can add in if needed
 # shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
@@ -86,8 +87,8 @@ sage_map <- plot_ras(sage_cvr)
 pern_map <- plot_ras(pern_cvr)
 elevation_map <- plot_ras(elevation)
 asp_map <- plot_ras(aspect)
-fd_map <- plot_ras(fire_dist)
-burn_sev_map <- plot_ras(burn_sev)
+# fd_map <- plot_ras(fire_dist)
+# burn_sev_map <- plot_ras(burn_sev)
 
 # Plot all rasters
 # tmap_arrange(sage_map, pern_map, elevation_map, burn_sev_map, fd_map, asp_map)
@@ -120,11 +121,11 @@ point_summaries$Elevation <- raster::extract(x = elevation,
                                              buffer = radius,
                                              fun = function(x) mean(x, na.rm = TRUE)) 
 
-# #summarize burn sevarity
-point_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
-                                                 y = points,
-                                                 buffer = radius,
-                                                 fun = function(x) modal(x, na.rm = TRUE))
+# # #summarize burn sevarity
+# point_summaries$Burn.Sevarity <- raster::extract(x = burn_sev,
+#                                                  y = points,
+#                                                  buffer = radius,
+#                                                  fun = function(x) modal(x, na.rm = TRUE))
 
 # #summarize aspect
 point_summaries$Aspect <- raster::extract(x = aspect,
@@ -132,13 +133,124 @@ point_summaries$Aspect <- raster::extract(x = aspect,
                                                  buffer = radius,
                                                  fun = function(x) modal(x, na.rm = TRUE))
 
-# #summarize distance to fires
-point_summaries$Fire.Dist <- raster::extract(x = fire_dist,
+# # #summarize distance to fires
+# point_summaries$Fire.Dist <- raster::extract(x = fire_dist,
+#                                                  y = points,
+#                                                  buffer = radius,
+#                                                  fun = function(x) mean(x, na.rm = TRUE))
+
+# View the new point covariates
+glimpse(point_summaries)
+
+# 2.2) fire covariates ##########################################################
+
+# File path for burn sevarity data
+mtbs_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\mtbs_cleaned\\"
+
+# Define which years for which I have fire data
+fire_years_df <- read.csv(paste0(mtbs_path, "fire_years.csv")) %>% 
+  tibble() %>% 
+  dplyr::select(-X) %>% 
+  rename(Year = "x") %>% 
+  arrange(Year)
+
+# Transform to a vector
+fire_years <- fire_years_df$Year
+#...and view
+print(fire_years)
+
+#Define the number of years to loop through
+nyears <- length(fire_years)
+#...and view
+print(nyears)
+
+# Add storage covariates to the point summaries
+point_summaries_fire <- point_summaries %>% 
+  mutate(# temporarty storage object covariates
+    mean.dnbr.tmp = NA,
+    mean.rdnbr.tmp = NA,
+    sd.dnbr.tmp = NA,
+    sd.rdnbr.tmp = NA,
+    # permanent covariates
+    mean.dnbr = 0,
+    mean.rdnbr = 0,
+    sd.dnbr = 0,
+    sd.rdnbr = 0,
+    Fire.Year = 0,
+    Fire.Count = 0)
+
+# Loop through each year to extract burn severity and number of fires
+for(i in 1:nyears){
+  # run a specific year
+  # i <- which(fire_years == 1999)
+  
+  # define the year for the current itteration
+  year <- fire_years[i]
+  
+  # read in dnbr for that year
+  dnbr <- raster(paste0(mtbs_path, "dnbr_", year, ".tif"))
+  
+  # read in rdnbr for that year
+  rdnbr <- raster(paste0(mtbs_path, "rdnbr_", year, ".tif"))
+  
+  # reset a temporary points object for the mean dnbr
+  point_summaries_fire$mean.dnbr.tmp <- raster::extract(x = dnbr,
+                                                   y = points,
+                                                   buffer = radius,
+                                                   fun = function(x) mean(x, na.rm = TRUE))
+  
+  # reset a temporary points object for the sd dnbr
+  point_summaries_fire$sd.dnbr.tmp <- raster::extract(x = dnbr,
+                                              y = points,
+                                              buffer = radius,
+                                              fun = function(x) sd(x, na.rm = TRUE))
+  
+  # reset a temporary points object for the mean rdnbr
+  point_summaries_fire$mean.rdnbr.tmp <- raster::extract(x = rdnbr,
+                                                   y = points,
+                                                   buffer = radius,
+                                                   fun = function(x) mean(x, na.rm = TRUE))
+  
+  # reset a temporary points object for the sd rdnbr
+  point_summaries_fire$sd.rdnbr.tmp <- raster::extract(x = rdnbr,
                                                  y = points,
                                                  buffer = radius,
-                                                 fun = function(x) mean(x, na.rm = TRUE))
+                                                 fun = function(x) sd(x, na.rm = TRUE))
+  
+  # Pull out the values where there were fires at the point for that year
+  point_summaries_fire <- point_summaries_fire %>% 
+    mutate(mean.dnbr = case_when(!is.na(mean.dnbr.tmp) ~ mean.dnbr.tmp,
+                                 TRUE ~ mean.dnbr),
+           sd.dnbr = case_when(!is.na(sd.dnbr.tmp) ~ sd.dnbr.tmp,
+                                 TRUE ~ sd.dnbr),
+           mean.rdnbr = case_when(!is.na(mean.rdnbr.tmp) ~ mean.rdnbr.tmp,
+                                 TRUE ~ mean.rdnbr),
+           sd.rdnbr = case_when(!is.na(sd.rdnbr.tmp) ~ sd.rdnbr.tmp,
+                               TRUE ~ sd.rdnbr),
+           Fire.Count = case_when(!is.na(mean.dnbr.tmp) | ! is.na(mean.rdnbr.tmp) ~ Fire.Count + 1,
+                                  TRUE ~ Fire.Count),
+           Fire.Year = case_when(!is.na(mean.dnbr.tmp) | ! is.na(mean.rdnbr.tmp) ~ year,
+                                 TRUE ~ Fire.Year))
+  
+  # finished with one itteration
+  message(paste("extracted covariates for year:", year))
+  
+} # end the loop through years
 
-# 2.2) Manual covariates ##########################################################
+# Remove the temporary attributes
+point_summaries <- point_summaries_fire %>% 
+  dplyr::select(-mean.dnbr.tmp, -mean.rdnbr.tmp, -sd.dnbr.tmp, -sd.rdnbr.tmp) 
+
+# View the covariates
+glimpse(point_summaries)
+
+#export the point summaries
+write.csv(point_summaries, "Data\\Outputs\\point_summaries.csv")
+#And to my box data folder. Feel free to comment this out
+write.csv(sobs, "C:\\Users\\willh\\Box\\Will Harrod MS Project\\Data\\Point_Count\\Cleaned_Data\\point_summaries.csv")
+
+
+# Hopefully I can delete all of this #################################################
 
 #define the "refernce" points that actually burned
 burn_points_99 <- c("UT-C24-P02",
