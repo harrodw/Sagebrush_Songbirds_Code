@@ -298,16 +298,10 @@ date_mat   # scaled date for each visit
 points_mat # Number of points visited during each survey 
 obsv_mat   # Who conducted each survey
 
-# Build a list of observations in each year
-observations_wide <- observations %>%
-  select(Dist.Bin, Visit.ID.num, Year.num, Grid.ID.num) %>%
-  group_by(Visit.ID.num) %>%
-  summarize(Dist.Bin = list(Dist.Bin), Grid.ID = list(Grid.ID.num), Year = list(Year.num), .groups = 'drop') 
-
 # Make each one a separate list
-obs_year_all <- list(observations_wide$Year)[[1]]
-obs_grid_all <- list(observations_wide$Grid.ID)[[1]]
-dclass_all <- list(observations_wide$Dist.Bin)[[1]]
+obs_visit <- observations$Visit.ID.num
+obs_grid <- observations$Grid.ID.num
+dclass <- observations$Dist.Bin
 
 # Loop sizes 
 ngrids <- length(unique(counts$Grid.ID.num))          # Number of survey grids
@@ -356,14 +350,16 @@ sobs_const <- list (
   year = year_mat, # year number
   
   # Non-stochastic constants
-  obs_year_all = obs_year_all, # year when each observation took place
-  obs_grid_all = obs_grid_all # grid of each observation 
+  obs_visit  = obs_visit, # year when each observation took place
+  obs_grid  = obs_grid  # grid of each observation 
 )
+# View
+str(sobs_const)
 
 # Data to be fed into Nimble 
 sobs_dat <- list(
   # Observation Level data
-  dclass_all = dclass_all, # Distance category for each observation
+  dclass = dclass, # Distance category for each observation
   midpt = midpt, # Midpoints of distance bins
   
   #Point level data
@@ -374,9 +370,8 @@ sobs_dat <- list(
   time = time, # scaled mean time after sunrise covariate
   day = day # scaled date covariate
 )
-
-# make sure distance classes are numeric
-sobs_dat$dclass_all <- lapply(sobs_dat$dclass_all, as.numeric)
+# View
+str(sobs_dat)
 
 #set seed
 set.seed(123)
@@ -389,7 +384,8 @@ sobs_dims <- list(
   # fit = nvst,
   # fit.new = nvst,
   EDS = c(ngrids , nvst),
-  EDS.new = c(ngrids, nvst)
+  EDS_new = c(ngrids, nvst),
+  ncap_new = c(ngrids, nvst)
   )
 
 # 2.3) Model definition ################################################################
@@ -451,24 +447,19 @@ sobs_model_code <- nimbleCode({
       
       # Iterate over all of the visits to each survey grid
       for(y in 1:nvst){ 
-        
-        # pull out the valuees for that year for the observation data 
-        obs_grid <- obs_grid_all[[y]]
-        obs_year <- obs_year_all[[y]]
-        dclass <- dclass_all[[y]]
       
       # Model for binned distance observations of every detected individual
       for(i in 1:nind){       # Loop over all detected individuals
-        dclass[i] ~ dcat(fc[obs_grid[i], obs_year[i], 1:nbins]) # distance classes follow a multinational distribution
+        dclass[i] ~ dcat(fc[obs_grid[i], obs_visit[i], 1:nbins]) # distance classes follow a multinational distribution
       }
       
       # Construction of the cell probabilities for the nD distance bands
       for(s in 1:ngrids){  # Loop over all survey grids
         for(b in 1:nbins){       # midpt = mid-point of each distance band
-          log(p[s, y, b]) <- - midpt[b] * midpt[b] / (2 * sigma[s, y]^2) # half-normal detection function
-          pi[s, y, b] <- ((2 * midpt[b] ) / newB^2) * delta # prob density function out to max trucation distance 
+          log(p[s, y, b]) <- - (midpt[b] * midpt[b]) / (2 * sigma[s, y]^2) # half-normal detection function
+          pi[s, y, b] <- ((2 * midpt[b] ) / newB^2) * delta # prob density function out to max truncation distance 
           f[s, y, b] <- p[s, y, b] * pi[s, y, b] # scale cell probability with radial distances
-          fc[s, y, b] <- f[s, y, b] / pcap[s, y] # combined cell probability
+          fc[s, y, b] <- f[s, y, b] / pcap[s, y] # proportion of total probability in each cell probability
         }
         # Rectangular integral approx. of integral that yields the Pr(capture)
         pcap[s, y] <- sum(f[s, y, ])
@@ -511,14 +502,14 @@ sobs_model_code <- nimbleCode({
         EDS[s, y] <- (sqrt(ncap[s, y]) - sqrt(eval[s, y]))^2 
 
         # Generate replicate count data and compute same fit stats for them
-        ncap.new[s, y] ~ dbin(pDS[s, y], N_indv[s, y]) 
-        EDS.new[s, y] <- (sqrt(ncap.new[s, y]) - sqrt(eval[s, y]))^2
+        ncap_new[s, y] ~ dbin(pDS[s, y], N_indv[s, y]) 
+        EDS_new[s, y] <- (sqrt(ncap_new[s, y]) - sqrt(eval[s, y]))^2
       } # end loop through grids
          } # end loop through visits
       
       # Add up fit stats across sites for DS data
       fit <- sum(EDS[,]) 
-      fit.new <- sum(EDS.new[,]) 
+      fit_new <- sum(EDS.new[,]) 
       
       # Compute Bayesian p-value for distance sampling data
       bpv <- step(fit.new - fit)
@@ -575,13 +566,13 @@ sobs_inits <- list(
   beta5 = rnorm(1, 0, 0.1),
   sd.eps = runif(1, 0, 0.1),
   # data
-  N_indv = count_mat + 1 # start each grid with an individual present
+  N_indv = count_mat + 1, # start each grid with an individual present
 )  
 
 # MCMC settings. Pick one, comment out the rest 
-nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1 # test, 30 sec
+# nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1 # test, 30 sec
 # nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 3 # longer test
-# nc <- 3;  ni <- 120000;  nb <- 40000;  nt <- 3   # Run the model for real
+nc <- 3;  ni <- 120000;  nb <- 40000;  nt <- 3   # Run the model for real
 
 #Run the sampler
 start <- Sys.time() #start time for the sampler
