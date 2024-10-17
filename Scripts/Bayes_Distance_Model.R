@@ -353,7 +353,7 @@ sobs_const <- list (
   obs_visit  = obs_visit, # year when each observation took place
   obs_grid  = obs_grid  # grid of each observation 
 )
-# View
+# View Nimble constants 
 str(sobs_const)
 
 # Data to be fed into Nimble 
@@ -370,7 +370,7 @@ sobs_dat <- list(
   time = time, # scaled mean time after sunrise covariate
   day = day # scaled date covariate
 )
-# View
+# View Nimble data 
 str(sobs_dat)
 
 #set seed
@@ -381,66 +381,52 @@ sobs_dims <- list(
   eps = c(ngrids , nvst),       # noise on detection probability
   f = c(ngrids, nvst, nbins),   # cell prob x radial distance
   fc = c(ngrids, nvst, nbins),  # proportion of total detection probability in each cell
-  # fit = nvst,
-  # fit.new = nvst,
   EDS = c(ngrids , nvst),
-  EDS_new = c(ngrids, nvst),
-  ncap_new = c(ngrids, nvst)
+  EDS_new = c(ngrids, nvst)
   )
 
 # 2.3) Model definition ################################################################
 # Add random noise in the detection function intercepts
 # Note all distances are in units of 1km (and area in 1km2 units)
 
-#The model code
+# Model code
 sobs_model_code <- nimbleCode({
       # Priors for all parameters in DS model
       # ------------------------------------------------------------------
     
       # Random noise on availability
-		  sd.eps ~ dunif(0, 5)
+		  sd_eps ~ dunif(0, 5) 
 
       # Parameters in the availability component of the detection model
-      gamma0 <- log(mean.phi)  # phi intercept on log scale and ...
-      mean.phi ~ dunif(0, 50)   # ... on natural scale
-      gamma1 ~ dnorm(0, 50)     # Effect of day of year on singing rate
-      gamma2 ~ dnorm(0, 50)     # Effect of day of year on singing rate (quadratic)
-      gamma3 ~ dnorm(0, 50)     # Effect of time of day on singing rate
-      gamma4 ~ dnorm(0, 50)     # Effect of time of day on singing rate (quadratic)
+      gamma0 ~ dnorm(0, 10)     # mean availbility
+      gamma1 ~ dnorm(0, 10)     # Effect of day of year on singing rate
+      gamma2 ~ dnorm(0, 10)     # Effect of day of year on singing rate (quadratic)
+      gamma3 ~ dnorm(0, 10)     # Effect of time of day on singing rate
+      gamma4 ~ dnorm(0, 10)     # Effect of time of day on singing rate (quadratic)
       
       # Parameters in the detection portion of the model
-      # Random intercept for each observer
-      for(o in 1:nobsv) {     # Loop over 18 observers
-        alpha0[o] ~ dnorm(alpha0.int, sd.alpha0)
+      alpha0 ~ dnorm(0, 10) # Intercept on detectability
+      # offset for each observer 
+      for(o in 1:nobsv) {     # Loop over all observers
+        alpha1[o] ~  dnorm(0, 10)    
       }
-      alpha0.int <- log(mean.sigma)  # sigma intercept on log scale and ...
-      mean.sigma ~ dnorm(0, 50)      # ... on the natural scale (0 - 1 km)
-      sd.alpha0 ~ dunif(0, 5)   # Magnitude of noise in sigma intercept
-      
-      # # zero-inflation Bernoulli probability for each grid conserved across years
-      # for(s in 1:ngrids) {
-      #   logit(psi[s]) ~ dnorm(psi0.int, sd.psi0)
-      # }
-      # psi0.int <- log(mean.psi) # average magnitude of occupancy probability on the log scale
-      # mean.psi ~ dnorm(0, 100) # average magnitude of occupancy probability on the natural scale
-      # sd.psi0 ~ dunif(0, 5) # variation in magnitude of occupancy probability
       
       # Random intercept for each year
+      mean_beta0 ~ T(dnorm(0, 50), 0, Inf)    # truncated so that initial value is within bounds
+      sd_beta0 ~ dunif(0, 5)            # Magnitude of that noise on lambda intercept 
+      # Random intercept for each year
       for(y in 1:nyears) {     # Loop over 3 years
-        beta0[y] ~ dnorm(beta0.int, sd.beta0)
+        beta0[y] ~ dnorm(mean_beta0, sd_beta0)
       }
-      # Priors for yearly abundance intercept
-      beta0.int <- log(mean.lambda)  # lambda intercept on log scale and ...
-      mean.lambda ~ dnorm(0, 50)    # ... on natural scale
-      sd.beta0 ~ dunif(0, 5)         # Magnitude of that noise on lambda intercept 
+  
       
       # Covariates on abundance:
-      beta1 ~ dnorm(0, 50)      # Effect of sagebrush cover
-      beta2 ~ dnorm(0, 50)    # Effect of Perennial Cover
-      beta3 ~ dnorm(0, 50)    # Effect of elevation
-      beta4 ~ dnorm(0, 50)    # Effect of sagebrush cover squared
-      beta5 ~ dnorm(0, 50)    # Effect of perennial cover squared
-      beta6 ~ dnorm(0, 50)    # Effect of elevation squared
+      beta1 ~ dnorm(0, 10)    # Effect of sagebrush cover
+      beta2 ~ dnorm(0, 10)    # Effect of Perennial Cover
+      beta3 ~ dnorm(0, 10)    # Effect of elevation
+      beta4 ~ dnorm(0, 10)    # Effect of sagebrush cover squared
+      beta5 ~ dnorm(0, 10)    # Effect of perennial cover squared
+      beta6 ~ dnorm(0, 10)    # Effect of elevation squared
 
       # -------------------------------------------------------------------
       # Hierarchical construction of the likelihood
@@ -448,15 +434,10 @@ sobs_model_code <- nimbleCode({
       # Iterate over all of the visits to each survey grid
       for(y in 1:nvst){ 
       
-      # Model for binned distance observations of every detected individual
-      for(i in 1:nind){       # Loop over all detected individuals
-        dclass[i] ~ dcat(fc[obs_grid[i], obs_visit[i], 1:nbins]) # distance classes follow a multinational distribution
-      }
-      
       # Construction of the cell probabilities for the nD distance bands
       for(s in 1:ngrids){  # Loop over all survey grids
         for(b in 1:nbins){       # midpt = mid-point of each distance band
-          log(p[s, y, b]) <- - (midpt[b] * midpt[b]) / (2 * sigma[s, y]^2) # half-normal detection function
+          log(p[s, y, b]) <- - (midpt[b] * midpt[b]) / (2 * sigma[s, y] * sigma[s, y]) # half-normal detection function
           pi[s, y, b] <- ((2 * midpt[b] ) / newB^2) * delta # prob density function out to max truncation distance 
           f[s, y, b] <- p[s, y, b] * pi[s, y, b] # scale cell probability with radial distances
           fc[s, y, b] <- f[s, y, b] / pcap[s, y] # proportion of total probability in each cell probability
@@ -464,39 +445,49 @@ sobs_model_code <- nimbleCode({
         # Rectangular integral approx. of integral that yields the Pr(capture)
         pcap[s, y] <- sum(f[s, y, ])
         
-        ### Log-linear models on abundance, detectability, and availability
-        # Abundance (lambda) Log-linear model for abundance
-        log(lambda[s, y]) <- beta0[year[s, y]] +           # random effect of year 
-        beta1 * sage_cvr[s] +                        # Effect of sagebrush cover
-        beta2 *  pern_cvr[s] +                       # Effect of Perennial Cover
-        beta3 * elevation[s] +                       # Effect of elevation
-        beta4 * sage_cvr[s]^2 +                      # Effect of sagebrush cover squared
-        beta5 * pern_cvr[s]^2 +                      # Effect of perennial cover squared
-        beta6 * elevation[s]^2                       # Effect of elevation squared 
+        # Model for binned distance observations of every detected individual
+        for(i in 1:nind){       # Loop over all detected individuals
+          dclass[i] ~ dcat(fc[obs_grid[i], obs_visit[i], 1:nbins]) # distance classes follow a multinational distribution
+        }
         
-        # Detectability (sigma)
-        log(sigma[s, y]) <- alpha0[observers[s, y]] + eps[s, y]  # Log-Linear model for detection probability 
-		    eps[s, y] ~ dnorm(0, sd.eps)                         # Note here eps1 has one precision and below another 
+        ### Log-linear models on abundance, detectability, and availability
+        
+        # Abundance (lambda) Log-linear model 
+        log(lambda[s, y]) <- beta0[year[s, y]] +       # Random effect of year 
+        beta1 * sage_cvr[s] +                          # Effect of sagebrush cover
+        beta2 *  pern_cvr[s] +                         # Effect of Perennial Cover
+        beta3 * elevation[s] +                         # Effect of elevation
+        beta4 * sage_cvr[s]^2 +                        # Effect of sagebrush cover squared
+        beta5 * pern_cvr[s]^2 +                        # Effect of perennial cover squared
+        beta6 * elevation[s]^2                         # Effect of elevation squared 
+        
+        # Detectability (sigma) Log-Linear model 
+        log(sigma[s, y]) <- alpha0 +                   # Intercept on detecability
+                            alpha1[observers[s, y]] +  # Effect of each observer
+                            eps[s, y]                  # Random noise on detecability
+		    eps[s, y] ~ dnorm(0, sd_eps)                   # Note here eps has one precision and below another 
 
         # Availability (phi)
 		    # Log-linear model for availability
-		    logit(phi[s, y]) <- gamma0 +                    # Intercept
+		    logit(phi[s, y]) <- gamma0 +                    # Intercept on availability 
         gamma1 * day[s, y] +                            # Effect of scaled ordinal date 
         gamma2 * day[s, y]^2 +                          # Effect of scaled ordinal date squared 
         gamma3 * time[s, y] +                           # Effect of scaled time of day 
-        gamma4 * time[s, y]^2                           # Effect of scaled time of day aquared 
+        gamma4 * time[s, y]^2                           # Effect of scaled time of day squared 
 
         # Multiply availability with detection probability
         pDS[s, y] <- pcap[s, y] * phi[s, y]
         
         # Zero-inflation component on abundance
-        # present[s, y] ~ dbern(psi[s])
-
+        logit(psi[s]) ~ dnorm(0, 10)                   # occupancy probability
+        present[s] ~ dbern(psi[s])    # Number of grids where that individual can be present
+        mean_psi <- mean(psi[]) # Average occupancy probability
+        
         ### Binomial mixture part (in conditional multinomial specification)
         ncap[s, y] ~ dbin(pDS[s, y], N_indv[s, y])  # Part 2 of HM: number captured
-        N_indv[s, y] ~ dpois(area[s, y] * lambda[s, y]) # Note use of area as an offset  # * present[s, y
+        N_indv[s, y] ~ dpois(area[s, y] * lambda[s, y] * (present[s] + 0.0001)) # Note use of area as an offset  # * present[s, y
                              
-		  # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
+		    # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
         # Compute fit statistic for observed data 
         eval[s, y] <- pDS[s, y] * N_indv[s, y] 
         EDS[s, y] <- (sqrt(ncap[s, y]) - sqrt(eval[s, y]))^2 
@@ -509,70 +500,74 @@ sobs_model_code <- nimbleCode({
       
       # Add up fit stats across sites for DS data
       fit <- sum(EDS[,]) 
-      fit_new <- sum(EDS.new[,]) 
+      fit_new <- sum(EDS_new[,]) 
       
       # Compute Bayesian p-value for distance sampling data
-      bpv <- step(fit.new - fit)
+      bpv <- step(fit_new - fit)
       
 })
+
 
 # 2.4) Configure and Run the model ###########################################################
 
 # Params to save
-sobs_params <- c("mean.sigma", 
-            "alpha0",  
-            "sd.eps", 
-            "mean.sigma",
-            "mean.phi",
-            # "mean.psi",
-            "gamma0", 
-            "gamma1", 
-            "gamma2", 
-            "gamma3", 
-            "gamma4", 
-            "mean.lambda", 
-            "beta0", 
-            "beta1", 
-            "beta2", 
-            "beta3", 
-            "beta4", 
-            "beta5", 
-            "beta6",
-            "sd.beta0", 
-            "beta0.int",
-            "fit", 
-            "fit.new", 
-            "bpv")
+sobs_params <- c("alpha0",
+                 "alpha1",
+                 "sd_eps", 
+                 "mean_psi",
+                 "gamma0", 
+                 "gamma1", 
+                 "gamma2", 
+                 "gamma3", 
+                 "gamma4", 
+                 "beta0", 
+                 "beta1", 
+                 "beta2", 
+                 "beta3", 
+                 "beta4", 
+                 "beta5", 
+                 "beta6",
+                 "fit", 
+                 "fit_new", 
+                 "bpv")
 
-#inits
+# Initial Values
 sobs_inits <- list(
-  # random effects
-  alpha0 = rnorm(nobsv, 0, 0.1),  
-  beta0 = rnorm(nyears, 0, 0.1),
-  eps = matrix(rnorm(1, 0, 0.1),  ngrids, nvst),  
-  # fixed effects
-  mean.sigma = runif(1, 0.1, 0.9), 
-  mean.phi = runif(1, 0.1, 0.9),
-  # mean.psi = rnorm(1, 0, 1),
-  gamma1 = rnorm(1, 0, 0.1), 
-  gamma2 = rnorm(1, 0, 0.1),  
-  gamma3 = rnorm(1, 0, 0.1), 
-  gamma4 = rnorm(1, 0, 0.1),
-  mean.lambda = rnorm(1, 0, 0.1), 
-  beta1 = rnorm(1, 0, 0.1), 
-  beta2 = rnorm(1, 0, 0.1),
-  beta3 = rnorm(1, 0, 0.1),
-  beta4 = rnorm(1, 0, 0.1),
-  beta5 = rnorm(1, 0, 0.1),
-  sd.eps = runif(1, 0, 0.1),
-  # data
-  N_indv = count_mat + 1, # start each grid with an individual present
+  # Detecability 
+  alpha0 = rnorm(1, 0, 0.5),
+  alpha1 = rnorm(nobsv, 0, 0.5),
+  sd_eps = runif(1, 0, 0.5),
+  eps = matrix(runif(1, 0, 0.5),  ngrids, nvst),  
+  # availability 
+  gamma0 = runif(1, 0.1, 0.9),
+  gamma1 = rnorm(1, 0, 0.5), 
+  gamma2 = rnorm(1, 0, 0.5),  
+  gamma3 = rnorm(1, 0, 0.5), 
+  gamma4 = rnorm(1, 0, 0.5),
+  # Abudance 
+  sd_beta0 = runif(1, 0, 1),
+  mean_beta0 = runif(1, 0, 30),
+  beta0 = rnorm(nyears, 0, 0.5),
+  beta1 = rnorm(1, 0, 0.5), 
+  beta2 = rnorm(1, 0, 0.5),
+  beta3 = rnorm(1, 0, 0.5),
+  beta4 = rnorm(1, 0, 0.5),
+  beta5 = rnorm(1, 0, 0.5),
+  beta6 = rnorm(1, 0, 0.5),
+  # Presence 
+  psi = rnorm(ngrids, 0, 0.5),
+  present = bern(ngrids, 0.5),
+  # Data and Simulated data
+  ncap_new = count_mat, # Initialize the new capture data at the exisiting data values
+  N_indv = count_mat + 1 # start each grid with an individual present
 )  
+# View the initial values
+str(sobs_inits)
 
 # MCMC settings. Pick one, comment out the rest 
-# nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1 # test, 30 sec
+nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1 # test, 30 sec
 # nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 3 # longer test
-nc <- 3;  ni <- 120000;  nb <- 40000;  nt <- 3   # Run the model for real
+# nc <- 3;  ni <- 120000;  nb <- 40000;  nt <- 3   # Run the model for real
 
 #Run the sampler
 start <- Sys.time() #start time for the sampler
@@ -590,10 +585,10 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                           samples = TRUE,
                           summary = TRUE
                           )
-difftime(Sys.time(),start) # end time for the sampler
+difftime(Sys.time(), start) # end time for the sampler
 
 #Save model output
-save(sobs_mcmc_out, file = paste0("Model_Files//", soi, "_distance_model_out.rda"))
+saveRDS(sobs_mcmc_out, file = paste0("Model_Files//", soi, "_distance_model_out.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -602,21 +597,20 @@ save(sobs_mcmc_out, file = paste0("Model_Files//", soi, "_distance_model_out.rda
 # 3.1) View model output
 
 #load the output back in
-sobs_mcmc_out <- load(file = paste0("Bayes_Files//", soi, "_distance_model_out.rda"))
+sobs_mcmc_out <- readRDS(file = paste0("Model_Files//", soi, "_distance_model_out.rds"))
 
 #Define which parameters I want to view
-params <- c("mean.sigma", 
+params <- c("mean_sigma", 
             "alpha0",  
-            "sd.eps", 
-            "mean.sigma",
-            "mean.phi",
-            # "mean.psi",
+            "sd_eps", 
+            "mean_phi",
+            # "mean_psi",
             "gamma0", 
             "gamma1", 
             "gamma2", 
             "gamma3", 
             "gamma4", 
-            "mean.lambda", 
+            "mean_lambda", 
             "beta0", 
             "beta1", 
             "beta2", 
@@ -624,10 +618,10 @@ params <- c("mean.sigma",
             "beta4", 
             "beta5", 
             "beta6",
-            "sd.beta0", 
-            "beta0.int",
+            "sd_beta0", 
+            "beta0_int",
             "fit", 
-            "fit.new", 
+            "fit_new", 
             "bpv")
 
 #View MCMC summary
