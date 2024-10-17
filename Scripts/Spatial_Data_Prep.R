@@ -256,4 +256,4 @@ ggplot(grid_covs, aes(x = mean.dnbr, y = Sage.Cover)) +
 #export the point summaries
 write.csv(grid_covs, "Data\\Outputs\\grid_covs.csv")
 #And to my box data folder. Feel free to comment this out
-write.csv(sobs, "C:\\Users\\willh\\Box\\Will Harrod MS Project\\Data\\Point_Count\\Cleaned_Data\\grid_covs.csv")
+write.csv(sobs, "C:\\Users\\willh\\Box\\Will_Harrod _MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\grid_covs.csv")

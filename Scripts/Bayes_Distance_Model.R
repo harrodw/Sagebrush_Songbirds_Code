@@ -589,8 +589,11 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                           parallel = TRUE)
 difftime(Sys.time(), start) # end time for the sampler
 
-#Save model output
+#Save model output to local drive
 saveRDS(sobs_mcmc_out, file = paste0("Model_Files//", soi, "_distance_model_out.rds"))
+# and to Box
+saveRDS(paste0("C:\\Users\\willh\\Box\\Will Harrod MS Project\\Sagebrush_Songbirds_Code\\Model_Files", 
+               soi, "_distance_model_out.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
