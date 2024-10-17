@@ -42,7 +42,7 @@ glimpse(sobs)
 #   dplyr::select(-X) %>%
 #   tibble()
 # or from github
-covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/point_summaries.csv") %>%
+covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
   dplyr::select(-X) %>%
   tibble()
 
@@ -585,8 +585,7 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                           nchains = nc,
                           setSeed = 123,
                           samples = TRUE,
-                          summary = TRUE,
-                          parallel = TRUE)
+                          summary = TRUE)
 difftime(Sys.time(), start) # end time for the sampler
 
 #Save model output to local drive
