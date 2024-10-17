@@ -585,8 +585,8 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                           nchains = nc,
                           setSeed = 123,
                           samples = TRUE,
-                          summary = TRUE
-                          )
+                          summary = TRUE,
+                          parallel = TRUE)
 difftime(Sys.time(), start) # end time for the sampler
 
 #Save model output
