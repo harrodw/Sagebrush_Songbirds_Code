@@ -445,11 +445,6 @@ sobs_model_code <- nimbleCode({
         # Rectangular integral approx. of integral that yields the Pr(capture)
         pcap[s, y] <- sum(f[s, y, ])
         
-        # Model for binned distance observations of every detected individual
-        for(i in 1:nind){       # Loop over all detected individuals
-          dclass[i] ~ dcat(fc[obs_grid[i], obs_visit[i], 1:nbins]) # distance classes follow a multinational distribution
-        }
-        
         ### Log-linear models on abundance, detectability, and availability
         
         # Abundance (lambda) Log-linear model 
@@ -478,11 +473,6 @@ sobs_model_code <- nimbleCode({
         # Multiply availability with detection probability
         pDS[s, y] <- pcap[s, y] * phi[s, y]
         
-        # Zero-inflation component on abundance
-        logit(psi[s]) ~ dnorm(0, 10)                   # occupancy probability
-        present[s] ~ dbern(psi[s])    # Number of grids where that individual can be present
-        mean_psi <- mean(psi[]) # Average occupancy probability
-        
         ### Binomial mixture part (in conditional multinomial specification)
         ncap[s, y] ~ dbin(pDS[s, y], N_indv[s, y])  # Part 2 of HM: number captured
         N_indv[s, y] ~ dpois(area[s, y] * lambda[s, y] * (present[s] + 0.0001)) # Note use of area as an offset  # * present[s, y
@@ -497,6 +487,18 @@ sobs_model_code <- nimbleCode({
         EDS_new[s, y] <- (sqrt(ncap_new[s, y]) - sqrt(eval[s, y]))^2
       } # end loop through grids
          } # end loop through visits
+      
+      # Model for binned distance observations of every detected individual
+      for(i in 1:nind){       # Loop over all detected individuals
+        dclass[i] ~ dcat(fc[obs_grid[i], obs_visit[i], 1:nbins]) # distance classes follow a multinational distribution
+      }
+      
+      # Zero-inflation component on abundance
+      for(s in 1:ngrids){
+      logit(psi[s]) ~ dnorm(0, 10)   # occupancy probability
+      present[s] ~ dbern(psi[s])     # Number of grids where that individual can be present
+      }
+      mean_psi <- mean(psi[])        # Average occupancy probability
       
       # Add up fit stats across sites for DS data
       fit <- sum(EDS[,]) 
@@ -556,7 +558,7 @@ sobs_inits <- list(
   beta6 = rnorm(1, 0, 0.5),
   # Presence 
   psi = rnorm(ngrids, 0, 0.5),
-  present = bern(ngrids, 0.5),
+  present = rbinom(ngrids, 1, 0.5),
   # Data and Simulated data
   ncap_new = count_mat, # Initialize the new capture data at the exisiting data values
   N_indv = count_mat + 1 # start each grid with an individual present
@@ -565,9 +567,9 @@ sobs_inits <- list(
 str(sobs_inits)
 
 # MCMC settings. Pick one, comment out the rest 
-nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1 # test, 30 sec
+# nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1 # test, 30 sec
 # nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 3 # longer test
-# nc <- 3;  ni <- 120000;  nb <- 40000;  nt <- 3   # Run the model for real
+nc <- 4;  ni <- 120000;  nb <- 40000;  nt <- 2   # Run the model for real
 
 #Run the sampler
 start <- Sys.time() #start time for the sampler
@@ -620,19 +622,19 @@ params <- c("mean_sigma",
             "beta6",
             "sd_beta0", 
             "beta0_int",
-            "fit", 
-            "fit_new", 
+            # "fit", 
+            # "fit_new", 
             "bpv")
 
 #View MCMC summary
-MCMCsummary(object = sobs_mcmc_out, round = 2)
+MCMCsummary(object = sobs_mcmc_out$samples, round = 2)
 
 #View an MCMC plot
-MCMCplot(object = sobs_mcmc_out,
+MCMCplot(object = sobs_mcmc_out$samples,
          params = params)
 
 #Traceplots and density graphs 
-MCMCtrace(object = sobs_mcmc_out,
+MCMCtrace(object = sobs_mcmc_out$samples,
           pdf = FALSE,
           ind = TRUE, 
           params = params)
