@@ -32,6 +32,11 @@ point_covs <- tibble(read.csv("Data\\Outputs\\point_summaries.csv")) %>%
 #View covariates
 glimpse(point_covs)
 
+# view the burn sevarities that are negative
+point_covs %>% 
+  filter(mean.dnbr < 0) %>% 
+  print(n = Inf)
+
 #Transform into a table with each species observations by visit ----------------
 #define relevant species
 important_species <- c("BRSP", "SATH", "SABS", "GTTO",
@@ -399,12 +404,45 @@ sobs_count %>%
 
 #View time since fire
 sobs_count %>% 
-  filter(!is.na(Fire.Year)) %>%
-  ggplot(aes(x = Years.Since.Fire, y = Count, col = "darkred")) +
-  geom_point() +
-  geom_smooth() +
+  filter(Years.Since.Fire < 100) %>% 
+  ggplot(aes(x = Years.Since.Fire, y = Count)) +
+  geom_point(color = "darkred") +      
+  geom_smooth(method = "glm", 
+              method.args = list(family = "poisson"),  
+              formula = y ~ x,                        
+              color = "darkred") +                    
   facet_wrap(~Species)
 
+# plot species counts against burn sevarity (dnbr)
+sobs_count %>% 
+  filter(Years.Since.Fire < 100) %>% 
+  ggplot(aes(x = mean.rdnbr, y = Count)) +
+  geom_point(color = "darkred") +      
+  geom_smooth(method = "glm", 
+              method.args = list(family = "poisson"),  
+              formula = y ~ x,                        
+              color = "darkred") +                    
+  facet_wrap(~Species)
+
+# plot shrub cover against dnbr and rdnbr
+sobs_count %>% 
+  filter(mean.dnbr > 0) %>% 
+  filter(Year == "Y3" & Visit == "V1") %>% 
+  ggplot(aes(x = mean.dnbr, y = Sage.Cover)) +
+  geom_point() +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "gaussian"),  
+              formula = y ~ x,)
+
+# plot shrub cover against dnbr and rdnbr
+sobs_count %>% 
+  filter(mean.dnbr > 0) %>% 
+  filter(Year == "Y3" & Visit == "V1") %>% 
+  ggplot(aes(x = mean.dnbr, y = Sage.Cover)) +
+  geom_point() +
+  geom_smooth()
+
+hist(point_covs$mean.dnbr)
 #And the interaction
 sobs_count %>% 
   filter(!is.na(Fire.Year)) %>%

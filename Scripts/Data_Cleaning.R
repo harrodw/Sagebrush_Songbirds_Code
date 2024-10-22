@@ -909,7 +909,7 @@ glimpse(surveys_24_raw)
 glimpse(surveys_22_raw)
 
 #object for renaming 2022 surveys
-surveys_22_names <- c(Route.ID = "Transect.ID",
+surveys_22_names <- c(Grid.ID = "Transect.ID",
                       Visit = "Visit..",
                       Observer.ID = "Observer.Name",
                       Temp.Start = "Start.Temperature",
@@ -924,7 +924,7 @@ surveys_22_names <- c(Route.ID = "Transect.ID",
 #rename and select useful columns
 surveys_22 <- surveys_22_raw %>% 
   dplyr::rename(all_of(surveys_22_names)) %>% 
-  dplyr::select(Route.ID, Visit, Date.Time,
+  dplyr::select(Grid.ID, Visit, Date.Time,
          Observer.ID,
          Sky.Start, Sky.End, Temp.Start, 
          Temp.End, Wind.Start, Wind.End,
@@ -942,7 +942,7 @@ glimpse(surveys_22)
 glimpse(surveys_23_raw)
 
 #object for renaming 2023 surveys
-surveys_23_names <- c(Route.ID = "Route.ID",
+surveys_23_names <- c(Grid.ID = "Route.ID",
                       Year = "Year",
                       Visit = "Visit.Number",
                       Observer.ID = "Observer.Name",
@@ -959,7 +959,7 @@ surveys_23_names <- c(Route.ID = "Route.ID",
 #rename and slect useful columns
 surveys_23 <- surveys_23_raw %>% 
   dplyr::rename(all_of(surveys_23_names)) %>% 
-  dplyr::select(Route.ID, Year, Visit, Date.Time,
+  dplyr::select(Grid.ID, Year, Visit, Date.Time,
          Observer.ID, Route.Notes,
          Sky.Start, Sky.End, Temp.Start, 
          Temp.End, Wind.Start, Wind.End,
@@ -977,7 +977,8 @@ glimpse(surveys_23)
 glimpse(surveys_24_raw)
 
 #object for renaming 2024 surveys
-surveys_24_names <- c(GlobalID.Survey = "GlobalID",
+surveys_24_names <- c(Grid.ID = "Route.ID",
+                      GlobalID.Survey = "GlobalID",
                       Observer.ID = "Observer.Name",
                       Visit = "Visit.Number",
                       Temp.Start = "Start.Temperature..Celcius.",
@@ -987,7 +988,7 @@ surveys_24_names <- c(GlobalID.Survey = "GlobalID",
 #rename and slect useful columns
 surveys_24 <- surveys_24_raw %>% 
   dplyr::rename(all_of(surveys_24_names)) %>% 
-  dplyr::select(Route.ID, Year, Visit, Date.Time,
+  dplyr::select(Grid.ID, Year, Visit, Date.Time,
                 Observer.ID, Route.Notes,
                 Sky.Start, Sky.End, Temp.Start, 
                 Temp.End, Wind.Start, Wind.End,
@@ -1166,7 +1167,7 @@ surveys_clean_year %>%
 #Where are the NA's?
 surveys_clean_year %>% 
   filter(is.na(Year)) %>%  
-  dplyr::select(Route.ID, Date, Year) %>% 
+  dplyr::select(Grid.ID, Date, Year) %>% 
   arrange(Date) %>% 
   base::print(n = Inf)
 #All 2022's
@@ -1186,280 +1187,280 @@ surveys_clean_year %>%
   dplyr::select(Year, Date) %>% 
   base::print(n = Inf)
 
-#Fix route ID's -------------------------------------------------
-surveys_clean_route <- surveys_clean_year
+#Fix Grid ID's -------------------------------------------------
+surveys_clean_Grid <- surveys_clean_year
 
-#view all the route id's
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+#view all the Grid id's
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
 
-#View a specific route id
-surveys_clean_route %>% 
-  filter(Route.ID == "B-4")
+#View a specific Grid id
+surveys_clean_Grid %>% 
+  filter(Grid.ID == "B-4")
 
 #Clean up transect codes
-surveys_clean_route <- surveys_clean_route %>%
-  mutate(Route.ID = case_when( 
-    Route.ID %in% c("UT-B1", "B1", "UT-B01") ~ "UT-B01", #some of these came from
-    Route.ID %in% c("UT-C1", "UT-C01") ~ "UT-C01",       #ruling out other possibilities in
-    Route.ID %in% c("UT-B2", "UT-B02") ~ "UT-B02",       #the dataset. Others came from
-    Route.ID %in% c("UT-C2", "C2") ~ "UT-C02",       #looking at coordinates in arc
-    Route.ID %in% c("UT-B5", "B5") ~ "UT-B05",
-    Route.ID %in% c("UT-C5", "C5") ~ "UT-C05",
-    Route.ID %in% c("UT-B6", "UT-B6-P1") ~ "UT-B06",
-    Route.ID %in% c("UT-C6", "UT-C06") ~ "UT-C06",
-    Route.ID %in% c("UT-B8") ~ "UT-B08",
-    Route.ID %in% c("UT-C8", "C8", "UT-C08") ~ "UT-C08",
-    Route.ID %in% c("B27") ~ "UT-B27",
-    Route.ID %in% c("UT_C15") ~ "UT-C15",
-    Route.ID %in% c("B15") ~ "UT-B15",
-    Route.ID %in% c("UT_C16") ~ "UT-C16",
-    Route.ID %in% c("B16") ~ "UT-B16",
-    Route.ID %in% c("B17") ~ "UT-B17",
-    Route.ID %in% c("UT-C") ~ "UT-C19",
-    Route.ID %in% c("B19") ~ "UT-B19",
-    Route.ID %in% c("B22") ~ "UT-B22",
-    Route.ID %in% c("C24") ~ "UT-C24",
-    Route.ID %in% c("UT_C25") ~ "UT-C25",
-    Route.ID %in% c("ID-B3", "ID_B3") ~ "ID-B03",
-    Route.ID %in% c("ID-C3", "ID_C3", "C3") ~ "ID-C03",
-    Route.ID %in% c("ID-B4") ~ "ID-B04",
-    Route.ID %in% c("ID-C4", "C4", "B-4") ~ "ID-C04", #The B-4 obs was incorrectly labeled
-    Route.ID %in% c("ID-B7") ~ "ID-B07",
-    Route.ID %in% c("ID-C7", "ID C7") ~ "ID-C07",
-    Route.ID %in% c("ID-B9") ~ "ID-B09",
-    Route.ID %in% c("ID-C9") ~ "ID-C09",
-    Route.ID %in% c("ID_B19") ~ "ID-B19",
-    Route.ID %in% c("ID_B21") ~ "ID-B21",
-    Route.ID %in% c("ID_B26") ~ "ID-B26",
-    Route.ID %in% c("ID_B28") ~ "ID-B28",
-    Route.ID %in% c("ID_C12") ~ "ID-C12",
-    Route.ID %in% c("ID_C15") ~ "ID-C15",
-    Route.ID %in% c("ID_C19") ~ "ID-C19",
-    Route.ID %in% c("ID_C26") ~ "ID-C26",
-    Route.ID %in% c("ID_") ~ "ID-B19",
-    TRUE ~ as.character(Route.ID)
+surveys_clean_Grid <- surveys_clean_Grid %>%
+  mutate(Grid.ID = case_when( 
+    Grid.ID %in% c("UT-B1", "B1", "UT-B01") ~ "UT-B01", #some of these came from
+    Grid.ID %in% c("UT-C1", "UT-C01") ~ "UT-C01",       #ruling out other possibilities in
+    Grid.ID %in% c("UT-B2", "UT-B02") ~ "UT-B02",       #the dataset. Others came from
+    Grid.ID %in% c("UT-C2", "C2") ~ "UT-C02",       #looking at coordinates in arc
+    Grid.ID %in% c("UT-B5", "B5") ~ "UT-B05",
+    Grid.ID %in% c("UT-C5", "C5") ~ "UT-C05",
+    Grid.ID %in% c("UT-B6", "UT-B6-P1") ~ "UT-B06",
+    Grid.ID %in% c("UT-C6", "UT-C06") ~ "UT-C06",
+    Grid.ID %in% c("UT-B8") ~ "UT-B08",
+    Grid.ID %in% c("UT-C8", "C8", "UT-C08") ~ "UT-C08",
+    Grid.ID %in% c("B27") ~ "UT-B27",
+    Grid.ID %in% c("UT_C15") ~ "UT-C15",
+    Grid.ID %in% c("B15") ~ "UT-B15",
+    Grid.ID %in% c("UT_C16") ~ "UT-C16",
+    Grid.ID %in% c("B16") ~ "UT-B16",
+    Grid.ID %in% c("B17") ~ "UT-B17",
+    Grid.ID %in% c("UT-C") ~ "UT-C19",
+    Grid.ID %in% c("B19") ~ "UT-B19",
+    Grid.ID %in% c("B22") ~ "UT-B22",
+    Grid.ID %in% c("C24") ~ "UT-C24",
+    Grid.ID %in% c("UT_C25") ~ "UT-C25",
+    Grid.ID %in% c("ID-B3", "ID_B3") ~ "ID-B03",
+    Grid.ID %in% c("ID-C3", "ID_C3", "C3") ~ "ID-C03",
+    Grid.ID %in% c("ID-B4") ~ "ID-B04",
+    Grid.ID %in% c("ID-C4", "C4", "B-4") ~ "ID-C04", #The B-4 obs was incorrectly labeled
+    Grid.ID %in% c("ID-B7") ~ "ID-B07",
+    Grid.ID %in% c("ID-C7", "ID C7") ~ "ID-C07",
+    Grid.ID %in% c("ID-B9") ~ "ID-B09",
+    Grid.ID %in% c("ID-C9") ~ "ID-C09",
+    Grid.ID %in% c("ID_B19") ~ "ID-B19",
+    Grid.ID %in% c("ID_B21") ~ "ID-B21",
+    Grid.ID %in% c("ID_B26") ~ "ID-B26",
+    Grid.ID %in% c("ID_B28") ~ "ID-B28",
+    Grid.ID %in% c("ID_C12") ~ "ID-C12",
+    Grid.ID %in% c("ID_C15") ~ "ID-C15",
+    Grid.ID %in% c("ID_C19") ~ "ID-C19",
+    Grid.ID %in% c("ID_C26") ~ "ID-C26",
+    Grid.ID %in% c("ID_") ~ "ID-B19",
+    TRUE ~ as.character(Grid.ID)
   ))
 
-#view cleaned route id's
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+#view cleaned Grid id's
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
-#There are a couple incorrect routes
+#There are a couple incorrect Grids
 
 #Fix plots where Plot ID doesn't line up with plot type ---------------------------------------------
 
-#Start changing the incorrect routes or visits one by one
+#Start changing the incorrect Grids or visits one by one
 #Look at specific surveys ##############
-surveys_clean_route %>%
-  filter(Route.ID == "ID-B19") %>% #Only care about the one route
-  dplyr::select(Observer.ID, Date, Visit, Route.ID) # only need a few columns
+surveys_clean_Grid %>%
+  filter(Grid.ID == "ID-B19") %>% #Only care about the one Grid
+  dplyr::select(Observer.ID, Date, Visit, Grid.ID) # only need a few columns
 
-#One of that route's observations was labeled ID-B24
+#One of that Grid's observations was labeled ID-B24
 #I know from arc that the 6/28 one is incorrectly labeled
-surveys_clean_route <- surveys_clean_route %>%
-  mutate(Route.ID = case_when(Route.ID == "ID-B24" & Date.Time == "6/28/2022 12:38:00 PM"
+surveys_clean_Grid <- surveys_clean_Grid %>%
+  mutate(Grid.ID = case_when(Grid.ID == "ID-B24" & Date.Time == "6/28/2022 12:38:00 PM"
                               ~ "ID-B04",
-                                     TRUE ~ as.character(Route.ID)))
+                                     TRUE ~ as.character(Grid.ID)))
 
 #View UT-B01
-surveys_clean_route %>%
-  filter(Route.ID == "UT-B01" & Year == "Y1") #Only care about the one route
+surveys_clean_Grid %>%
+  filter(Grid.ID == "UT-B01" & Year == "Y1") #Only care about the one Grid
 #I will treat everything on 6/2/2022 as training. I am removing those 
 
 #make sure nothing else happened on 6/2/2022
-surveys_clean_route %>%
+surveys_clean_Grid %>%
   filter(Date == 2022-06-2)
 
 #View surveys before the change
-nrow(surveys_clean_route)
+nrow(surveys_clean_Grid)
 
 #Remove the surveys from training days
-surveys_clean_route <- surveys_clean_route %>%
+surveys_clean_Grid <- surveys_clean_Grid %>%
   filter(Date != '2022-06-2')
 #I will treat everything on 6/2/2022 as training. I am removing those 
 
 #View surveys after the change
-nrow(surveys_clean_route)
+nrow(surveys_clean_Grid)
 
 #Fix UT-C24
-surveys_clean_route %>%
-  filter(Route.ID == "UT-C24") %>% #View UT-B24 routes
-  dplyr::select(Observer.ID, Date.Time, Visit, Route.ID) # only need a few columns
+surveys_clean_Grid %>%
+  filter(Grid.ID == "UT-C24") %>% #View UT-B24 Grids
+  dplyr::select(Observer.ID, Date.Time, Visit, Grid.ID) # only need a few columns
 #Austin's UT-B24 survey should be UT-C24
 
 #Make sure nothing else had that start time
-surveys_clean_route %>% 
+surveys_clean_Grid %>% 
   filter(Date.Time == "6/10/2022 12:29:00 PM")
 
 #change that observation
-surveys_clean_route <- surveys_clean_route %>%
-  mutate(Route.ID = case_when(Date.Time == "6/10/2022 12:29:00 PM" ~ "UT-C24",
-                              TRUE ~ Route.ID))
+surveys_clean_Grid <- surveys_clean_Grid %>%
+  mutate(Grid.ID = case_when(Date.Time == "6/10/2022 12:29:00 PM" ~ "UT-C24",
+                              TRUE ~ Grid.ID))
 
 #Emily's UT-C16 survey on June 14th and Ben/Aidan's ID-C09 survey on May 24th should be removed
 #Define and remove those surveys
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Remove = case_when(Route.ID == "ID-B09" & Date == ymd("2024-05-24") ~ T,
-                            Route.ID == "UT-C16" & Date == ymd("2024-06-14") ~ T,
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Remove = case_when(Grid.ID == "ID-B09" & Date == ymd("2024-05-24") ~ T,
+                            Grid.ID == "UT-C16" & Date == ymd("2024-06-14") ~ T,
                             TRUE ~ F)) %>% 
   filter(Remove == F) %>% 
   dplyr::select(-Remove)
 
 #View surveys after the change
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
 
 #Fix UT-B24
 #One is recorded as UT-B08, the other as UT-B25
-#View those routes
-surveys_clean_route %>% 
-  filter(Route.ID == "UT-B08" | 
-           Route.ID == "UT-B25") %>% 
-  dplyr::select(Route.ID, Date.Time, Observer.ID)
+#View those Grids
+surveys_clean_Grid %>% 
+  filter(Grid.ID == "UT-B08" | 
+           Grid.ID == "UT-B25") %>% 
+  dplyr::select(Grid.ID, Date.Time, Observer.ID)
 
 #View the date and time of the incrrect ones
-surveys_clean_route %>% 
+surveys_clean_Grid %>% 
   filter(Date.Time == "6/10/2022 1:00:00 PM" | 
            Date.Time == "5/25/2023 11:58:00 AM") %>% 
-  dplyr::select(Route.ID, Date.Time, Observer.ID)
+  dplyr::select(Grid.ID, Date.Time, Observer.ID)
 
-#switch those over to the correct route
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Date.Time == "6/10/2022 1:00:00 PM" ~ "UT-B24",
+#switch those over to the correct Grid
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Date.Time == "6/10/2022 1:00:00 PM" ~ "UT-B24",
            Date.Time == "5/25/2023 11:58:00 AM"~ "UT-B24",
-           TRUE ~ Route.ID))
+           TRUE ~ Grid.ID))
 
 #View surveys after the change
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
 #looks good 
 
 #Fix UT-B08
 #One of the UT-B08's is labeled UT-C08
-#View those routes
-surveys_clean_route %>% 
-  filter(Route.ID == "UT-B08" | 
-           Route.ID == "UT-C08") %>% 
-  dplyr::select(Route.ID, Date.Time, Observer.ID)
+#View those Grids
+surveys_clean_Grid %>% 
+  filter(Grid.ID == "UT-B08" | 
+           Grid.ID == "UT-C08") %>% 
+  dplyr::select(Grid.ID, Date.Time, Observer.ID)
 
 #View the date and time of the incorrect one
-surveys_clean_route %>% 
+surveys_clean_Grid %>% 
   filter(Date.Time == "6/10/2022 1:43:00 PM") %>% 
-  dplyr::select(Route.ID, Date.Time, Observer.ID)
+  dplyr::select(Grid.ID, Date.Time, Observer.ID)
 
-#switch those over to the correct route
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Date.Time == "6/10/2022 1:43:00 PM" ~ "UT-B08",
-                              TRUE ~ Route.ID))
+#switch those over to the correct Grid
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Date.Time == "6/10/2022 1:43:00 PM" ~ "UT-B08",
+                              TRUE ~ Grid.ID))
 
 #View surveys after the change
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf) 
 #looks good 
 
 #Fix UT-C16
 #One of the UT-C16's is labeled UT-C30
 #View the date and time of the incorrect one
-surveys_clean_route %>% 
+surveys_clean_Grid %>% 
   filter(Date.Time == "7/12/2022 1:08:00 PM") %>% 
-  dplyr::select(Route.ID, Date.Time, Observer.ID)
+  dplyr::select(Grid.ID, Date.Time, Observer.ID)
 #There are two with this date and time
 
-#switch one over to the correct route
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Date.Time == "7/12/2022 1:08:00 PM" &
-                                Route.ID == "UT-C30" ~ "UT-C16",
-                              TRUE ~ Route.ID))
+#switch one over to the correct Grid
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Date.Time == "7/12/2022 1:08:00 PM" &
+                                Grid.ID == "UT-C30" ~ "UT-C16",
+                              TRUE ~ Grid.ID))
 
 #View surveys after the change
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf) 
 
 #Fix UT-C22
 #One of the surveys is labeled ID-C22
 
 #View the incorrect survey
-surveys_clean_route %>% 
+surveys_clean_Grid %>% 
   filter(Date.Time == "6/12/2023 12:22:00 PM") %>% 
-  dplyr::select(Route.ID, Date.Time, Observer.ID)
+  dplyr::select(Grid.ID, Date.Time, Observer.ID)
 
-#switch it over to the correct route
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Date.Time == "6/12/2023 12:22:00 PM" ~ "UT-C22",
-                              TRUE ~ Route.ID))
+#switch it over to the correct Grid
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Date.Time == "6/12/2023 12:22:00 PM" ~ "UT-C22",
+                              TRUE ~ Grid.ID))
 
 #View surveys after the change
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf) 
 
 #There are too many ID-B19's. View them 
-surveys_clean_route %>% 
-  distinct(Observer.ID, Route.ID, Date) %>% 
-  filter(Route.ID == "ID-B19")
+surveys_clean_Grid %>% 
+  distinct(Observer.ID, Grid.ID, Date) %>% 
+  filter(Grid.ID == "ID-B19")
 
 #Change Holden's ID-B19 to UT-B19
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Route.ID == "ID-B19" & Date == 20240610 
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Grid.ID == "ID-B19" & Date == 20240610 
                               ~ "UT-B19",
-                              TRUE ~ Route.ID))
+                              TRUE ~ Grid.ID))
 
 #There are too many ID-C24's in Y3. View them 
-surveys_clean_route %>% 
-  distinct(Observer.ID, Route.ID, Visit, Date) %>% 
-  filter(Route.ID == "ID-C24")
+surveys_clean_Grid %>% 
+  distinct(Observer.ID, Grid.ID, Visit, Date) %>% 
+  filter(Grid.ID == "ID-C24")
 
 
 #Change V1 ID-C24 to UT-C24
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Observer.ID == "Ben Zimmermann" & Date == 20240516 
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Observer.ID == "Ben Zimmermann" & Date == 20240516 
                               ~ "UT-C24",
-                              TRUE ~ Route.ID
+                              TRUE ~ Grid.ID
   ))
 
 #There are too many ID-B19's. View them 
-surveys_clean_route %>% 
-  distinct(Observer.ID, Route.ID, Date) %>% 
-  filter(Route.ID == "ID-B19")
+surveys_clean_Grid %>% 
+  distinct(Observer.ID, Grid.ID, Date) %>% 
+  filter(Grid.ID == "ID-B19")
 
 #Change Holden's ID-B19 to UT-B19
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Route.ID == "ID-B19" & Date == ymd("2024-06-10") 
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Grid.ID == "ID-B19" & Date == ymd("2024-06-10") 
                               ~ "UT-B19",
-                              TRUE ~ Route.ID))
+                              TRUE ~ Grid.ID))
 
 #There are too many ID-C24's. View them 
-surveys_clean_route %>% 
-  distinct(Observer.ID, Route.ID, Visit, Date) %>% 
-  filter(Route.ID == "ID-C24")
+surveys_clean_Grid %>% 
+  distinct(Observer.ID, Grid.ID, Visit, Date) %>% 
+  filter(Grid.ID == "ID-C24")
 
 #Change V1 ID-C24 to UT-C24
-surveys_clean_route <- surveys_clean_route %>% 
-  mutate(Route.ID = case_when(Route.ID == "ID-C24" & Date == ymd("20240516")
+surveys_clean_Grid <- surveys_clean_Grid %>% 
+  mutate(Grid.ID = case_when(Grid.ID == "ID-C24" & Date == ymd("20240516")
                               ~ "UT-C24",
-                              TRUE ~ Route.ID
+                              TRUE ~ Grid.ID
   ))
 
-#view cleaned route id's
-surveys_clean_route %>% 
-  dplyr::count(Route.ID) %>% 
+#view cleaned Grid id's
+surveys_clean_Grid %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
 
 #That's all of the ones that I know how to fix
 #ID-C11 and ID-C22 might just only have three surveys and that's okay
 
 #Fix 2024 observer names -----------------------------
-surveys_clean_obs <- surveys_clean_route
+surveys_clean_obs <- surveys_clean_Grid
 
-#Combine route ID and visit number
+#Combine Grid ID and visit number
 surveys_clean_obs <- surveys_clean_obs %>% 
-  mutate(Visit.ID = paste0(Route.ID, "-", Visit))
+  mutate(Visit.ID = paste0(Grid.ID, "-", Visit))
 #...and view
 glimpse(surveys_clean_obs)
 
@@ -1542,13 +1543,13 @@ surveys_clean_burn <- surveys_clean_obs
 
 #classify burned and unburned 
 surveys_clean_burn <- surveys_clean_burn %>% 
-  mutate(Route.Type = case_when(str_detect(Route.ID, "C") ~ "R",
-                                str_detect(Route.ID, "B") ~ "B",
+  mutate(Grid.Type = case_when(str_detect(Grid.ID, "C") ~ "R",
+                                str_detect(Grid.ID, "B") ~ "B",
                                 TRUE ~ NA))
 
 #Make sure it worked
 surveys_clean_burn %>% 
-  dplyr::select(Route.ID, Route.Type) %>% 
+  dplyr::select(Grid.ID, Grid.Type) %>% 
   base::print(n = Inf)
 
 #Fix Visit Number ------------------------------------------------------------------------
@@ -1560,9 +1561,9 @@ surveys_clean_visit %>%
 
 #View the V3's
 surveys_clean_visit %>% 
-  filter(Route.ID %in% c("UT-C24", "UT-C08")) %>% 
-  dplyr::select(Route.ID, Visit, Date) %>% 
-  arrange(Route.ID)
+  filter(Grid.ID %in% c("UT-C24", "UT-C08")) %>% 
+  dplyr::select(Grid.ID, Visit, Date) %>% 
+  arrange(Grid.ID)
 #Not sure why they're here
 
 #Standardize visit number 
@@ -1579,9 +1580,9 @@ surveys_clean_visit %>%
   dplyr::summarise(Count = n()) %>% 
   ungroup()
 
-#How many of each visit did each route get
+#How many of each visit did each Grid get
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
@@ -1589,209 +1590,209 @@ surveys_clean_visit %>%
 #Fix individual Visits -------------------------------------------------------
 #ID-B04 had 2 V2's and no V1 in Y2--
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-B04") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-B04") %>% 
+  dplyr::select(Grid.ID, Year, Observer.ID, Visit, Date, Date.Time)
 
 #Update the 2nd visit from Y2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/8/2023 12:10:00 PM"
-                           & Route.ID == "ID-B04" ~ "V1", 
+                           & Grid.ID == "ID-B04" ~ "V1", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-B11 had 2 V1's in Y2--
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-B11") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-B11") %>% 
+  dplyr::select(Grid.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 1st visit from Y2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/6/2023 12:47:00 PM"
-                           & Route.ID == "ID-B11" ~ "V2", 
+                           & Grid.ID == "ID-B11" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-B12 had 2 V1's in Y2--
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-B12") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-B12") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Update the 2nd visit from Y2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/12/2023 11:50:00 AM"
-                           & Route.ID == "ID-B12" ~ "V2", 
+                           & Grid.ID == "ID-B12" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-B19 had 2 V1's in Y1--
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-B19") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-B19") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Those are true V1's no need to change anything
 
 #ID-C07 had 2 V1's in Y2 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-C07") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-C07") %>% 
+  dplyr::select(Grid.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 2nd visit from Y2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/6/2023 12:44:00 PM"
-                           & Route.ID == "ID-C07" ~ "V2", 
+                           & Grid.ID == "ID-C07" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-C09 had 3 V2's in Y2 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-C09") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-C09") %>% 
+  dplyr::select(Grid.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 1st visit from Y2
 #The other is a real second V2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/19/2023 12:20:00 PM"
-                           & Route.ID == "ID-C09" ~ "V1", 
+                           & Grid.ID == "ID-C09" ~ "V1", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-C11 had 2 V1's in Y2 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-C11") %>% 
-  dplyr::select(Route.ID, Year, Observer.ID, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-C11") %>% 
+  dplyr::select(Grid.ID, Year, Observer.ID, Visit, Date, Date.Time)
 #Update the 2nd visit from Y2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/6/2023 12:38:00 PM"
-                           & Route.ID == "ID-C11" ~ "V2", 
+                           & Grid.ID == "ID-C11" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #UT-B15 had 2 V2's in Y1 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "UT-B15") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "UT-B15") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #There were two V2's so no need to change anything
 
 #UT-B16 had 2 V2's in Y2 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "UT-B16") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "UT-B16") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #The extra Y1 visit is a real extra visit
 #Update the first visit from Y2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/9/2023 12:37:00 PM"
-                           & Route.ID == "UT-B16" ~ "V1", 
+                           & Grid.ID == "UT-B16" ~ "V1", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #UT-B30 had 2 V2's in Y1 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "UT-B30") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "UT-B30") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #The extra Y2 visit is a real extra visit
 
 #UT-C19 had 3 V1's in Y2 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "UT-C19") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "UT-C19") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #There were two V2's in Y2 but they were both labeled V1
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time %in% c("6/6/2023 11:42:00 AM", 
                                                 "6/6/2023 11:45:00 AM") 
-                           & Route.ID == "UT-C19" ~ "V2", 
+                           & Grid.ID == "UT-C19" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #UT-C30 had 2 V1's in Y2 --
 surveys_clean_visit %>% 
-  filter(Route.ID == "UT-C30") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "UT-C30") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Switch the second visit in Y2 to V2
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time == "6/6/2023 11:30:00 AM"
-                           & Route.ID == "UT-C30" ~ "V2", 
+                           & Grid.ID == "UT-C30" ~ "V2", 
                            TRUE ~ Visit))
 #Did that fix it
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>% 
   base::print(n = Inf)
 
 #ID-C07 has an extra Y1 V1
 surveys_clean_visit %>% 
-  filter(Route.ID == "ID-C07") %>% 
-  dplyr::select(Route.ID, Observer.ID, Year, Visit, Date, Date.Time)
+  filter(Grid.ID == "ID-C07") %>% 
+  dplyr::select(Grid.ID, Observer.ID, Year, Visit, Date, Date.Time)
 #Fix the incorrect one
 surveys_clean_visit <- surveys_clean_visit %>% 
   mutate(Visit = case_when(Date.Time %in% c("6/27/2022 12:57:00 PM", 
                                                 "6/27/2022 1:01:00 PM") 
-                           & Route.ID == "ID-C07" ~ "V2", 
+                           & Grid.ID == "ID-C07" ~ "V2", 
                            TRUE ~ Visit))
 
 #I recorded ID-B22's Y3-V1 as V2, same with ID-C09
 surveys_clean_visit <- surveys_clean_visit %>% 
-  mutate(Visit = case_when(Route.ID == "ID-B22" & Observer.ID == "Will" 
+  mutate(Visit = case_when(Grid.ID == "ID-B22" & Observer.ID == "Will" 
                            ~ "V1",
-                           Route.ID == "ID-C09" & Observer.ID == "Will" 
+                           Grid.ID == "ID-C09" & Observer.ID == "Will" 
                            ~ "V1",
                            TRUE ~ Visit))
 
 #Make sure I didn't miss anything
 #Do they all have the right number of unique visits?
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
-  dplyr::count(Route.ID) %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
 
 #How many visits are doubled?
 #All doubbles 
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit) %>% 
+  group_by(Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
   filter(Visit.Count != 1) %>% 
   base::print(n = Inf)
 #Date doubles
 surveys_clean_visit %>% 
-  group_by(Route.ID, Year, Visit, Date) %>% 
+  group_by(Grid.ID, Year, Visit, Date) %>% 
   dplyr::summarise(Visit.Count = n()) %>% 
   ungroup() %>%
   filter(Visit.Count != 1) %>% 
@@ -1801,7 +1802,7 @@ surveys_clean_visit %>%
 #Pull out only the columns that I will need
 names(surveys_clean_visit)
 surveys <- surveys_clean_visit %>% 
-  dplyr::select(Route.ID, Route.Type, Year, Visit, Date, Ord.Date, Observer.ID, 
+  dplyr::select(Grid.ID, Grid.Type, Year, Visit, Date, Ord.Date, Observer.ID, 
          Temp.Start, Temp.End, Sky.Start, Sky.End, Wind.Start, Wind.End,
          Route.Notes, GlobalID.Survey) %>% 
   mutate_if(is.character, ~ na_if(., "")) #change blanks to NA's
@@ -1824,7 +1825,7 @@ glimpse(survey_points)
 
 # #Export for Arc cleaning --------------------------------
 # survey_points %>% 
-#   mutate(Full.Point.ID = paste0(Route.ID, "-", "P", Point.ID),
+#   mutate(Full.Point.ID = paste0(Grid.ID, "-", "P", Point.ID),
 #          Survey.ID = paste(Full.Point.ID, Year, Visit, sep = "-"),
 #          Time.Stamp = paste(Point.ID, Visit, Point.Time, sep = "-")) %>% 
 #   write.csv("C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\GIS\\Sobs_Geospatial_Data\\Geoprocessing_Outputs_temp\\surveyed_points.csv")
@@ -1836,25 +1837,25 @@ sobs_first_clean <- survey_points %>%
 #View the full joined data
 glimpse(sobs_first_clean)
 
-#How many times was each route surveyed in the final dataset
+#How many times was each Grid surveyed in the final dataset
 sobs_first_clean %>% 
-  dplyr::count(Route.ID, Year, Visit) %>% 
-  dplyr::count(Route.ID, Year, Visit) %>%  
+  dplyr::count(Grid.ID, Year, Visit) %>% 
+  dplyr::count(Grid.ID, Year, Visit) %>%  
   base::print(n = Inf)
 
-#View the route NA
+#View the Grid NA
 sobs_first_clean %>% 
-  filter(is.na(Route.ID))
+  filter(is.na(Grid.ID))
 
 #Can drop this 
 sobs_first_clean <- sobs_first_clean %>% 
-  drop_na(Route.ID)
+  drop_na(Grid.ID)
 #...and view
 glimpse(sobs_first_clean)
 
-#Make a new column that combines point id and route id
+#Make a new column that combines point id and Grid id
 sobs_first_clean <- sobs_first_clean %>% 
-  mutate(Full.Point.ID = paste(Route.ID, "-", "P", Point.ID, sep = ""))
+  mutate(Full.Point.ID = paste(Grid.ID, "-", "P", Point.ID, sep = ""))
 
 #View it to make sure the data frame looks good
 glimpse(sobs_first_clean)
@@ -1862,14 +1863,14 @@ glimpse(sobs_first_clean)
 #141 observations were lost
 sobs_first_clean %>% distinct(Full.Point.ID) %>% base::print(n = Inf)
 
-#How many times does each point appear on each route?
+#How many times does each point appear on each Grid?
 visit_count <- sobs_first_clean %>% 
   filter(Visit %in% c("V1", "V2")) %>% 
-  group_by(Full.Point.ID, Route.ID, Year, Visit) %>% 
+  group_by(Full.Point.ID, Grid.ID, Year, Visit) %>% 
   dplyr::summarise(Observations = n()) %>% 
   ungroup() %>% 
   mutate(Full.Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  dplyr::select(Full.Point.ID, Route.ID, Full.Visit.ID, Observations) %>% 
+  dplyr::select(Full.Point.ID, Grid.ID, Full.Visit.ID, Observations) %>% 
   pivot_wider(names_from = Full.Visit.ID,
               values_from = Observations)
 
@@ -1894,7 +1895,7 @@ sobs_first_clean %>%
 names(sobs_first_clean)
 sobs_first_clean <- sobs_first_clean %>% 
   dplyr::select(Species, Distance, Minute, Direction, How.Detected, Song.Also, Group.Size,
-         Sex, Visual.ID, Route.ID, Route.Type, Full.Point.ID, Year, Visit,  
+         Sex, Visual.ID, Grid.ID, Grid.Type, Full.Point.ID, Year, Visit,  
          Date, Ord.Date, Point.Time, Point.ID, Observer.ID, 
          Shrub.Cover, Shrub.Height, Cheatgrass.Cover, Trees.Count, 
          Temp.Start, Sky.Start, Wind.Start, Temp.End, Sky.End, Wind.End,
@@ -2128,7 +2129,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B16-P16",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P02"
                                    ~ "ID-B16-P15",
-                                   Year == "Y1" & Point.Time %in% c("07:27", "10:36") & Route.ID == "ID-B16"
+                                   Year == "Y1" & Point.Time %in% c("07:27", "10:36") & Grid.ID == "ID-B16"
                                    ~ "ID-B16-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-B16-P03" & Point.Time == "10:22"
                                    ~ "ID-B16-P13",
@@ -2196,9 +2197,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C26-P01",
                                    Year == "Y1" & Full.Point.ID == "ID-C26-P02"
                                    ~ "ID-C26-P05",
-                                   Year == "Y1" & Route.ID == "ID-C26" & Point.Time %in% c("06:48", "07:58")
+                                   Year == "Y1" & Grid.ID == "ID-C26" & Point.Time %in% c("06:48", "07:58")
                                    ~ "ID-C26-P09",
-                                   Year == "Y1" & Route.ID == "ID-C26" & Point.Time %in% c("07:05", "08:08")
+                                   Year == "Y1" & Grid.ID == "ID-C26" & Point.Time %in% c("07:05", "08:08")
                                    ~ "ID-C26-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C26-P05"
                                    ~ "ID-C26-P14",
@@ -2258,9 +2259,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-C15-P16"
                                    ~ "ID-C15-P08",
                                    #ID-C12-Y1-V1
-                                   Year == "Y1" & Point.Time == "06:59" & Visit == "V1" & Route.ID == "ID-C12"
+                                   Year == "Y1" & Point.Time == "06:59" & Visit == "V1" & Grid.ID == "ID-C12"
                                    ~ "ID-C12-P14",
-                                   Year == "Y1" & Point.Time == "08:12" & Visit == "V1" & Route.ID == "ID-C12"
+                                   Year == "Y1" & Point.Time == "08:12" & Visit == "V1" & Grid.ID == "ID-C12"
                                    ~ "ID-C12-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P02" & Visit == "V1"
                                    ~ "ID-C12-P15",
@@ -2291,7 +2292,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-C12-P16" & Visit == "V1"
                                    ~ "ID-C12-P13",
                                    #ID-C12-Y1-V2
-                                   Year == "Y1" & Route.ID == "ID-C12" & Visit == "V2" & Point.Time == "06:23"
+                                   Year == "Y1" & Grid.ID == "ID-C12" & Visit == "V2" & Point.Time == "06:23"
                                    ~ "ID-C12-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P02" & Visit == "V2"
                                    ~ "ID-C12-P15",
@@ -2303,7 +2304,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C12-P08",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P06" & Visit == "V2"
                                    ~ "ID-C12-P04",
-                                   Year == "Y1" & Route.ID == "ID-C12" & Visit == "V2" & Point.Time == "07:14"
+                                   Year == "Y1" & Grid.ID == "ID-C12" & Visit == "V2" & Point.Time == "07:14"
                                    ~ "ID-C12-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-C12-P08" & Visit == "V2"
                                    ~ "ID-C12-P02",
@@ -2321,7 +2322,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C12-P10",
                                    Year == "Y1" &  Full.Point.ID == "ID-C12-P15" & Visit == "V2"
                                    ~ "ID-C12-P09",
-                                   Year == "Y1" & Route.ID == "ID-C12" & Visit == "V2" & Point.Time == "08:45"
+                                   Year == "Y1" & Grid.ID == "ID-C12" & Visit == "V2" & Point.Time == "08:45"
                                    ~ "ID-C12-P13",
                                    #ID-B12-Y1-V1
                                    Year == "Y1" & Full.Point.ID == "ID-B12-P16" & Visit == "V1"
@@ -2390,9 +2391,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C09-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C09-P11"  & Visit == "V1"
                                    ~ "ID-C09-P09",
-                                   Year == "Y1" & Point.Time == "09:50" & Visit == "V1" & Route.ID == "ID-C09"
+                                   Year == "Y1" & Point.Time == "09:50" & Visit == "V1" & Grid.ID == "ID-C09"
                                    ~ "ID-C09-P10",
-                                   Year == "Y1" & Point.Time == "10:00" & Visit == "V1" & Route.ID == "ID-C09"
+                                   Year == "Y1" & Point.Time == "10:00" & Visit == "V1" & Grid.ID == "ID-C09"
                                    ~ "ID-C09-P11",
                                    Year == "Y1" &  Full.Point.ID == "ID-C09-P14" & Visit == "V1"
                                    ~ "ID-C09-P07",
@@ -2452,13 +2453,13 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B09-P03",
                                    Year == "Y1" & Full.Point.ID == "ID-B09-P09"
                                    ~ "ID-B09-P02",
-                                   Year == "Y1" & Point.Time == "10:49" & Route.ID == "ID-B09"
+                                   Year == "Y1" & Point.Time == "10:49" & Grid.ID == "ID-B09"
                                    ~ "ID-B09-P06",
-                                   Year == "Y1" & Visit == "V1" & Point.Time == "08:52" & Route.ID == "ID-B09"
+                                   Year == "Y1" & Visit == "V1" & Point.Time == "08:52" & Grid.ID == "ID-B09"
                                    ~ "ID-B09-P06",
-                                   Year == "Y1" & Visit == "V1" & Point.Time == "09:05" & Route.ID == "ID-B09"
+                                   Year == "Y1" & Visit == "V1" & Point.Time == "09:05" & Grid.ID == "ID-B09"
                                    ~ "ID-B09-P10",
-                                   Year == "Y1" & Visit == "V2" & Point.Time == "10:39" & Route.ID == "ID-B09"
+                                   Year == "Y1" & Visit == "V2" & Point.Time == "10:39" & Grid.ID == "ID-B09"
                                    ~ "ID-B09-P10",
                                    Year == "Y1" &  Full.Point.ID == "ID-B09-P12"
                                    ~ "ID-B09-P14",
@@ -2504,9 +2505,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "ID-B28-P16"
                                    ~ "ID-B28-P01",
                                    #ID-C07-Y1-V1&V2
-                                   Year == "Y1" & Point.Time %in% c("10:13", "10:18") & Route.ID == "ID-C07"
+                                   Year == "Y1" & Point.Time %in% c("10:13", "10:18") & Grid.ID == "ID-C07"
                                    ~ "ID-C07-P16",
-                                   Year == "Y1" & Point.Time %in% c("09:38", "07:10") & Route.ID == "ID-C07"
+                                   Year == "Y1" & Point.Time %in% c("09:38", "07:10") & Grid.ID == "ID-C07"
                                    ~ "ID-C07-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C07-P02" 
                                    ~ "ID-C07-P09",
@@ -2654,7 +2655,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-B03-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P08"
                                    ~ "ID-B03-P12",
-                                   Year == "Y1" & Point.Time %in% c("06:54", "08:16") & Route.ID == "ID-B03"
+                                   Year == "Y1" & Point.Time %in% c("06:54", "08:16") & Grid.ID == "ID-B03"
                                    ~ "ID-B03-P08",
                                    Year == "Y1" & Full.Point.ID == "ID-B03-P10"
                                    ~ "ID-B03-P07",
@@ -2885,7 +2886,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C04-P11",
                                    Year == "Y1" & Full.Point.ID == "ID-C04-P08"
                                    ~ "ID-C04-P15",
-                                   Year == "Y1" & Route.ID == "ID-C04" & Point.Time %in% c("08:02", "09:08")
+                                   Year == "Y1" & Grid.ID == "ID-C04" & Point.Time %in% c("08:02", "09:08")
                                    ~ "ID-C04-P14",
                                    Year == "Y1" & Full.Point.ID == "ID-C04-P10"
                                    ~ "ID-C04-P10",
@@ -2897,9 +2898,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "ID-C04-P01",
                                    Year == "Y1" &  Full.Point.ID == "ID-C04-P14"
                                    ~ "ID-C04-P05",
-                                   Year == "Y1" & Route.ID == "ID-C04" & Point.Time %in% c("06:48", "09:31")
+                                   Year == "Y1" & Grid.ID == "ID-C04" & Point.Time %in% c("06:48", "09:31")
                                    ~ "ID-C04-P09",
-                                   Year == "Y1" &  Route.ID == "ID-C04" & Point.Time %in% c("06:38", "09:40")
+                                   Year == "Y1" &  Grid.ID == "ID-C04" & Point.Time %in% c("06:38", "09:40")
                                    ~ "ID-C04-P13",
                                    #ID-B24-Y1-V1
                                    Year == "Y1" & Full.Point.ID == "ID-B24-P01" & Visit == "V1"
@@ -3316,25 +3317,25 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "UT-B01-P16"
                                    ~ "UT-B01-P04",
                                    #UT-C02-Y1-V1&V2
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:15", "07:09")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("08:15", "07:09")
                                    ~ "UT-C02-P01",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:02", "06:57")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("08:02", "06:57")
                                    ~ "UT-C02-P02",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:29", "07:24")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("08:29", "07:24")
                                    ~ "UT-C02-P03",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:43", "07:35")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("08:43", "07:35")
                                    ~ "UT-C02-P04",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:50", "06:44")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("07:50", "06:44")
                                    ~ "UT-C02-P05",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:37", "08:01")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("07:37", "08:01")
                                    ~ "UT-C02-P06",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("08:54", "07:49")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("08:54", "07:49")
                                    ~ "UT-C02-P07",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:23", "08:11")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("07:23", "08:11")
                                    ~ "UT-C02-P08",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("07:11", "08:22")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("07:11", "08:22")
                                    ~ "UT-C02-P09",
-                                   Year == "Y1" & Route.ID == "UT-C02" & Point.Time %in% c("06:59", "08:34")
+                                   Year == "Y1" & Grid.ID == "UT-C02" & Point.Time %in% c("06:59", "08:34")
                                    ~ "UT-C02-P10",
                                    #UT-B02-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "UT-B02-P10" & Point.Time %in% c("08:00", "08:19")
@@ -3561,7 +3562,7 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" &  Full.Point.ID == "UT-C22-P12" & Visit == "V1"
                                    ~ "UT-C22-P03",
                                    #UT-C22-Y1-V2
-                                   Year == "Y1" & Point.Time == "06:09" & Visit == "V2" & Route.ID == "UT-C22" 
+                                   Year == "Y1" & Point.Time == "06:09" & Visit == "V2" & Grid.ID == "UT-C22" 
                                    ~ "UT-C22-P01",
                                    Year == "Y1" & Full.Point.ID == "UT-C22-P03" & Visit == "V2"
                                    ~ "UT-C22-P09",
@@ -4007,9 +4008,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    #UT-B08-Y1-V1&V2
                                    Year == "Y1" & Full.Point.ID == "UT-B08-P01" & Visit == "V1"
                                    ~ "UT-B08-P01",
-                                   Year == "Y1" & Point.Time == "10:43" & Visit == "V2" & Route.ID == "UT-B08"
+                                   Year == "Y1" & Point.Time == "10:43" & Visit == "V2" & Grid.ID == "UT-B08"
                                    ~ "UT-B08-P01",
-                                   Year == "Y1" & Point.Time == "11:15" & Visit == "V2" & Route.ID == "UT-B08"
+                                   Year == "Y1" & Point.Time == "11:15" & Visit == "V2" & Grid.ID == "UT-B08"
                                    ~ "UT-B08-P13",
                                    Year == "Y1" & Full.Point.ID == "UT-B08-P02" 
                                    ~ "UT-B08-P05",
@@ -4075,11 +4076,11 @@ sobs_clean_point <- sobs_clean_point %>%
                                    Year == "Y1" & Full.Point.ID == "UT-C08-P16" 
                                    ~ "UT-C08-P16",
                                    #ID-C28 Y1 V1 & V2
-                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("08:02")
+                                   Year == "Y1" & Grid.ID == "ID-C28" & Point.Time %in% c("08:02")
                                    ~ "ID-C28-P08",
-                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("06:40")
+                                   Year == "Y1" & Grid.ID == "ID-C28" & Point.Time %in% c("06:40")
                                    ~ "ID-C28-P13",
-                                   Year == "Y1" & Route.ID == "ID-C28" & Point.Time %in% c("10:29")
+                                   Year == "Y1" & Grid.ID == "ID-C28" & Point.Time %in% c("10:29")
                                    ~ "ID-C28-P13",
                                    Year == "Y1" & Full.Point.ID == "ID-C28-P02"
                                    ~ "ID-C28-P14",
@@ -4140,23 +4141,23 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B16-P14",
                                    Year == "Y2" & Full.Point.ID == "UT-B16-P14" & Visit == "V2" 
                                    ~ "UT-B16-P13",
-                                   Year == "Y2" & Route.ID == "ID-C04" & Visit == "V1" & Point.Time == "08:24"
+                                   Year == "Y2" & Grid.ID == "ID-C04" & Visit == "V1" & Point.Time == "08:24"
                                    ~ "ID-C04-P02",
-                                   Year == "Y2" & Route.ID == "UT-C17" & Visit == "V1" & Point.Time == "07:56"
+                                   Year == "Y2" & Grid.ID == "UT-C17" & Visit == "V1" & Point.Time == "07:56"
                                    ~ "UT-C17-P04",
-                                   Year == "Y2" & Route.ID == "UT-C17" & Visit == "V1" & Point.Time == "09:08"
+                                   Year == "Y2" & Grid.ID == "UT-C17" & Visit == "V1" & Point.Time == "09:08"
                                    ~ "UT-C17-P09",
-                                   Year == "Y2" & Route.ID == "ID-B13" & Visit == "V1" & Point.Time == "09:06"
+                                   Year == "Y2" & Grid.ID == "ID-B13" & Visit == "V1" & Point.Time == "09:06"
                                    ~ "ID-B13-P13",
-                                   Year == "Y2" & Route.ID == "ID-B04" & Visit == "V1" & Point.Time == "10:13"
+                                   Year == "Y2" & Grid.ID == "ID-B04" & Visit == "V1" & Point.Time == "10:13"
                                    ~ "ID-B04-P12",
-                                   Year == "Y2" & Route.ID == "UT-B16" & Visit == "V1" & Point.Time == "06:38"
+                                   Year == "Y2" & Grid.ID == "UT-B16" & Visit == "V1" & Point.Time == "06:38"
                                    ~ "UT-B16-P13",
-                                   Year == "Y2" & Route.ID == "ID-B12" & Visit == "V2" & Point.Time == "07:01"
+                                   Year == "Y2" & Grid.ID == "ID-B12" & Visit == "V2" & Point.Time == "07:01"
                                    ~ "ID-B12-P11",
-                                   Year == "Y2" & Route.ID == "UT-B19" & Visit == "V2" & Point.Time == "09:01"
+                                   Year == "Y2" & Grid.ID == "UT-B19" & Visit == "V2" & Point.Time == "09:01"
                                    ~ "UT-B19-P13",
-                                   Year == "Y2" & Route.ID == "ID-B07" & Visit == "V2" & Point.Time == "06:03"
+                                   Year == "Y2" & Grid.ID == "ID-B07" & Visit == "V2" & Point.Time == "06:03"
                                    ~ "ID-B07-P03",
                                    #UT-B25
                                    Year == "Y2" & Full.Point.ID == "UT-B25-P02" & Visit == "V1" 
@@ -4181,9 +4182,9 @@ sobs_clean_point <- sobs_clean_point %>%
                                    ~ "UT-B25-P10",
                                    Year == "Y2" & Full.Point.ID == "UT-B25-P12" & Visit == "V1" 
                                    ~ "UT-B25-P11",
-                                   Year == "Y2" & Route.ID == "UT-B25" & Visit == "V1" & Point.Time == "07:46"
+                                   Year == "Y2" & Grid.ID == "UT-B25" & Visit == "V1" & Point.Time == "07:46"
                                    ~ "UT-B25-P12",
-                                   Year == "Y2" & Route.ID == "UT-B25" & Visit == "V1" & Point.Time == "08:10"
+                                   Year == "Y2" & Grid.ID == "UT-B25" & Visit == "V1" & Point.Time == "08:10"
                                    ~ "UT-B25-P13",
                                    Year == "Y2" & Full.Point.ID == "UT-B25-P15" & Visit == "V1" 
                                    ~ "UT-B25-P14",
@@ -4203,7 +4204,7 @@ sobs_clean_point <- sobs_clean_point %>%
 #View the UT-B25 points
 glimpse(sobs_clean_point)
 sobs_clean_point %>% 
-  filter(Route.ID == "UT-B25") %>% 
+  filter(Grid.ID == "UT-B25") %>% 
   distinct(New.Point.ID, Year, Visit) %>% 
   dplyr::count(New.Point.ID)
 
@@ -4215,82 +4216,82 @@ sobs_clean_point <- sobs_clean_point %>%
 
 #Change the wrong points that were put down in Y3 (mostly me)
 sobs_clean_point <- sobs_clean_point %>% 
-  mutate(New.Point.ID = case_when(Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-B22" & Point.Time == "07:23" 
+  mutate(New.Point.ID = case_when(Observer.ID == "Will" & Year == "Y3" & Grid.ID == "ID-B22" & Point.Time == "07:23" 
                                   ~ "ID-B22-P11",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-B22" & Point.Time == "07:52" 
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "ID-B22" & Point.Time == "07:52" 
                                   ~ "ID-B22-P04",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-B08" & Point.Time == "07:05" 
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "UT-B08" & Point.Time == "07:05" 
                                   ~ "UT-B08-P12",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C28" & Point.Time == "06:01" 
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "ID-C28" & Point.Time == "06:01" 
                                   ~ "ID-C28-P16",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C28" & Point.Time == "08:50" 
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "ID-C28" & Point.Time == "08:50" 
                                   ~ "ID-C28-P13",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C25" & Point.Time == "08:37" 
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "UT-C25" & Point.Time == "08:37" 
                                   ~ "UT-C25-P14",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C25" & Point.Time == "07:03"
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "UT-C25" & Point.Time == "07:03"
                                   ~ "UT-C25-P01",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "ID-C09" & Point.Time == "07:03"
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "ID-C09" & Point.Time == "07:03"
                                   ~ "ID-C09-P01",
-                                  Observer.ID == "Will" & Year == "Y3" & Route.ID == "UT-C24" &  Point.Time == "05:45"
+                                  Observer.ID == "Will" & Year == "Y3" & Grid.ID == "UT-C24" &  Point.Time == "05:45"
                                   ~ "UT-C24-P03",
-                                  Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "UT-B24" & Point.Time == "08:58"
+                                  Observer.ID == "Thomas" & Year == "Y3" & Grid.ID == "UT-B24" & Point.Time == "08:58"
                                   ~ "UT-B24-P05",
-                                  Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "ID-B15" & Point.Time == "07:15"
+                                  Observer.ID == "Thomas" & Year == "Y3" & Grid.ID == "ID-B15" & Point.Time == "07:15"
                                   ~ "ID-B15-P08",
-                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "ID-C04" & Point.Time == "08:11"
+                                  Observer.ID == "Emily" & Year == "Y3" & Grid.ID == "ID-C04" & Point.Time == "08:11"
                                   ~ "ID-C04-P04",
-                                  Observer.ID == "Holden" & Year == "Y3" & Route.ID == "UT-B22" & Point.Time == "06:46"
+                                  Observer.ID == "Holden" & Year == "Y3" & Grid.ID == "UT-B22" & Point.Time == "06:46"
                                   ~ "UT-B22-P02",
-                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "UT-C30" & Point.Time == "07:24"
+                                  Observer.ID == "Emily" & Year == "Y3" & Grid.ID == "UT-C30" & Point.Time == "07:24"
                                   ~ "UT-C30-P02",
-                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "UT-B24" & Point.Time == "08:56"
+                                  Observer.ID == "Emily" & Year == "Y3" & Grid.ID == "UT-B24" & Point.Time == "08:56"
                                   ~ "UT-B24-P14",
-                                  Observer.ID == "Aidan" & Year == "Y3" & Route.ID == "ID-B07" & Point.Time == "08:25"
+                                  Observer.ID == "Aidan" & Year == "Y3" & Grid.ID == "ID-B07" & Point.Time == "08:25"
                                   ~ "ID-B07-P13",
-                                  Observer.ID == "Thomas" & Year == "Y3" & Route.ID == "ID-B26" & Point.Time == "09:01"
+                                  Observer.ID == "Thomas" & Year == "Y3" & Grid.ID == "ID-B26" & Point.Time == "09:01"
                                   ~ "ID-B26-P13",
-                                  Observer.ID == "Emily" & Year == "Y3" & Route.ID == "ID-C16" & Point.Time == "06:32"
+                                  Observer.ID == "Emily" & Year == "Y3" & Grid.ID == "ID-C16" & Point.Time == "06:32"
                                   ~ "ID-C16-P07",
                                   TRUE ~ New.Point.ID
                                   )) %>% 
-  mutate(Visit = case_when(Route.ID == "ID-B22" & Observer.ID == "Will" 
+  mutate(Visit = case_when(Grid.ID == "ID-B22" & Observer.ID == "Will" 
                            ~ "V1",
-                           Route.ID == "ID-C09" & Observer.ID == "Will" 
+                           Grid.ID == "ID-C09" & Observer.ID == "Will" 
                            ~ "V1",
                            TRUE ~ Visit))
 
 #And now to view the points that were surveyed twice during a single visit
 sobs_clean_point %>% 
-  distinct(Route.ID, Date, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
-  group_by(Route.ID, Date, New.Point.ID) %>%
-  reframe(Route.ID, Visit, Date, Observer.ID, New.Point.ID, Point.Time, Times.Visited = n()) %>%
+  distinct(Grid.ID, Date, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
+  group_by(Grid.ID, Date, New.Point.ID) %>%
+  reframe(Grid.ID, Visit, Date, Observer.ID, New.Point.ID, Point.Time, Times.Visited = n()) %>%
   arrange(Date, New.Point.ID) %>%
   filter(Times.Visited != 1) %>%
   print(n = Inf)
 
-#Make sure the points and routes still line up
+#Make sure the points and Grids still line up
 sobs_clean_point %>% 
-  dplyr::select(Full.Point.ID, Route.ID, Year, Visit, Date, Observer.ID) %>% 
-  mutate(Temp.Route.ID = str_sub(Full.Point.ID, start = 1, end = 6)) %>% 
-  filter(Route.ID != Temp.Route.ID)
+  dplyr::select(Full.Point.ID, Grid.ID, Year, Visit, Date, Observer.ID) %>% 
+  mutate(Temp.Grid.ID = str_sub(Full.Point.ID, start = 1, end = 6)) %>% 
+  filter(Grid.ID != Temp.Grid.ID)
 #Perfect!
 
-#Define a specific route/visit to look at
-route <- "ID-B09"
+#Define a specific Grid/visit to look at
+Grid <- "ID-B09"
 year <- "Y1"
 visit <- c("V1", "V2")
 
-#View that whole route to see which point was missed 
+#View that whole Grid to see which point was missed 
 sobs_clean_point %>% 
-  dplyr::select(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
-  distinct(Route.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
-  filter(Route.ID == route & Year == year & Visit %in% visit) %>% 
+  dplyr::select(Grid.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>% 
+  distinct(Grid.ID, Date, Year, Visit, Observer.ID, New.Point.ID, Point.Time) %>%
+  filter(Grid.ID == Grid & Year == year & Visit %in% visit) %>% 
   arrange(Date, Point.Time) %>% 
   print(n = Inf)
 
 #Hoolden recorded a non-existant UT-B02-P11. What is it?
 sobs_clean_point %>% 
-  filter(Year == "Y3" & Route.ID == "UT-B02" & Observer.ID == "Holden") %>% 
+  filter(Year == "Y3" & Grid.ID == "UT-B02" & Observer.ID == "Holden") %>% 
   distinct(New.Point.ID, Point.Time) %>% 
   arrange(New.Point.ID)
 
@@ -4318,10 +4319,10 @@ sobs_clean_point %>%
 
 #And condensed again differently
 sobs_clean_point %>% 
-  distinct(Route.ID, New.Point.ID, Visit, Year, Date) %>% 
-  group_by(Route.ID, Year, Visit, Date) %>% 
-  reframe(Route.ID, Year, Visit, Date, Points.Surveyed = n()) %>% 
-  distinct(Route.ID, Year, Visit, Date, Points.Surveyed ) %>% 
+  distinct(Grid.ID, New.Point.ID, Visit, Year, Date) %>% 
+  group_by(Grid.ID, Year, Visit, Date) %>% 
+  reframe(Grid.ID, Year, Visit, Date, Points.Surveyed = n()) %>% 
+  distinct(Grid.ID, Year, Visit, Date, Points.Surveyed ) %>% 
   print(n = Inf)
 
 #View the dataset to make sure everything looks good
@@ -4330,44 +4331,16 @@ glimpse(sobs_clean_point)
 #After learning more about fire history in this area I have realized that 
 #UT-C24 and UT-C25 burned in 1999 and ID-B03 did not burn
 
-burn_points_99 <- c("UT-C24-P02",
-                    "UT-C24-P03",
-                    "UT-C24-P04",
-                    "UT-C24-P06",
-                    "UT-C24-P07",
-                    "UT-C24-P08",
-                    "UT-C24-P11",
-                    "UT-C24-P12",
-                    "UT-C24-P15",
-                    "UT-C24-P16",
-                    "UT-C25-P01",
-                    "UT-C25-P02",
-                    "UT-C25-P03",
-                    "UT-C25-P04",
-                    "UT-C25-P05",
-                    "UT-C25-P06",
-                    "UT-C25-P07",
-                    "UT-C25-P08",
-                    "UT-C25-P09",
-                    "UT-C25-P11",
-                    "UT-C25-P12",
-                    "UT-C25-P13",
-                    "UT-C25-P14",
-                    "UT-C30-P13")
-
-#Redefine the incorrect route types
+#Redefine the incorrect Grid types
 sobs_clean_nobi <- sobs_clean_point %>% 
   #Reverse the new point column that I created 
   mutate(Full.Point.ID = New.Point.ID) %>% 
   dplyr::select(-New.Point.ID) %>% 
-  #Redefine some of the route types
-  mutate(Route.Type = case_when(Full.Point.ID %in% burn_points_99 ~ "B",
-                                Route.ID == "UT-C25" ~ "B",
-                                Route.ID == "UT-C30" ~ "R",
-                                Route.ID == "ID-B03" ~ "R",
-                                TRUE ~ Route.Type)) %>% 
-  mutate(Route.Type = case_when(Full.Point.ID == "UT-C25-P10" ~ "R",
-                                TRUE ~ Route.Type ))
+  #Redefine some of the Grid types
+  mutate(Grid.Type = case_when(Grid.ID == "UT-C25" ~ "B",
+                                Grid.ID == "UT-C24" ~ "B",
+                                Grid.ID == "ID-B03" ~ "R",
+                                TRUE ~ Grid.Type))
 
 #Many of the counts do not have NOBI for minutes where no birds were detected
 #Add in NOBI Observations ############################################################
@@ -4378,9 +4351,9 @@ sobs_clean_nobi %>%
 
 #make an object of all NOBI observations
 nobi <- sobs_clean_nobi %>% 
-  expand(nesting(Route.ID, Route.Type, Full.Point.ID, Observer.ID, #Nested variables at the 
+  expand(nesting(Grid.ID, Grid.Type, Full.Point.ID, Observer.ID, #Nested variables at the 
                  Year, Visit, Date, Ord.Date, Temp.Start, Wind.Start,
-                 Sky.Start, Temp.End, Wind.End, Sky.End, Notes),  #point or route level
+                 Sky.Start, Temp.End, Wind.End, Sky.End, Notes),  #point or Grid level
          Minute) %>% #The only non nested variable
   mutate(Species = "NOBI")
 #View
@@ -4430,6 +4403,7 @@ glimpse(sobs_clean_coords)
 #read in point corrdinates
 point_cords <- tibble(read.csv("Data\\Inputs\\Point_Cords_Raw.csv"))
 #View point ID's
+glimpse(point_cords)
 point_cords %>% 
   distinct(Point_ID)
 
@@ -4457,26 +4431,26 @@ point_cords <- point_cords %>%
 point_cords %>% 
   distinct(Point.ID)
 
-#Replace "_" with "-" in route name
+#Replace "_" with "-" in grid name
 point_cords <- point_cords %>% 
-  mutate(Route.ID = str_replace_all(RouteName, "_", "-")) %>% 
-  arrange(Route.ID)
+  mutate(Grid.ID = str_replace_all(RouteName, "_", "-")) %>% 
+  arrange(Grid.ID)
 
-#View the cleaned Routes and how many points they have
+#View the cleaned Grids and how many points they have
 point_cords %>% 
-  dplyr::count(Route.ID) %>% 
+  dplyr::count(Grid.ID) %>% 
   base::print(n = Inf)
 
 #Add column for full point id
-#Make a new column that combines point id and route id
+#Make a new column that combines point id and Grid id
 point_cords <- point_cords %>% 
-  mutate(Full.Point.ID = paste0(Route.ID, 
+  mutate(Full.Point.ID = paste0(Grid.ID, 
                                 "-", "P", 
                                 Point.ID, 
                                 collapse = NULL)) %>% 
   dplyr::rename(UTM.X = "UTM_X", UTM.Y = "UTM_Y",
          Geo.X = "Geo_X", Geo.Y = "Geo_Y") %>% 
-  dplyr::select(Full.Point.ID, Point.ID, Route.ID, UTM.X, UTM.Y, Geo.X, Geo.Y) 
+  dplyr::select(Full.Point.ID, Point.ID, Grid.ID, UTM.X, UTM.Y, Geo.X, Geo.Y) 
 
 #View point coordinates  
 glimpse(point_cords) 
@@ -4484,7 +4458,7 @@ point_cords %>%
   dplyr::count(Full.Point.ID) %>% 
   base::print(n = Inf)
 
-#Remove route type
+#Remove Grid type
 point_cords <- point_cords %>% 
   dplyr::select(-Point.ID)
 
@@ -4493,16 +4467,16 @@ glimpse(point_cords)
 
 #points
 coords_tbl <- point_cords %>% 
-  dplyr::count(Route.ID, Full.Point.ID) %>% 
-  dplyr::count(Route.ID)
+  dplyr::count(Grid.ID, Full.Point.ID) %>% 
+  dplyr::count(Grid.ID)
 
 #observations
 surveys_tbl <- sobs_clean_coords %>% 
-  dplyr::count(Route.ID, Full.Point.ID) %>% 
-  dplyr::count(Route.ID)
+  dplyr::count(Grid.ID, Full.Point.ID) %>% 
+  dplyr::count(Grid.ID)
 
 #compare the two
-full_join(surveys_tbl, coords_tbl, by = "Route.ID") %>% 
+full_join(surveys_tbl, coords_tbl, by = "Grid.ID") %>% 
   filter(n.x != n.y) %>% 
   base::print(n = Inf)
 #Great! None match
@@ -4642,7 +4616,7 @@ sobs_clean_time <- sobs_clean_time %>%
    dplyr::select(Species, Distance, Minute, How.Detected, 
           # Song.Also, Group.Size, Sex, 
           Visual.ID,
-          Route.ID, Route.Type, Full.Point.ID, 
+          Grid.ID, Grid.Type, Full.Point.ID, 
           Observer.ID, Year, Visit, Date, Ord.Date,
           Point.Time, MAS,
           Temp.Start, Wind.Start, Sky.Start, 
@@ -4666,3 +4640,4 @@ write.csv(sobs, "C:\\Users\\willh\\Box\\Will Harrod MS Project\\Data\\Point_Coun
 
 # Notes and next steps ------------------------
 #I might need to link external temp data
+
