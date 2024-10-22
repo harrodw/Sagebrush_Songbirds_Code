@@ -7,7 +7,7 @@
 # August 2024
 #---------------------------------------------------------------
 
-#add packages
+# Add packages
 library(nimble)
 library(tidyverse)
 library(MCMCvis)
@@ -30,7 +30,7 @@ sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_
   dplyr::select(-X) %>%
   tibble()
 
-#view the data
+# View the data
 glimpse(sobs)
 
 # add covariates from the local drive
@@ -47,14 +47,14 @@ covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_
   dplyr::select(-X) %>%
   tibble()
 
-#View covariates
+# View covariates
 glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 #define relevant species
 soi <- "BRSP"
 
-#define a truncation distance (km)
+# Define a truncation distance (km)
 trunc_dist <- 0.125
 
 # Custom function to find the mode
@@ -63,7 +63,7 @@ find_mode <- function(x) {
   unique_x[which.max(tabulate(match(x, unique_x)))]  # Find the most frequent value
 }
 
-#make a table of important species sightings by visit
+# Make a table of important species sightings by visit
 counts_0inf <- sobs %>%
   mutate(Distance = Distance/1000) %>% #Switch from m to km
   filter(Distance <= trunc_dist) %>% # only observations closer than the truncation distance
@@ -76,13 +76,13 @@ counts_0inf <- sobs %>%
 #...and view
 glimpse(counts_0inf)
 
-#make a table of all possible species visit combinations so we get the zero counts
+# Make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
   distinct(Full.Point.ID, Grid.ID, Grid.Type, Year, Ord.Date, MAS, Wind.Start, Observer.ID, Year, Visit) %>% 
   mutate(
     # Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
     Observer.ID = case_when(Observer.ID == "Alex" ~ "Ben", TRUE ~ Observer.ID),
-    #Each visit should be treated separately
+    # Each visit should be treated separately
     Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   group_by(Grid.ID, Grid.Type, Year, Visit.ID, Ord.Date) %>% 
   reframe(Grid.ID, Grid.Type, Year, Visit.ID, Ord.Date,
@@ -98,7 +98,7 @@ visit_count <- sobs %>%
 #...and view
 glimpse(visit_count)
 
-#Join the two, add zeros and average observations within year
+# Join the two, add zeros and average observations within year
 counts_temp <-  visit_count %>% 
   left_join(counts_0inf, by = c("Grid.ID",
                                 "Year", 
@@ -144,9 +144,9 @@ counts_temp2 <- bind_rows(counts_temp, new_dat)
 
 #Change necessary variables to scales and factors
 counts_temp3 <- counts_temp2 %>%
-  #Add covariates
+  # Add covariates
   left_join(covs, by = c("Grid.ID")) %>% 
-  #Sort the data
+  # Sort the data
   arrange(Visit.ID, Grid.ID) %>% 
   mutate(
     # Numeric burned vs unburned
@@ -170,12 +170,12 @@ counts_temp3 <- counts_temp2 %>%
 #...and view
 glimpse(counts_temp3)
 
-#Isolate the burned Grids as their own object so I can acurately scale them
+# Isolate the burned Grids as their own object so I can acurately scale them
 fire_stats <- counts_temp3 %>% 
   filter(Burned == 1) %>% 
   dplyr::select(Grid.ID, Years.Since.Fire, mean.rdnbr) 
 
-#Find the mean and standard deviation of the "real" burns
+# Find the mean and standard deviation of the "real" burns
 mean_burnY <- mean(fire_stats$Years.Since.Fire)
 sd_burnY <- sd(fire_stats$Years.Since.Fire)
 mean_rdnbr <- mean(fire_stats$mean.rdnbr)
@@ -193,7 +193,7 @@ counts <- counts_temp3 %>%
 
 # 1.3) Prepare the observation level data ################################################################
 
-#define a bin size
+# Define a bin size
 bin_size <- 0.025
 
 #Create an object with all observations of a single species for the detection function
@@ -233,7 +233,7 @@ observations_temp <- sobs %>%
                                    Minute %in% c(5, 6) ~ 3)) %>% 
   dplyr::select(Grid.ID, Observer.ID, Dist.Bin, Dist.Bin.Midpoint, Time.Interval, Year, Visit.ID)
 
-#view the whole object
+# View the whole object
 glimpse(observations_temp)
 sort(unique(observations_temp$Dist.Bin))
 sort(unique(observations_temp$Dist.Bin.Midpoint))
@@ -254,7 +254,7 @@ point_ids <- counts %>%
 #...and view
 glimpse(point_ids)
 
-#Link the factor levels from the count dataset to the observation dataset
+# Link the factor levels from the count dataset to the observation dataset
 observations <- observations_temp %>% 
   left_join(point_ids, by = c("Grid.ID", "Year", "Visit.ID"))
 
@@ -285,11 +285,11 @@ obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
-  # filter for a specific grid
+  # Filter for a specific grid
   count_visit <- counts %>% 
     arrange(Visit.ID.num) %>% 
     filter(Grid.ID.num == y)
-  # assign values to each row
+  # Assign values to each row
   count_mat[y,] <- count_visit$Count
   year_mat[y,] <- count_visit$Year
   time_mat[y,] <- count_visit$Mean.MAS
