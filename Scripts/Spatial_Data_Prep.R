@@ -28,13 +28,13 @@ grid_covs <- sobs %>%
   group_by(Grid.ID) %>% 
   reframe(Grid.ID,
           Grid.Type,
-          X = mean(UTM.X),
-          Y = mean(UTM.Y)) %>% 
-  distinct(Grid.ID, X, Y) 
+          Grid.X = mean(UTM.X),
+          Grid.Y = mean(UTM.Y)) %>% 
+  distinct(Grid.ID, Grid.X, Grid.Y) 
 
 # Transform to a geographic object
 grid_centers <- grid_covs %>% 
-  st_as_sf(coords = c("X", "Y")) %>% 
+  st_as_sf(coords = c("Grid.X", "Grid.Y")) %>% 
   st_set_crs(utm_12n)
 
 # View points
