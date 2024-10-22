@@ -8,7 +8,7 @@
 # August 2024
 #---------------------------------------------------------------
 
-#add packages
+# Add packages
 library(nimble)
 library(tidyverse)
 library(MCMCvis)
@@ -22,14 +22,14 @@ rm(list = ls())
 ################################################################################
 
 # 1.1) Read in data ################################################################
-#Add in Data from local drive
-# sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
-#   dplyr::select(-X) %>%
-#   tibble()
-# #or from github
-sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>%
+# Add in Data from local drive
+sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
   dplyr::select(-X) %>%
   tibble()
+# #or from github
+# sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>%
+#   dplyr::select(-X) %>%
+#   tibble()
 
 #view the data
 glimpse(sobs)
@@ -40,13 +40,13 @@ glimpse(sobs)
 # Burn sevarity == 0 means that the area did not burn
 # Burn sevarity == -1 means that no data was available 
 # Fire year == 1800 means there are no recorded fires in the area
-# covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
-#   dplyr::select(-X.1) %>%
-#   tibble()
-# # or from github
-covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
+covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
   dplyr::select(-X) %>%
   tibble()
+# # or from github
+# covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
+#   dplyr::select(-X) %>%
+#   tibble()
 
 # View covariates
 glimpse(covs)
@@ -263,6 +263,12 @@ glimpse(counts)
 # View Observations
 glimpse(observations)
 
+# Plot a specific covariate against bird abundance
+# counts %>% 
+#   ggplot(aes(x = Sage.Cover, y = Count)) +
+#   geom_smooth() +
+#   geom_point()
+
 # 1.4) prepare objects for NIMBLE ################################################################
 
 # Matrix dimentions
@@ -330,7 +336,8 @@ day <- date_mat                                       # Matrix of scaled dates
 ncap <- count_mat                                     # Matrix of the number of detected individuals per grid per survey 
 year <- year_mat                                      # Matrix of year numbers
 sage_cvr <- counts$Sage.Cover[1:length(unique(counts$Grid.ID))]        # Percent sagebrush cover
-pern_cvr <- counts$Perennial.Cover[1:length(unique(counts$Grid.ID))]   # Percent perennial forb and grass cover
+pern_cvr <- counts$Perennial.Cover[1:length(unique(counts$Grid.ID))]   # Percent perennial forb and grass cover4
+tree_cvr <- counts$Tree.Cover[1:length(unique(counts$Grid.ID))]        # Number of 30m cells with trees
 elevation <- counts$Elevation[1:length(unique(counts$Grid.ID))]        # Elevation (m)                             
 
 #########################################################################################################

@@ -1,7 +1,7 @@
-#Will Harrod
-#Created: 06/18/2024
-#Visualizing 2022-2024 songbird point count data 
-#Start here ---------------------------------------------------------------------
+# Will Harrod
+# Created: 06/18/2024
+# Visualizing 2022-2024 songbird point count data 
+# Start here ---------------------------------------------------------------------
 rm(list = ls())
 
 #Add packages
