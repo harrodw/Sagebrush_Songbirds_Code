@@ -1,10 +1,10 @@
-#Practice working with spatial data in R
-#Creator: Will Harrod
-#Created: 02/02/2024
-#Start here ---------------------------------------------------------------------------------
+# Preparing with spatial data in R
+# Creator: Will Harrod
+# Created: 02/02/2024
+# Start here ---------------------------------------------------------------------------------
 rm(list = ls())
 
-#Load packages
+# Load packages
 library(tidyverse)
 library(raster)
 library(sf)
@@ -13,7 +13,7 @@ library(RColorBrewer)
 
 # 1.1) Prepare points ########################################################################
 
-#add in the data
+# Add in the data
 sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
   dplyr::select(-X) #Remove the column that excel generated
 #View the data
@@ -22,9 +22,9 @@ glimpse(sobs)
 #Set a coordinate reference system
 utm_12n <- '+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs'
 
-#Object for point coordinates
+# Object for point coordinates
 grid_covs <- sobs %>%
-  #tidyverse shenanigans 
+  # tidyverse shenanigans 
   group_by(Grid.ID) %>% 
   reframe(Grid.ID,
           Grid.Type,
@@ -32,34 +32,35 @@ grid_covs <- sobs %>%
           Y = mean(UTM.Y)) %>% 
   distinct(Grid.ID, X, Y) 
 
-# transform to a geographic object
+# Transform to a geographic object
 grid_centers <- grid_covs %>% 
   st_as_sf(coords = c("X", "Y")) %>% 
   st_set_crs(utm_12n)
 
-#View points
+# View points
 grid_centers %>% print(n = Inf)
 grid_centers %>% ggplot(aes()) + geom_sf()
 
 #1.2) Add rasters ############################################################################
-#primary file path for rasters
-#This is the geoprocessing outputs folder for my arc pro project
-ras_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\Geoprocessing_Outputs\\"
+# Primary file path for rasters
+# This is the geoprocessing outputs folder for my arc pro project
+ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
-#Add in raster layers
+# Add in raster layers
 sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
 pern_cvr <- raster(paste0(ras_path, "pern_cvr.tif"))
 elevation <- raster(paste0(ras_path, "elevation.tif"))
 aspect <- raster(paste0(ras_path, "aspect.tif"))
+fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
 
-#Other rasters I can add in if needed
+# Other rasters I can add in if needed
 # shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
 # tri <- raster(paste0(ras_path, "tri.tif"))
 # precip <- raster(paste0(ras_path, "precip.tif"))
 # bg_cvr <- raster(paste0(ras_path, "bg_cvr.tif"))
 # roads_dist <- raster(paste0(ras_path, "road_dist.tif"))
 
-#Add vector layers
+# Add vector layers
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
 
 # Function to plot rasters
@@ -86,52 +87,46 @@ sage_map <- plot_ras(sage_cvr)
 pern_map <- plot_ras(pern_cvr)
 elevation_map <- plot_ras(elevation)
 asp_map <- plot_ras(aspect)
-# fd_map <- plot_ras(fire_dist)
-# burn_sev_map <- plot_ras(burn_sev)
+fd_map <- plot_ras(fire_dist)
+
 
 # Plot all rasters
-# tmap_arrange(sage_map, pern_map, elevation_map, asp_map)
+# tmap_arrange(sage_map, pern_map, elevation_map, asp_map, fd_map)
 
 # 2.1) Extracting values to a radius around each point ##########################################
 
-#Define a radius to summarize rasters
+# Define a radius to summarize rasters
 radius <- 657
 
 
-#summarize sage cover 
+# summarize sage cover 
 grid_covs$Sage.Cover <- raster::extract(x = sage_cvr,
                                               y = grid_centers,
                                               buffer = radius,
                                               fun = function(x) mean(x, na.rm = TRUE))
-#summarize perennial forb and grass cover
+# Summarize perennial forb and grass cover
 grid_covs$Perennial.Cover <- raster::extract(x = pern_cvr,
                                                    y = grid_centers,
                                                    buffer = radius,
                                                    fun = function(x) mean(x, na.rm = TRUE))
 
-#summarize elevation
+# Summarize elevation
 grid_covs$Elevation <- raster::extract(x = elevation,
                                              y = grid_centers,
                                              buffer = radius,
                                              fun = function(x) mean(x, na.rm = TRUE)) 
 
-# # #summarize burn sevarity
-# grid_covs$Burn.Sevarity <- raster::extract(x = burn_sev,
-#                                                  y = grid_centers,
-#                                                  buffer = radius,
-#                                                  fun = function(x) modal(x, na.rm = TRUE))
-
-# #summarize aspect
+# Summarize aspect
 grid_covs$Aspect <- raster::extract(x = aspect,
                                                  y = grid_centers,
                                                  buffer = radius,
                                                  fun = function(x) modal(x, na.rm = TRUE))
 
-# # #summarize distance to fires
-# grid_covs$Fire.Dist <- raster::extract(x = fire_dist,
-#                                                  y = grid_centers,
-#                                                  buffer = radius,
-#                                                  fun = function(x) mean(x, na.rm = TRUE))
+# Summarize distance to fires
+grid_covs$Fire.Dist <- raster::extract(x = fire_dist,
+                                       y = grid_centers,
+                                                 buffer = radius,
+                                                 fun = function(x) mean(x, na.rm = TRUE))
 
 # View the new point covariates
 glimpse(grid_covs)
@@ -139,7 +134,7 @@ glimpse(grid_covs)
 # 2.2) fire covariates ##########################################################
 
 # File path for burn sevarity data
-mtbs_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\mtbs_cleaned\\"
+mtbs_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\mtbs_cleaned\\"
 
 # Define which years for which I have fire data
 fire_years_df <- read.csv(paste0(mtbs_path, "fire_years.csv")) %>% 
@@ -174,7 +169,7 @@ grid_covs_fire <- grid_covs %>%
     Fire.Count = 0)
 
 # Loop through each year to extract burn severity and number of fires
-for(i in 1:(nyears-1)){ # Skip 2022
+for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
   # run a specific year
   # i <- which(fire_years == 1999)
   
@@ -242,12 +237,12 @@ grid_covs <- grid_covs_fire %>%
   dplyr::select(-mean.dnbr.tmp, -mean.rdnbr.tmp, -sd.dnbr.tmp, -sd.rdnbr.tmp) 
 
 # View the covariate trends
-glimpse(grid_covs)
-ggplot(grid_covs, aes(x = mean.dnbr, y = Sage.Cover)) +
-  geom_smooth(method = "lm") +
-  geom_point()
+# glimpse(grid_covs)
+# ggplot(grid_covs, aes(x = mean.dnbr, y = Sage.Cover)) +
+#   geom_smooth(method = "lm") +
+#   geom_point()
 
 #export the point summaries
 write.csv(grid_covs, "Data\\Outputs\\grid_covs.csv")
-#And to my box data folder. Feel free to comment this out
-# write.csv(sobs, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\grid_covs.csv")
+# And to my box data folder. Feel free to comment this out
+write.csv(sobs, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\grid_covs.csv")

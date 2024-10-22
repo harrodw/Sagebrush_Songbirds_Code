@@ -18,7 +18,7 @@ library(tmap)
 target_crs <- CRS("+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs")
 
 # Define the path to my existing spatial data
-dat_path <- "C:/Users/willh/OneDrive/Documents/USU/SOBs/Data/Spatial/Geoprocessing_Outputs/"
+dat_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
 # Add the study region polygon
 study_region <- st_read(paste0(dat_path, "Study_Region.shp"))
@@ -29,7 +29,7 @@ study_region <- st_read(paste0(dat_path, "Study_Region.shp"))
 zip_folder <- "C:/Users/willh/Downloads/mtbs"
 
 # Set the directory where you want to extract the files
-output_folder <- "C:/Users/willh/OneDrive/Documents/USU/SOBs/Data/Spatial/mtbs_raw"
+output_folder <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\mtbs_raw\\"
 
 # Create output directory if it doesn't exist
 if (!dir.exists(output_folder)) {
@@ -60,7 +60,7 @@ message("All files have been unzipped.")
 # 3) Assign where each dnbr, rdnbr, and fire perimeter shapefiles will go #############################################
 
 # Set the directory containing the rasters
-raster_folder <- "C:/Users/willh/OneDrive/Documents/USU/SOBs/Data/Spatial/mtbs_raw"
+raster_folder <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\mtbs_raw\\"
 
 # 3.1) dnbr files -----------------------------------------------------------------------------
 # Find all dnbr files
@@ -115,7 +115,7 @@ head(perims_df, n = 30)
 # 4) Read in the burn layers and merge them by year ########################################
 
 # file path to save the raster
-save_path <- "C:\\Users\\willh\\OneDrive\\Documents\\USU\\SOBs\\Data\\Spatial\\mtbs_cleaned\\"
+save_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\mtbs_cleaned\\"
 
 # Define the years that we are examining
 years <- sort(unique(perims_df$Year))

@@ -14,7 +14,7 @@ library(MCMCvis)
 
 #clear environments
 rm(list = ls())
-dev.off()
+# dev.off()
 
 ################################################################################
 # 1.0) Data Prep  ################################################################
@@ -44,7 +44,7 @@ glimpse(sobs)
 #   tibble()
 # # or from github
 covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
-  dplyr::select(-X) %>%
+  # dplyr::select() %>%
   tibble()
 
 # View covariates
@@ -417,7 +417,7 @@ sobs_model_code <- nimbleCode({
       # ------------------------------------------------------------------
 
       # Parameters in the availability component of the detection model
-      gamma0 ~ dnorm(0, 10)         # mean availability
+      gamma0 ~ dnorm(0, 10)         # Mean singing rate (availability)
       gamma_date ~ dnorm(0, 10)     # Effect of day of year on singing rate
       gamma_date2 ~ dnorm(0, 10)    # Effect of day of year on singing rate (quadratic)
       gamma_time ~ dnorm(0, 10)     # Effect of time of day on singing rate
@@ -431,21 +431,24 @@ sobs_model_code <- nimbleCode({
       }
       
       # Random intercept for each year
+      mean_alpha0 ~ dnorm(0, 10)     # Truncated so that initial value is within bounds
+      sd_alpha0 ~ dunif(0, 5)        # Magnitude of that noise on detection probability intercept
       mean_beta0 ~ dnorm(0, 10)     # truncated so that initial value is within bounds
       sd_beta0 ~ dunif(0, 5)        # Magnitude of that noise on lambda intercept 
       # Random intercept for each year
       for(y in 1:nyears) {     # Loop over 3 years
-        alpha0_year[y] ~ dnorm(mean_beta0, sd_beta0)
+        alpha0_year[y] ~ dnorm(mean_alpha0, sd_alpha0) # Random intercept on detectability
+        beta0_year[y] ~ dnorm(mean_beta0, sd_beta0)    # Random intercept on abundance
       }
   
       # Covariates on abundance:
       beta0 ~ dnorm(0, 10)          # Intercept on dabundance
       beta_sage ~ dnorm(0, 10)      # Effect of sagebrush cover
-      beta_sage2 ~ dnorm(0, 10)     # Effect of sagebrush cover squared
+      beta_sage2 ~ dnorm(0, 10)     # Effect of sagebrush cover (quadratic)
       beta_pern ~ dnorm(0, 10)      # Effect of Perennial Cover
-      beta_pern2 ~ dnorm(0, 10)     # Effect of perennial cover squared
+      beta_pern2 ~ dnorm(0, 10)     # Effect of perennial cover (quadratic)
       beta_elv ~ dnorm(0, 10)       # Effect of elevation
-      beta_elv2 ~ dnorm(0, 10)      # Effect of elevation squared
+      beta_elv2 ~ dnorm(0, 10)      # Effect of elevation (quadratic)
 
       # -------------------------------------------------------------------
       # Hierarchical construction of the likelihood
@@ -478,7 +481,7 @@ sobs_model_code <- nimbleCode({
         ### Log-linear models on abundance, detectability, and availability
         
         # Detectability (sigma) Log-Linear model 
-        log(sigma[s, y]) <- alpha0_year[year[s, y]] +         # Intercept on detectability
+        log(sigma[s, y]) <- alpha0_year[year[s, y]] +         # Random intercept on detectability
                             alpha_obsv[observers[s, y]]       # Effect of each observer
 
         # Availability (phi)
@@ -490,7 +493,7 @@ sobs_model_code <- nimbleCode({
                             gamma_time2 * time[s, y]^2        # Effect of scaled time of day squared 
 		    
 		    # Abundance (lambda) Log-linear model 
-		    log(lambda[s, y]) <- beta0 +                          # Intercept on abundance
+		    log(lambda[s, y]) <- beta0_year[year[s, y]] +         # Random intercept on abundance
 		                         beta_sage * sage_cvr[s] +        # Effect of sagebrush cover
 		                         beta_sage2 * sage_cvr[s]^2 +     # Effect of sagebrush cover squared
 		                         beta_pern *  pern_cvr[s] +       # Effect of Perennial Cover
@@ -558,7 +561,7 @@ sobs_params <- c("alpha0_year",
                  "gamma_date2", 
                  "gamma_time", 
                  "gamma_time2", 
-                 "beta0",
+                 "beta0_year",
                  "beta_sage", 
                  "beta_pern", 
                  "beta_elv", 
@@ -572,6 +575,8 @@ sobs_params <- c("alpha0_year",
 # Initial Values
 sobs_inits <- list(
   # Detecability 
+  sd_alpha0 = runif(1, 0, 1),
+  mean_alpha0 = runif(1, 0, 30),
   alpha0_year = rnorm(nyears, 0, 5),
   alpha_obsv = rnorm(nobsv, 0, 0.5),
   # availability 
