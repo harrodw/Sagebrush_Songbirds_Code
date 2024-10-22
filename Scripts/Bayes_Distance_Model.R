@@ -605,7 +605,7 @@ str(sobs_inits)
 # nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 1   # longer test where some things might converge
 nc <- 4;  ni <- 150000;  nb <- 50000;  nt <- 1        # Run the model for real
 
-#Run the sampler
+# Run the sampler
 start <- Sys.time() #start time for the sampler
 sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                           data = sobs_dat,
@@ -622,12 +622,9 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                           summary = TRUE)
 difftime(Sys.time(), start) # end time for the sampler
 
-# Save model output to local drive
+# Save model output to lBox since they're too big for Git
 saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                      soi, "_distance_model_out.rds"))
-# ...and to Box
-# saveRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Model_Files",
-#                soi, "_distance_model_out.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -635,11 +632,11 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 
 # 3.1) View model output
 
-#load the output back in
+# Load the model output back in
 sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                        soi, "_distance_model_out.rds"))
 
-#Define which parameters I want to view
+# Define which parameters I want to view
 sobs_params_view <- c(
                  # "mean_N_indv",
                  "mean_psi",
@@ -663,7 +660,7 @@ sobs_params_view <- c(
                  "fit_new",
                  "bpv")
 
-#View MCMC summary
+# View MCMC summary
 MCMCsummary(object = sobs_mcmc_out$samples, 
             params = sobs_params_view,
             round = 2)
@@ -672,7 +669,7 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 MCMCplot(object = sobs_mcmc_out$samples,
          params = sobs_params_view)
 
-#Traceplots and density graphs 
+# Traceplots and density graphs 
 MCMCtrace(object = sobs_mcmc_out$samples,
           pdf = FALSE,
           ind = TRUE,
