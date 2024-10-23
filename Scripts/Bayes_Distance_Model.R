@@ -287,6 +287,8 @@ date_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 points_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for who conducted each survey
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+# Build a storage matrix for which grid each survey took place in
+grid_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -301,6 +303,7 @@ for(y in 1:nrow(count_mat)){
   date_mat[y,] <- count_visit$Ord.Date
   points_mat[y,] <- count_visit$n.Points
   obsv_mat[y,] <- count_visit$Observer.ID.num
+  grid_mat[y,] <- count_visit$Grid.ID.num
 }
 
 # View the matrices
@@ -310,6 +313,7 @@ time_mat   # Scaled mean time of day for each visit
 date_mat   # Scaled date for each visit
 points_mat # Number of points visited during each survey 
 obsv_mat   # Who conducted each survey
+grid_mat   # Which grid each survey took place in
 
 # Loop sizes 
 ngrids <- length(unique(counts$Grid.ID.num))          # Number of survey grids
@@ -335,10 +339,11 @@ day <- date_mat                                       # Matrix of scaled dates
 # Grid level data
 ncap <- count_mat                                     # Matrix of the number of detected individuals per grid per survey 
 year <- year_mat                                      # Matrix of year numbers
+grids <- grid_mat                                     # Grid that each survey took place in
 sage_cvr <- counts$Sage.Cover[1:length(unique(counts$Grid.ID))]        # Percent sagebrush cover
 pern_cvr <- counts$Perennial.Cover[1:length(unique(counts$Grid.ID))]   # Percent perennial forb and grass cover4
 tree_cvr <- counts$Tree.Cover[1:length(unique(counts$Grid.ID))]        # Number of 30m cells with trees
-elevation <- counts$Elevation[1:length(unique(counts$Grid.ID))]        # Elevation (m)                             
+elevation <- counts$Elevation[1:length(unique(counts$Grid.ID))]        # Elevation (m)   
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -368,7 +373,8 @@ sobs_const <- list (
   
   # Non-stochastic constants
   obs_visit  = obs_visit,  # year when each observation took place
-  obs_grid  = obs_grid     # Grid of each observation 
+  obs_grid  = obs_grid,    # Grid of each observation 
+  grids = grids            # Grid for each survey
 )
 # View Nimble constants 
 str(sobs_const)
@@ -436,16 +442,24 @@ sobs_model_code <- nimbleCode({
     alpha_obsv[o] ~  dnorm(0, 10)    
   }
   
-  # Random intercept for each year
-  mean_beta0 ~ dnorm(0, 10)     # Truncated so that initial value is within bounds
-  sd_beta0 ~ dunif(0, 5)        # Magnitude of that noise on lambda intercept 
+  # Parameters on the detecability componant of the model
+  # Priors for random intercept for each year
+  mean_alpha0 ~ dnorm(0, 10)     # Truncated so that initial value is within bounds
+  sd_alpha0 ~ dunif(0, 5)        # Magnitude of that noise on lambda intercept 
   # Random intercept for each year
   for(y in 1:nyears) {     # Loop over 3 years
-    alpha0_year[y] ~ dnorm(mean_beta0, sd_beta0)
+    alpha0_year[y] ~ dnorm(mean_alpha0, sd_alpha0)
   }
   
   # Covariates on abundance:
-  beta0 ~ dnorm(0, 10)          # Intercept on abundance
+  # Random intercept on abundance for each grid
+  mean_beta0 ~ dnorm(0, 10) 
+  sd_beta0 ~ dunif(0, 5)
+  # Random intercept for each grid
+  for(s in 1:ngrids){
+    beta0_grid[s] ~ dnorm(mean_beta0, sd_beta0)
+  }
+  # Fixed effects on abundance
   beta_sage ~ dnorm(0, 10)      # Effect of sagebrush cover
   beta_sage2 ~ dnorm(0, 10)     # Effect of sagebrush cover squared
   beta_pern ~ dnorm(0, 10)      # Effect of Perennial Cover
@@ -485,25 +499,25 @@ sobs_model_code <- nimbleCode({
       
       # Detectability (sigma) Log-Linear model 
       log(sigma[s, y]) <- alpha0_year[year[s, y]] +         # Random intercept on detectability
-        alpha_obsv[observers[s, y]]       # Effect of each observer
+                          alpha_obsv[observers[s, y]]       # Effect of each observer
       
       # Availability (p_a) Log-linear model for availability
       logit(p_a[s, y]) <- gamma0 +                          # Intercept on availability 
-        gamma_date * day[s, y] +          # Effect of scaled ordinal date 
-        gamma_date2 * day[s, y]^2 +       # Effect of scaled ordinal date squared 
-        gamma_time * time[s, y] +         # Effect of scaled time of day 
-        gamma_time2 * time[s, y]^2        # Effect of scaled time of day squared 
+                          gamma_date * day[s, y] +          # Effect of scaled ordinal date 
+                          gamma_date2 * day[s, y]^2 +       # Effect of scaled ordinal date squared 
+                          gamma_time * time[s, y] +         # Effect of scaled time of day 
+                          gamma_time2 * time[s, y]^2        # Effect of scaled time of day squared 
       
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0 +                          # Intercept on abundance
-        beta_sage * sage_cvr[s] +        # Effect of sagebrush cover
-        beta_sage2 * sage_cvr[s]^2 +     # Effect of sagebrush cover squared
-        beta_pern *  pern_cvr[s] +       # Effect of Perennial Cover
-        beta_pern2 * pern_cvr[s]^2 +     # Effect of perennial cover squared
-        beta_elv * elevation[s] +        # Effect of elevation
-        beta_elv2 * elevation[s]^2       # Effect of elevation squared 
+      log(lambda[s, y]) <- beta0_grid[grids[s, y]] +        # Intercept on abundance
+                           beta_sage * sage_cvr[s] +        # Effect of sagebrush cover
+                           beta_sage2 * sage_cvr[s]^2 +     # Effect of sagebrush cover squared
+                           beta_pern *  pern_cvr[s] +       # Effect of Perennial Cover
+                           beta_pern2 * pern_cvr[s]^2 +     # Effect of perennial cover squared
+                           beta_elv * elevation[s] +        # Effect of elevation
+                           beta_elv2 * elevation[s]^2       # Effect of elevation squared 
       
-      # Multiply availability with capture probability to yield total detection probbability
+      # Multiply availability with capture probability to yield total detection probability
       p_dct[s, y] <- p_cap[s, y] * phi[s, y]
       
       ### Binomial mixture part (in conditional multinomial specification)
@@ -530,9 +544,9 @@ sobs_model_code <- nimbleCode({
   
   # Zero-inflation component on abundance
   for(s in 1:ngrids){
-    psi[s] ~ dunif(0.0001, 0.9999)                       # Occupancy probability
-    present[s] ~ dbern(psi[s])                           # Number of grids where that individual can be present
-    mean_N_indv[s] <- mean(N_indv[s,])                   # Average true abundance across visits 
+    psi[s] ~ dunif(0.0001, 0.9999)                        # Occupancy probability
+    present[s] ~ dbern(psi[s])                            # Number of grids where that individual can be present
+    mean_N_indv[s] <- mean(N_indv[s,])                    # Average true abundance across visits 
   } # end zero-inflation loop
   
   # Averages across grids and years
@@ -552,7 +566,8 @@ sobs_model_code <- nimbleCode({
 # 2.4) Configure and Run the model ###########################################################
 
 # Params to save
-sobs_params <- c("alpha0_year",
+sobs_params <- c("mean_alpha0",
+                 "sd_alpha0",
                  "alpha_obsv",
                  "mean_N_indv",
                  "mean_psi",
@@ -563,7 +578,8 @@ sobs_params <- c("alpha0_year",
                  "gamma_date2", 
                  "gamma_time", 
                  "gamma_time2", 
-                 "beta0",
+                 "mean_beta0",
+                 "sd_beta0",
                  "beta_sage", 
                  "beta_pern", 
                  "beta_elv", 
@@ -577,6 +593,8 @@ sobs_params <- c("alpha0_year",
 # Initial Values
 sobs_inits <- list(
   # Detecability 
+  mean_alpha0 = runif(1, 0, 10),
+  sd_alpha0 = runif(1, 0, 1),
   alpha0_year = rnorm(nyears, 0, 5),
   alpha_obsv = rnorm(nobsv, 0, 0.5),
   # availability 
@@ -586,9 +604,9 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.5),  
   gamma_time2 = rnorm(1, 0, 0.5),
   # Abudance 
+  mean_beta0 = runif(1, 0, 10),
   sd_beta0 = runif(1, 0, 1),
-  mean_beta0 = runif(1, 0, 30),
-  beta0 = rnorm(1, 0, 0.5),
+  beta0_grid = rnorm(ngrids, 0, 0.5),
   beta_sage = rnorm(1, 0, 0.5),
   beta_sage2 = rnorm(1, 0, 0.5),
   beta_pern = rnorm(1, 0, 0.5),
