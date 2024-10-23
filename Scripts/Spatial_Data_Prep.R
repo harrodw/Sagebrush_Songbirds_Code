@@ -233,9 +233,24 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
 } # end the loop through years
 
 # Remove the temporary attributes
-grid_covs_f <- grid_covs_fire %>% 
-  dplyr::select(-mean.dnbr.tmp, -mean.rdnbr.tmp, -sd.dnbr.tmp, -sd.rdnbr.tmp) 
+grid_covs_fire2 <- grid_covs_fire %>% 
+  dplyr::select(-mean.dnbr.tmp, -mean.rdnbr.tmp, -sd.dnbr.tmp, -sd.rdnbr.tmp) %>% 
+  # Need to manually add in data for UT-B02 since the fire is too small foor mtbs
+  mutate(Fire.Year = case_when(Grid.ID == "UT-B02" ~ 2017, 
+                               TRUE ~ Fire.Year),
+         mean.dnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$mean.dnbr[which(grid_covs_fire$mean.dnbr != 0)]), 
+                               TRUE ~ mean.dnbr),
+         sd.dnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$sd.dnbr[which(grid_covs_fire$sd.dnbr != 0)]), 
+                               TRUE ~ sd.dnbr),
+         mean.rdnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$mean.rdnbr[which(grid_covs_fire$mean.rdnbr != 0)]), 
+                               TRUE ~ mean.rdnbr),
+         sd.rdnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$sd.rdnbr[which(grid_covs_fire$sd.rdnbr != 0)]), 
+                             TRUE ~ sd.rdnbr),
+         Fire.Count= case_when(Grid.ID == "UT-B02" ~ 1, 
+                               TRUE ~ Fire.Count))
 
+grid_covs_fire2 %>% 
+  filter(Grid.ID == "UT-B02")
 # 2.4) Covariates collected on thee ground ###########################################################
 
 # Add in the 2023 point data
@@ -328,7 +343,7 @@ grid_ground_covs <- grid_ground_covs1 %>%
 glimpse(grid_ground_covs)
 
 # Join these to the exisitng covariates
-grid_covs <- grid_covs_f %>% 
+grid_covs <- grid_covs_fire2 %>% 
   left_join(grid_ground_covs, by = "Grid.ID") 
 
 # View the covariate trends
