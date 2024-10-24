@@ -3,9 +3,10 @@
 # Hierarchical distance sampling for sagebrush songbird point count data
 # September 2024
 # 
-# Model code Modefied from Kery et al. 2024: Integrated distance sampling models for simple point counts 
-# Marc Kary, Nicolas Strebel, Tyler Hallman, Kenneth F. Kellner
-# August 2024
+# Code based on open source code from: 
+# Amundson et al. 2014
+# Kery et al. 2024, 
+# Van Lanen et al. 2023, 
 #---------------------------------------------------------------
 
 # Add packages
@@ -23,13 +24,13 @@ rm(list = ls())
 
 # 1.1) Read in data ################################################################
 # Add in Data from local drive
-sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
-  dplyr::select(-X) %>%
-  tibble()
-# #or from github
-# sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>%
+# sobs <- read.csv("Data/Outputs/sobs_data.csv") %>%
 #   dplyr::select(-X) %>%
 #   tibble()
+# #or from github
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>%
+  dplyr::select(-X) %>%
+  tibble()
 
 #view the data
 glimpse(sobs)
@@ -40,13 +41,13 @@ glimpse(sobs)
 # Burn sevarity == 0 means that the area did not burn
 # Burn sevarity == -1 means that no data was available 
 # Fire year == 1800 means there are no recorded fires in the area
-covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
-  dplyr::select(-X) %>%
-  tibble()
-# # or from github
-# covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
+# covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
 #   dplyr::select(-X) %>%
 #   tibble()
+# # or from github
+covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
+  dplyr::select(-X) %>%
+  tibble()
 
 # View covariates
 glimpse(covs)
@@ -101,10 +102,7 @@ glimpse(visit_count)
 
 #Join the two, add zeros and average observations within year
 counts_temp <-  visit_count %>% 
-  left_join(counts_0inf, by = c("Grid.ID",
-                                "Year", 
-                                "Visit.ID", 
-                                "Ord.Date")) %>% 
+  left_join(counts_0inf, by = c("Grid.ID", "Year", "Visit.ID", "Ord.Date")) %>% 
   mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count))
 
 #...and view
@@ -135,11 +133,13 @@ new_dat <- tibble(Grid.ID = c("ID-C11", "ID-C22"),
                             floor(mean(counts_temp$Count[which(counts_temp$Grid.ID == "ID-C22")]))),
                   # Average number of points surevyed
                   n.Points = c(floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C11")])),
-                               floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C22")]))),
-)
+                               floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C22")]))))
 
 # Bind these to the exisitng data 
 counts_temp2 <- bind_rows(counts_temp, new_dat)
+
+# Define levels for wind factors
+wind_lvl <- c("<1 mph", "1-3 mph", "4-7 mph", "8-12 mph", "13-18 mph", "Unknown")
 
 # Change necessary variables to scales and factors
 counts_temp3 <- counts_temp2 %>%
@@ -147,22 +147,18 @@ counts_temp3 <- counts_temp2 %>%
   left_join(covs, by = c("Grid.ID")) %>% 
   # Sort the data
   arrange(Visit.ID, Grid.ID) %>% 
-  mutate(
-    # Numeric burned vs unburned
-    Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
-    # Time since Fire
-    Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                 Year == "Y2" ~ 2023 - Fire.Year,
-                                 Year == "Y3" ~ 2024 - Fire.Year)) %>%
+  mutate(# Numeric burned vs unburned
+         Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
+         # Time since Fire
+         Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
+                                      Year == "Y2" ~ 2023 - Fire.Year,
+                                      Year == "Y3" ~ 2024 - Fire.Year)) %>%
   # Change the wind data to a factor with set levels
-  mutate(Wind = case_when(is.na(Wind) ~ 'Unknown',
+  mutate(Wind = case_when(is.na(Wind) ~ 'Unknown', 
                           TRUE ~ Wind)) %>% 
-  mutate(Wind = factor(Wind, levels = c("<1 mph", "1-3 mph", "4-7 mph",
-                                        "8-12 mph", "13-18 mph", "Unknown"))) %>%
+  mutate(Wind = factor(Wind, levels = wind_lvl)) %>%
   # Other things that should be factors
-  mutate_at(c("Grid.ID", "Visit.ID",
-              "Observer.ID", "Year", "Aspect"
-  ), factor) %>% 
+  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year", "Aspect"), factor) %>% 
   # Remove columns that are no longer needed
   dplyr::select(-Grid.Type) 
 
@@ -201,13 +197,11 @@ observations_temp <- sobs %>%
   filter(Species == soi) %>%                  # Only one species
   arrange(Year, Visit, Grid.ID) %>%           # Same order as the others
   filter(Distance <= trunc_dist) %>%          # Only close observations
-  mutate(
-    # Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
-    Observer.ID = case_when(Observer.ID == "Alex" ~ "Ben", TRUE ~ Observer.ID),
-    # A unique ID for each visit
-    Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  dplyr::select(Distance, Minute, 
-                Grid.ID, Observer.ID, Year, Visit.ID) %>% 
+  mutate(# Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
+         Observer.ID = case_when(Observer.ID == "Alex" ~ "Ben", TRUE ~ Observer.ID),
+         # A unique ID for each visit
+         Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  dplyr::select(Distance, Minute, Grid.ID, Observer.ID, Year, Visit.ID) %>% 
   left_join(covs, by = "Grid.ID") %>% 
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
@@ -285,7 +279,7 @@ year_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 time_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix of survey dates by visit
 date_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for the number of points visited during each survey
+# Build a storage matrix for the proportion of points visited during each survey
 points_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for who conducted each survey
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
@@ -303,7 +297,7 @@ for(y in 1:nrow(count_mat)){
   year_mat[y,] <- count_visit$Year
   time_mat[y,] <- count_visit$Mean.MAS
   date_mat[y,] <- count_visit$Ord.Date
-  points_mat[y,] <- count_visit$n.Points
+  points_mat[y,] <- count_visit$n.Points / 16
   obsv_mat[y,] <- count_visit$Observer.ID.num
   fyear_mat[y,] <- count_visit$Years.Since.Fire
 }
@@ -323,7 +317,6 @@ nind <- nrow(observations)                            # Number of individuals de
 nobsv <- length(unique(counts$Observer.ID.num))       # Number of unique observers
 nbins <- length(unique(observations$Dist.Bin))        # Number of distance bins
 nints <- length(unique(observations$Time.Interval))   # Number of time intervals
-nyears <- length(unique(counts$Year))                 # Number of Years we surveyed
 nvst <- length(unique(counts$Visit.ID))               # Number of visits in each year
 
 # Observation Level data 
@@ -339,10 +332,10 @@ time <- time_mat                                      # Matrix of scaled time af
 day <- date_mat                                       # Matrix of scaled dates
 
 # Grid level data
-ncap <- count_mat                                     # Matrix of the number of detected individuals per grid per survey 
+n_dct <- count_mat                                    # Matrix of the number of detected individuals per grid per survey 
 year <- year_mat                                      # Matrix of year numbers
 sage_cvr <- counts$Sage.Cover[1:length(unique(counts$Grid.ID))]        # Percent sagebrush cover
-pern_cvr <- counts$Perennial.Cover[1:length(unique(counts$Grid.ID))]   # Percent perennial forb and grass cover4
+pern_cvr <- counts$Perennial.Cover[1:length(unique(counts$Grid.ID))]   # Percent perennial forb and grass cover
 elevation <- counts$Elevation[1:length(unique(counts$Grid.ID))]        # Elevation (m) 
 burned <- counts$Burned[1:length(unique(counts$Grid.ID))]              # Whether or not each grid burned
 fire_year <- fyear_mat                                                 # How long since the most recent fire in each grid
@@ -365,18 +358,16 @@ sobs_const <- list (
   ngrids = ngrids,         # Number of survey grids
   nind = nind,             # Number of individuals detected 
   nobsv = nobsv,           # Number of unique observers
-  nyears = nyears,         # Number of years we surveyed
   nvst = nvst,             # Number of times each grid was surveyed (6)
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
+
   
-  # Random effects
-  observers = observers,   # Random effect for observer associated with each survey
-  year = year_mat,         # Year number (1-3)
   
   # Non-stochastic constants
-  obs_visit  = obs_visit,  # year when each observation took place
-  obs_grid  = obs_grid    # Grid of each observation 
+  obs_visit  = obs_visit,  # Visit when each observation took place
+  obs_grid  = obs_grid,    # Grid of each observation 
+  observers = observers    # Effect of observer associated with each survey
 )
 # View Nimble constants 
 str(sobs_const)
@@ -393,7 +384,7 @@ sobs_dat <- list(
   day = day,              # Scaled date
   
   #Point level data
-  ncap = ncap,            # Number of detected individuals per site
+  n_dct = n_dct,          # Number of detected individuals per site
   sage_cvr = sage_cvr,    # Scaled percent sagebrush cover
   pern_cvr = pern_cvr,    # Perennial forb and grass cover
   elevation = elevation,  # Scaled elevation
@@ -414,14 +405,14 @@ sobs_dims <- list(
   sigma = c(ngrids, nvst),           # Linear combination on detectability
   pi_pd = c(ngrids, nvst, nbins),    # Detection probability in each cell
   pi_pd_c = c(ngrids, nvst, nbins),  # Proportion of total detection probability in each cell
-  p_cap = c(ngrids, nvst),           # Detection probability 
+  p_dct = c(ngrids, nvst),           # Detection probability 
   p_a = c(ngrids, nvst),             # Linear combination on avalibility  
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
-  phi = c(ngrids, nvst),             # Overall Availability
-  FTD = c(ngrids , nvst),            # Freeman Tukey Discrepancy
-  FTD_new = c(ngrids, nvst),         # New Freeman Tukey Discrepancy
-  phi = c(ngrids, nvst)              # Availability probability
+  phi = c(ngrids, nvst),             # Availability probability
+  lambda = c(ngrids, nvst),          # Poisson random variable
+  FT = c(ngrids , nvst),             # Freeman Tukey Discrepancy
+  FT_new = c(ngrids, nvst)           # New Freeman Tukey Discrepancy
 )
 
 # 2.3) Model definition ################################################################
@@ -434,27 +425,23 @@ sobs_model_code <- nimbleCode({
   # ------------------------------------------------------------------
   
   # Parameters in the availability component of the detection model
-  gamma0 ~ dnorm(0, 10)         # Mean availability
+  gamma0 ~ dnorm(0, 50)         # Mean availability
   gamma_date ~ dnorm(0, 10)     # Effect of day of year on singing rate
   gamma_date2 ~ dnorm(0, 10)    # Effect of day of year on singing rate (quadratic)
   gamma_time ~ dnorm(0, 10)     # Effect of time of day on singing rate
   gamma_time2 ~ dnorm(0, 10)    # Effect of time of day on singing rate (quadratic)
   
   # Parameters in the detection portion of the model
-  # offset for each observer 
-  for(o in 1:nobsv) {     # Loop over all observers
-    alpha_obsv[o] ~  dnorm(0, 10)    
-  }
-  # Priors for random intercept for each year
-  mean_alpha0 ~ dnorm(0, 10)     # Truncated so that initial value is within bounds
-  sd_alpha0 ~ dunif(0, 5)        # Magnitude of that noise on lambda intercept 
-  # Random intercept for each year
-  for(y in 1:nyears) {     # Loop over 3 years
-    alpha0_year[y] ~ dnorm(mean_alpha0, sd_alpha0)
+  # Intercept for detecability
+  alpha0 ~ dnorm(0, 50)     
+  # Effect of each observer on detecability
+  for(o in 1:nobsv) {
+    alpha_obsv[o] ~  dnorm(0, 10)
   }
   
-  # Parameters on the abundance componant of the model
-  beta0 ~ dnorm(0, 10)          # Intercept on abundance
+
+  # Parameters on the abundance component of the model
+  beta0 ~ dnorm(0, 50)          # Intercept on abundance
   beta_sage ~ dnorm(0, 10)      # Effect of sagebrush cover
   beta_sage2 ~ dnorm(0, 10)     # Effect of sagebrush cover squared
   beta_pern ~ dnorm(0, 10)      # Effect of Perennial Cover
@@ -464,40 +451,52 @@ sobs_model_code <- nimbleCode({
   beta_burned ~ dnorm(0, 10)    # Effect of fire
   beta_fyear ~ dnorm(0, 10)     # Effect of years since fire on burned grids
   beta_burnsev ~ dnorm(0, 10)   # Effect of initial burn severity on burned grids
+  beta_offset ~ dnorm(0, 10)    # Offset based on how many points were surveyed during a visit
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
   
-  # Iterate over all of the visits to each survey grid
-  for(y in 1:nvst){ 
+  # Iterate over all survey grids
+  for(s in 1:ngrids){
     
-    # Loop over all survey grids
-    for(s in 1:ngrids){
+    # Zero-inflation component on abundance
+    psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
+    present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
+
+    # Iterate over all of the visits to each survey grid 
+    for(y in 1:nvst){ 
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[s, y, b]) <- - (midpt[b] * midpt[b]) / (2 * sigma[s, y] * sigma[s, y]) # Half-normal detection function
-        f[s, y, b] <- ((2 * midpt[b] ) / trunc_dist^2) * delta                       # Prob density function out to max truncation distance 
-        pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]                                    # Detection cell probability
-        pi_pd_c[s, y, b] <- f[s, y, b] / p_cap[s, y]                                 # Proportion of total probability in each cell probability
+        log(g[s, y, b]) <- -(midpt[b]^2) / (2 * sigma[s, y]^2)        # Half-normal detection function
+        f[s, y, b] <- (2 * midpt[b] * delta) / trunc_dist^2           # Prob density function out to max truncation distance 
+        pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]                     # Detection cell probability
+        pi_pd_c[s, y, b] <- f[s, y, b] / p_dct[s, y]                  # Proportion of total probability in each cell probability
       }
       # Rectangular integral approx. of integral that yields the Pr(capture)
-      p_cap[s, y] <- sum(pi_pd[s, y, ])
+      p_dct[s, y] <- sum(pi_pd[s, y, ])
       
       # Construction of the cell probabilities for the nints time intervals
       for (k in 1:nints){
-        pi_pa[s, y, k] <- p_a[s, y] * (1 - p_a[s, y])^(k-1)          # Availability cell probability
-        pi_pa_c[s, y, k] <- pi_pa[s, y, k] / phi[s, y]               # Proportion of availability probability in each time interval class
+        pi_pa[s, y, k] <- p_a[s, y] * (1 - p_a[s, y])^(k - 1)         # Availability cell probability
+        pi_pa_c[s, y, k] <- pi_pa[s, y, k] / phi[s, y]                # Proportion of availability probability in each time interval class
       }   
       
       # Rectangular integral approx. of integral that yields the Pr(available)
       phi[s, y] <- sum(pi_pa[s, y, ])
       
-      # Log-linear models on abundance, detectability, and availability
+      # Multiply availability with capture probability to yield total marginal probability
+      p_marg[s, y] <- p_dct[s, y] * phi[s, y]
+      
+      ### Binomial portion of mixture 
+      n_dct[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])                  # Number of individual birds captured (observations)
+      
+      # Poisson abundance portion of mixture
+      N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.00001))      # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0_year[year[s, y]] +                   # Random intercept on detectability
-                          alpha_obsv[observers[s, y]]                 # Effect of each observer
+      log(sigma[s, y]) <- alpha0 +                                    # Intercept on detectability
+                          alpha_obsv[observers[s, y]]                 # Effect of each observer on detectability
       
       # Availability (p_a) Log-linear model for availability
       logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability 
@@ -513,29 +512,24 @@ sobs_model_code <- nimbleCode({
                            beta_pern *  pern_cvr[s] +                 # Effect of Perennial Cover
                            beta_pern2 * pern_cvr[s]^2 +               # Effect of perennial cover squared
                            beta_elv * elevation[s] +                  # Effect of elevation
-                           beta_elv2 * elevation[s]^2 +               # Effect of elevation squared 
+                           beta_elv2 * elevation[s]^2 +               # Effect of elevation squared
                            beta_burned * burned[s] +                  # Effect of fire
                            beta_fyear * fire_year[s, y] * burned[s] + # Effect of years since fire on burned grids
-                           beta_burnsev * burn_sev[s] * burned[s]     # Effect of initial burn severity on burned grids
-      
-      # Multiply availability with capture probability to yield total detection probability
-      p_dct[s, y] <- p_cap[s, y] * phi[s, y]
-      
-      ### Binomial mixture part (in conditional multinomial specification)
-      ncap[s, y] ~ dbin(p_dct[s, y], N_indv[s, y])                            # Number of individual birds captured
-      N_indv[s, y] ~ dpois(area[s, y] * lambda[s, y] * (present[s] + 0.0001)) # Area (Number of points per survey) used as an offset 
-      
+                           beta_burnsev * burn_sev[s] * burned[s] +   # Effect of initial burn severity on burned grids
+                           beta_offset * area[s, y]                   # Offset based on how many points were surveyed
+                           
       # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
-      # Compute fit statistic for observed data 
-      eval[s, y] <- p_dct[s, y] * N_indv[s, y] 
-      FTD[s, y] <- (sqrt(ncap[s, y]) - sqrt(eval[s, y]))^2 
+      # Compute fit statistic for observed data
+      e_val[s, y] <- p_marg[s, y] * N_indv[s, y]             # Expected value for binomial portion of the model
+      FT[s, y] <- (sqrt(n_dct[s, y]) - sqrt(e_val[s, y]))^2 
       
       # Generate replicate count data and compute same fit stats for them
-      ncap_new[s, y] ~ dbin(p_dct[s, y], N_indv[s, y]) 
-      FTD_new[s, y] <- (sqrt(ncap_new[s, y]) - sqrt(eval[s, y]))^2
+      n_dct_new[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])              
+      FT_new[s, y] <- (sqrt(n_dct_new[s, y]) - sqrt(e_val[s, y]))^2 
       
-    } # end loop through grids
-  } # end loop through visits
+    } # end loop through visits
+    
+  } # end loop through survey grids
   
   # Model for binned distance observations of every detected individual
   for(i in 1:nind){       # Loop over all detected individuals
@@ -543,23 +537,21 @@ sobs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])   # linking time removal data
   } # end observation loop
   
-  # Zero-inflation component on abundance
-  for(s in 1:ngrids){
-    psi[s] ~ dunif(0.0001, 0.9999)                        # Occupancy probability
-    present[s] ~ dbern(psi[s])                            # Number of grids where that individual can be present
-    mean_N_indv[s] <- mean(N_indv[s,])                    # Average true abundance across visits 
-  } # end zero-inflation loop
   
   # Averages across grids and years
   mean_psi <- mean(psi[])                                  # Average occupancy probability
   mean_phi <- mean(phi[,])                                 # Average availability probability
-  mean_p_cap <- mean(p_cap[,])                             # Average detection probability
+  mean_p_dct <- mean(p_dct[,])                             # Average detection probability
+  mean_lambda <- mean(lambda[,])                           # Average expected number of Birds
   
   # Add up fit stats across sites and years
-  fit <- sum(FTD[,]) 
-  fit_new <- sum(FTD_new[,]) 
+  fit <- sum(FT[,]) 
+  fit_new <- sum(FT_new[,]) 
   
-  # Compute Bayesian p-value for detection probability
+  # c-hat value, should converge to 1
+  c_hat <- fit / fit_new
+  
+  # Compute Bayesian p-value for the model, should converge to ~0.5
   bpv <- step(fit_new - fit)
   
 })
@@ -567,12 +559,12 @@ sobs_model_code <- nimbleCode({
 # 2.4) Configure and Run the model ###########################################################
 
 # Params to save
-sobs_params <- c("alpha0_year",
+sobs_params <- c("alpha0",  
                  "alpha_obsv",
-                 "mean_N_indv",
                  "mean_psi",
-                 "mean_p_cap",
+                 "mean_p_dct",
                  "mean_phi",
+                 "mean_lambda",
                  "gamma0", 
                  "gamma_date", 
                  "gamma_date2", 
@@ -580,24 +572,25 @@ sobs_params <- c("alpha0_year",
                  "gamma_time2", 
                  "beta0",
                  "beta_sage", 
+                 "beta_sage2",
                  "beta_pern", 
+                 "beta_pern2",
                  "beta_elv", 
-                 "beta_sage2", 
-                 "beta_pern2", 
                  "beta_elv2",
                  "beta_burned",
                  "beta_fyear",
                  "beta_burnsev",
+                 "beta_offset",
+                 "n_dct_new",
                  "fit", 
                  "fit_new", 
+                 "c_hat",
                  "bpv")
 
 # Initial Values
 sobs_inits <- list(
   # Detecability 
-  mean_alpha0 = runif(1, 0, 10),
-  sd_alpha0 = runif(1, 0, 1),
-  alpha0_year = rnorm(nyears, 0, 5),
+  alpha0 = rnorm(1, 0, 0.1),
   alpha_obsv = rnorm(nobsv, 0, 0.5),
   # availability 
   gamma0 = runif(1, 0.1, 0.9),
@@ -613,26 +606,28 @@ sobs_inits <- list(
   beta_pern2 = rnorm(1, 0, 0.5),
   beta_elv = rnorm(1, 0, 0.5),
   beta_elv2 = rnorm(1, 0, 0.5),
-  beta_burned = rnorm(1, 0, 0.5),    
-  beta_fyear = rnorm(1, 0, 0.5),     
-  beta_burnsev = rnorm(1, 0, 0.5),   
+  beta_burned = rnorm(1, 0, 0.5),
+  beta_fyear = rnorm(1, 0, 0.5),
+  beta_burnsev = rnorm(1, 0, 0.5),
+  beta_offset = rnorm(1, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0.1, 0.9),
   present = rbinom(ngrids, 1, 0.8),
-  # Data and Simulated data
-  ncap_new = count_mat,  # Initialize the new capture data at the existing data values
-  N_indv = count_mat + 1 # start each grid with an individual present
+  # Simulated data
+  n_dct_new = count_mat,              # Initialize the new capture data at the existing data values
+  N_indv = count_mat + 1              # start each grid with an individual present
 )  
 # View the initial values
 str(sobs_inits)
 
 # MCMC settings. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1          # Quick test to see if the model runs
-# nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 1   # longer test where some things might converge
-nc <- 4;  ni <- 210000;  nb <- 70000;  nt <- 1        # Run the model for real
+nc <- 3  ;  ni <- 30000  ;  nb <- 10000  ;  nt <- 1   # longer test where some things might converge
+# nc <- 4;  ni <- 150000;  nb <- 50000;  nt <- 1        # Run the model for real
 
 #Run the sampler
-start <- Sys.time() #start time for the sampler
+start <- Sys.time() # Start time for the sampler
+start               # Print the sampler start time
 sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                             data = sobs_dat,
                             constants = sobs_const,
@@ -646,7 +641,7 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
                             setSeed = 123,
                             samples = TRUE,
                             summary = TRUE)
-difftime(Sys.time(), start) # end time for the sampler
+difftime(Sys.time(), start) # End time for the sampler
 
 # Save model output to local drive
 saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
@@ -656,6 +651,9 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3) Model output and diagnostics ##############################################
 ################################################################################
 
+# Pick a species
+soi <- "BRSP"
+
 # 3.1) View model output
 
 # Load the output back in
@@ -663,29 +661,35 @@ sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pr
                                        soi, "_distance_model_out.rds"))
 
 # Define which parameters I want to view
-sobs_params_view <- c(
-  # "mean_N_indv",
-  "mean_psi",
-  "mean_p_cap",
-  "mean_phi",
-  "alpha0_year",
-  "alpha_obsv",
-  "gamma0", 
-  "gamma_date", 
-  "gamma_date2", 
-  "gamma_time", 
-  "gamma_time2", 
-  "beta0",
-  "beta_sage", 
-  "beta_pern", 
-  "beta_elv", 
-  "beta_sage2", 
-  "beta_pern2", 
-  "beta_elv2",
-  "fit",
-  "fit_new",
-  "bpv")
-
+# Params to save
+sobs_params_view <- c("alpha0",  
+                      "alpha_obsv",
+                      "mean_psi",
+                      "mean_p_dct",
+                      "mean_phi",
+                      "mean_lambda",
+                      "gamma0", 
+                      "gamma_date", 
+                      "gamma_date2", 
+                      "gamma_time", 
+                      "gamma_time2", 
+                      "beta0",
+                      "beta_sage", 
+                      "beta_sage2",
+                      "beta_pern", 
+                      "beta_pern2",
+                      "beta_elv", 
+                      "beta_elv2",
+                      "beta_burned",
+                      "beta_fyear",
+                      "beta_burnsev",
+                      "beta_offset",
+                      "n_dct_new",
+                      "fit", 
+                      "fit_new", 
+                      "c_hat",
+                      "bpv")
+  
 # Traceplots and density graphs 
 MCMCtrace(object = sobs_mcmc_out$samples,
           pdf = FALSE,
@@ -697,9 +701,7 @@ MCMCtrace(object = sobs_mcmc_out$samples,
 MCMCsummary(object = sobs_mcmc_out$samples, 
             params = sobs_params_view,
             round = 2)
-
+sobs_mcmc_out$summary$all.chains
 # View MCMC plot
 MCMCplot(object = sobs_mcmc_out$samples,
          params = sobs_params_view)
-
-
