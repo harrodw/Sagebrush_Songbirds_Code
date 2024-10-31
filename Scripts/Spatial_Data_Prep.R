@@ -6,7 +6,7 @@ rm(list = ls())
 
 # Load packages
 library(tidyverse)
-library(raster)
+library(terra)
 library(sf)
 library(tmap)
 library(RColorBrewer)
@@ -19,8 +19,16 @@ sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>%
 #View the data
 glimpse(sobs)
 
+# Primary file path for rasters
+# This is the geoprocessing outputs folder for my arc pro project
+ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
+
 #Set a coordinate reference system
 utm_12n <- '+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs'
+
+# Define a radius to summarize rasters
+grid_rad <- 657 
+point_rad <- 125
 
 # Object for point coordinates
 grid_covs <- sobs %>%
@@ -37,28 +45,53 @@ grid_centers <- grid_covs %>%
   st_as_sf(coords = c("Grid.X", "Grid.Y")) %>% 
   st_set_crs(utm_12n)
 
-# View points
-grid_centers %>% print(n = Inf)
-grid_centers %>% ggplot(aes()) + geom_sf()
+# Create circular buffers
+cir_buffs  <- st_as_sf(grid_centers) %>% 
+  st_buffer(dist = grid_rad)
+
+# Create and merge buffers around each point so that all area within a grid is covered
+grid_buffs <- sobs %>%
+  distinct(Full.Point.ID, Grid.ID, Grid.Type, UTM.X, UTM.Y) %>% 
+  st_as_sf(coords = c("UTM.X", "UTM.Y")) %>% 
+  st_set_crs(utm_12n) %>% 
+  st_buffer(dist = point_rad) %>% 
+  group_by(Grid.ID, Grid.Type) %>% 
+  summarise() 
+
+# View
+print(grid_buffs)
+
+# Add in the fire perimeters
+fire_perms <- st_read(paste0(ras_path, "Fire_Perimeters.shp")) %>% 
+  select(geometry)
+
+# Tmap perameters 
+tmap_mode("view")
+tmap_options(check.and.fix = TRUE)
+
+# Plot
+tm_shape(grid_buffs) +
+  tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"), alpha = 0.8) +
+  tm_shape(cir_buffs) +
+  tm_polygons(alpha = 0.8) +
+  tm_shape(fire_perms) +
+  tm_polygons(col = "red", alpha = 0.8)
 
 #1.2) Add rasters ############################################################################
-# Primary file path for rasters
-# This is the geoprocessing outputs folder for my arc pro project
-ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
 # Add in raster layers
-sage_cvr <- raster(paste0(ras_path, "sage_cvr.tif"))
-pern_cvr <- raster(paste0(ras_path, "pern_cvr.tif"))
-elevation <- raster(paste0(ras_path, "elevation.tif"))
-aspect <- raster(paste0(ras_path, "aspect.tif"))
-fire_dist <- raster(paste0(ras_path, "fire_dist.tif"))
+sage_cvr <- rast(paste0(ras_path, "sage_cvr.tif"))
+pern_cvr <- rast(paste0(ras_path, "pern_cvr.tif"))
+elevation <- rast(paste0(ras_path, "elevation.tif"))
+aspect <- rast(paste0(ras_path, "aspect.tif"))
+fire_dist <- rast(paste0(ras_path, "fire_dist.tif"))
 
 # Other rasters I can add in if needed
-# shrub_cvr <- raster(paste0(ras_path, "shrub_cvr.tif"))
-# tri <- raster(paste0(ras_path, "tri.tif"))
-# precip <- raster(paste0(ras_path, "precip.tif"))
-# bg_cvr <- raster(paste0(ras_path, "bg_cvr.tif"))
-# roads_dist <- raster(paste0(ras_path, "road_dist.tif"))
+# shrub_cvr <- rast(paste0(ras_path, "shrub_cvr.tif"))
+# tri <- rast(paste0(ras_path, "tri.tif"))
+# precip <- rast(paste0(ras_path, "precip.tif"))
+# bg_cvr <- rast(paste0(ras_path, "bg_cvr.tif"))
+# roads_dist <- rast(paste0(ras_path, "road_dist.tif"))
 
 # Add vector layers
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
@@ -94,42 +127,40 @@ fd_map <- plot_ras(fire_dist)
 
 # 2.1) Extracting values to a radius around each point ##########################################
 
-# Define a radius to summarize rasters
-radius <- 657
-
-
 # summarize sage cover 
-grid_covs$Sage.Cover <- raster::extract(x = sage_cvr,
-                                              y = grid_centers,
-                                              buffer = radius,
-                                              fun = function(x) mean(x, na.rm = TRUE))
+Sage.Cover <- terra::extract(x = sage_cvr,
+                             y = grid_buffs,
+                             fun = function(x) mean(x, na.rm = TRUE))
+
 # Summarize perennial forb and grass cover
-grid_covs$Perennial.Cover <- raster::extract(x = pern_cvr,
-                                                   y = grid_centers,
-                                                   buffer = radius,
-                                                   fun = function(x) mean(x, na.rm = TRUE))
+Perennial.Cover <- terra::extract(x = pern_cvr,
+                                  y = grid_buffs,
+                                  fun = function(x) mean(x, na.rm = TRUE))
 
 # Summarize elevation
-grid_covs$Elevation <- raster::extract(x = elevation,
-                                             y = grid_centers,
-                                             buffer = radius,
-                                             fun = function(x) mean(x, na.rm = TRUE)) 
+Elevation <- terra::extract(x = elevation,
+                            y = grid_buffs,
+                            fun = function(x) mean(x, na.rm = TRUE)) 
 
 # Summarize aspect
-grid_covs$Aspect <- raster::extract(x = aspect,
-                                                 y = grid_centers,
-                                                 buffer = radius,
-                                                 fun = function(x) modal(x, na.rm = TRUE))
+Aspect <- terra::extract(x = aspect,
+                         y = grid_buffs,
+                         fun = function(x) modal(x, na.rm = TRUE))
 
 # Summarize distance to fires
-grid_covs$Fire.Dist <- raster::extract(x = fire_dist,
-                                       y = grid_centers,
-                                                 buffer = radius,
-                                                 fun = function(x) mean(x, na.rm = TRUE))
+Fire.Dist <- terra::extract(x = fire_dist,
+                            y = grid_buffs,
+                            fun = function(x) mean(x, na.rm = TRUE))
+
+# Add these to the data frame
+grid_covs$Sage.Cover <- Sage.Cover[,2]
+grid_covs$Perennial.Cover <- Perennial.Cover[,2]
+grid_covs$Elevation <- Elevation[,2]
+grid_covs$Aspect <- Aspect[,2]
+grid_covs$Fire.Dist <- Fire.Dist[,2]
 
 # View the new point covariates
 glimpse(grid_covs)
-
 
 # 2.2) fire covariates ##########################################################
 
@@ -189,27 +220,24 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
   rdnbr[rdnbr < 0] <- NA
   
   # reset a temporary points object for the mean dnbr
-  grid_covs_fire$mean.dnbr.tmp <- raster::extract(x = dnbr,
-                                                   y = grid_centers,
-                                                   buffer = radius,
+  grid_covs_fire$mean.dnbr.tmp <- terra::extract(x = dnbr,
+                                                   y = grid_buffs,
                                                    fun = function(x) mean(x, na.rm = TRUE))
   
   # reset a temporary points object for the sd dnbr
-  grid_covs_fire$sd.dnbr.tmp <- raster::extract(x = dnbr,
-                                              y = grid_centers,
-                                              buffer = radius,
+  grid_covs_fire$sd.dnbr.tmp <- terra::extract(x = dnbr,
+                                              y = grid_buffs,
+                                              
                                               fun = function(x) sd(x, na.rm = TRUE))
   
   # reset a temporary points object for the mean rdnbr
-  grid_covs_fire$mean.rdnbr.tmp <- raster::extract(x = rdnbr,
-                                                   y = grid_centers,
-                                                   buffer = radius,
+  grid_covs_fire$mean.rdnbr.tmp <- terra::extract(x = rdnbr,
+                                                   y = grid_buffs,
                                                    fun = function(x) mean(x, na.rm = TRUE))
   
   # reset a temporary points object for the sd rdnbr
-  grid_covs_fire$sd.rdnbr.tmp <- raster::extract(x = rdnbr,
-                                                 y = grid_centers,
-                                                 buffer = radius,
+  grid_covs_fire$sd.rdnbr.tmp <- terra::extract(x = rdnbr,
+                                                 y = grid_buffs,
                                                  fun = function(x) sd(x, na.rm = TRUE))
   
   # Pull out the values where there were fires at the point for that year
@@ -251,7 +279,8 @@ grid_covs_fire2 <- grid_covs_fire %>%
 
 grid_covs_fire2 %>% 
   filter(Grid.ID == "UT-B02")
-# 2.4) Covariates collected on thee ground ###########################################################
+
+# 2.4) Covariates collected on the ground ###########################################################
 
 # Add in the 2023 point data
 points_24_raw <- tibble(read.csv("Data\\Inputs\\Sobs_Points_2024_Raw.csv"))

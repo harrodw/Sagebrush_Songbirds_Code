@@ -3,10 +3,7 @@
 #Start here ---------------------------------------------------------------------
 
 #Add packages
-library(stringr)
-library(tidyr)
-library(dplyr)
-library(ggplot2)
+library(tidyverse)
 library(gridExtra)
 library(extrafont)
 
@@ -24,7 +21,7 @@ glimpse(sobs)
 
 #add covariates
 #I'm going to start with only the route level covariates
-covs <- tibble(read.csv("Data\\Outputs\\route_summaries.csv")) %>% 
+covs <- tibble(read.csv("Data\\Outputs\\grid_covs.csv")) %>% 
   dplyr::select(-X)
 #View covariates
 glimpse(covs)
@@ -57,93 +54,120 @@ print(c(n_target_obs, n_close_target_obs))
 print(n_target_obs - n_close_target_obs)
 #20% of the observations isn't too bad
 
-#make a table of important species sightings by visit
-sobs_count_0inf <- sobs %>% 
-  #only relevant species
+# Function to find the mode
+find_mode <- function(x) {
+  unique_x <- unique(x)
+  unique_x[which.max(tabulate(match(x, unique_x)))]  # Find the most frequent value
+}
+
+# Make a table of important species sightings by visit
+counts_0inf <- sobs %>%
+  filter(Distance <= trunc_dist) %>% 
   filter(Species %in% important_species) %>% 
-  #only close observations
-  filter(Distance <= trunc_dist) %>%
-  #Reorganize
-  group_by(Route.ID, Route.Type, Year, Visit, Date, Species) %>% 
-  reframe(Route.ID, Route.Type, Year, Visit, Date, Species, Count = n()) %>% 
+  group_by(Grid.ID, Year, Visit, Ord.Date, Species) %>% 
+  reframe(Grid.ID, Year, Visit, Ord.Date, Species,
+          Count = n()) %>% 
   distinct()
 #...and view
-glimpse(sobs_count_0inf)
+glimpse(counts_0inf)
 
-#make a table of all possible species visit combinations so we get the zero counts
+# Make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
-  expand(nesting(Route.ID, Route.Type, Year, Visit, Date), Species) %>% 
-  filter(Species %in% important_species)
+  filter(Species %in% important_species) %>% 
+  expand(nesting(Full.Point.ID, Grid.ID, Grid.Type, Ord.Date, MAS, Wind.Start, Observer.ID, Year, Visit), Species) %>% 
+  group_by(Grid.ID, Species, Grid.Type, Year, Visit, Ord.Date, Observer.ID) %>% 
+  reframe(Grid.ID, Species, Grid.Type, Year, Visit, Ord.Date, Observer.ID) %>% 
+  mutate(Visit.ID = paste(Year, Visit, sep = "-"),
+         Observer.ID = find_mode(Observer.ID),) %>% 
+  distinct()
 #...and view
 glimpse(visit_count)
 
 #Join the two, add zeros and average observations within year
-sobs_count <-  visit_count %>% 
-  left_join(sobs_count_0inf, by = c('Route.ID', 'Route.Type', 'Year', 'Visit', 'Date', 'Species')) %>% 
-  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count)) %>% 
-  left_join(covs, by = c('Route.ID', 'Route.Type'))
+sobs_count_tmp <-  visit_count %>% 
+  left_join(counts_0inf, by = c("Grid.ID", "Year", "Visit", "Ord.Date", "Species")) %>% 
+  mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count))
+
+#...and view
+glimpse(sobs_count_tmp)
+
+# Change necessary variables to scales and factors
+sobs_count <- sobs_count_tmp %>%
+  # Add covariates
+  left_join(covs, by = c("Grid.ID")) %>% 
+  # Sort the data
+  arrange(Visit.ID, Grid.ID) %>% 
+  mutate(# Numeric burned vs unburned
+    Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
+    # Time since Fire
+    Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
+                                 Year == "Y2" ~ 2023 - Fire.Year,
+                                 Year == "Y3" ~ 2024 - Fire.Year)) %>%
+  # Other things that should be factors
+  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year", "Aspect"), factor) %>% 
+  # Remove columns that are no longer needed
+  dplyr::select(-Grid.Type) 
 #...and view
 glimpse(sobs_count)
 
-
 # 1.2) Summary stats ##########################################################
 
-#How many total species
-sobs %>% 
-  group_by(Species) %>% 
-  reframe(Species, Observation = n()) %>% 
-  distinct() %>% 
-  print(n = Inf)
-
-#How many total observations
-sobs %>% 
-  filter(Species != "NOBI") %>% 
-  nrow()
-
-#Table for Average number of observations between burned and unburned plots
-#Table for output
-burn_v_ref <- sobs_count %>% 
-  distinct(Year, Species) %>% 
-  mutate(Mean.B = NA,
-         Mean.R = NA,
-         t = NA,
-         p = NA,
-         CI.lb = NA,
-         CI.ub = NA)
-#..and view
-glimpse(burn_v_ref)
-
-#For-loop to compare counts observed between B and R within each year
-for(i in 1:nrow(burn_v_ref)){
-  #Pull the info I want t=out of the data frame
-  soi_count <- sobs_count %>% 
-    group_by(Route.ID, Route.Type, Year, Species) %>% 
-    reframe(Route.ID, Route.Type, Year, Species, Total.Count = sum(Count)) %>% 
-    distinct(Route.ID, Route.Type, Year, Species, Total.Count) %>% 
-    filter(Year == burn_v_ref$Year[i]) %>% 
-    filter(Species == burn_v_ref$Species[i])
-  #Compare species count within year
-  t_test <- t.test(Total.Count ~ Route.Type, data = soi_count)
-  #Pull what I need out of the 
-  burn_v_ref$Mean.B[i] <- t_test$estimate[1]
-  burn_v_ref$Mean.R[i] <- t_test$estimate[2]
-  burn_v_ref$t[i] <- t_test$p.value
-  burn_v_ref$p[i] <- t_test$p.value
-  burn_v_ref$CI.lb[i] <- t_test$conf.int[1]
-  burn_v_ref$CI.ub[i] <- t_test$conf.int[2]
-}
-
-#Highlight significan p-values 
-burn_v_ref <- burn_v_ref %>% 
-  mutate(Signif = case_when(p <= 0.05 ~ T,
-                            p > 0.05 ~ F))
-
-#View the output
-burn_v_ref %>% 
-  print(n = Inf)
-
-#Export the tables
-write.csv(burn_v_ref, "Data\\Outputs\\burn_v_ref_20240308.csv")
+# #How many total species
+# sobs %>% 
+#   group_by(Species) %>% 
+#   reframe(Species, Observation = n()) %>% 
+#   distinct() %>% 
+#   print(n = Inf)
+# 
+# #How many total observations
+# sobs %>% 
+#   filter(Species != "NOBI") %>% 
+#   nrow()
+# 
+# #Table for Average number of observations between burned and unburned plots
+# #Table for output
+# burn_v_ref <- sobs_count %>% 
+#   distinct(Year, Species) %>% 
+#   mutate(Mean.B = NA,
+#          Mean.R = NA,
+#          t = NA,
+#          p = NA,
+#          CI.lb = NA,
+#          CI.ub = NA)
+# #..and view
+# glimpse(burn_v_ref)
+# 
+# #For-loop to compare counts observed between B and R within each year
+# for(i in 1:nrow(burn_v_ref)){
+#   #Pull the info I want t=out of the data frame
+#   soi_count <- sobs_count %>% 
+#     group_by(Grid.ID, Burned, Year, Species) %>% 
+#     reframe(Grid.ID, Burned, Year, Species, Total.Count = sum(Count)) %>% 
+#     distinct(Grid.ID, Burned, Year, Species, Total.Count) %>% 
+#     filter(Year == burn_v_ref$Year[i]) %>% 
+#     filter(Species == burn_v_ref$Species[i])
+#   #Compare species count within year
+#   t_test <- t.test(Total.Count ~ Burned, data = soi_count)
+#   #Pull what I need out of the 
+#   burn_v_ref$Mean.B[i] <- t_test$estimate[1]
+#   burn_v_ref$Mean.R[i] <- t_test$estimate[2]
+#   burn_v_ref$t[i] <- t_test$p.value
+#   burn_v_ref$p[i] <- t_test$p.value
+#   burn_v_ref$CI.lb[i] <- t_test$conf.int[1]
+#   burn_v_ref$CI.ub[i] <- t_test$conf.int[2]
+# }
+# 
+# #Highlight significan p-values 
+# burn_v_ref <- burn_v_ref %>% 
+#   mutate(Signif = case_when(p <= 0.05 ~ T,
+#                             p > 0.05 ~ F))
+# 
+# #View the output
+# burn_v_ref %>% 
+#   print(n = Inf)
+# 
+# #Export the tables
+# write.csv(burn_v_ref, "Data\\Outputs\\burn_v_ref_20240308.csv")
 
 
 # 2) Start plotting #######################################################################################
@@ -177,8 +201,8 @@ sobs %>%
 
 #Average number of observations between burned and unburned plots 
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
-                                Route.Type == "R" ~ "Reference")) %>% 
+  mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn",
+                                Grid.Type == "R" ~ "Reference")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -191,7 +215,7 @@ sobs_count %>%
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
                           Year == "Y2" ~ "Year 2",
                           Year == "Y3" ~ "Year 3")) %>% 
-  mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
+  mutate(Year.Type = paste(Year, Grid.Type, sep = " ")) %>% 
   ggplot(aes(x = Year.Type, y = Count, fill = Year.Type)) +
   geom_boxplot() +
   theme_bw() +
@@ -219,8 +243,8 @@ sobs_count %>%
 
 #Total number of observations between burned and unburned plots ----------------------------
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn Grids",
-                                Route.Type == "R" ~ "Reference Grids")) %>% 
+  mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn Grids",
+                                Grid.Type == "R" ~ "Reference Grids")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -230,7 +254,7 @@ sobs_count %>%
                              Species == "HOLA" ~ "Horned Lark",
                              Species == "GRFL" ~ "Gray Flycatcher",
                              Species == "LASP" ~ "Lark Sparrow")) %>% 
-  mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>%
+  mutate(Year.Type = paste(Year, Grid.Type, sep = " ")) %>%
   ggplot(aes(x = Year.Type, y = Count, fill = Year.Type)) +
   geom_col() +
   theme_bw() +
@@ -258,8 +282,8 @@ sobs_count %>%
 
 #proportion of plots with at least one observation 
 sobs_count %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn",
-                                Route.Type == "R" ~ "Reference")) %>% 
+  mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn",
+                                Grid.Type == "R" ~ "Reference")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -272,17 +296,17 @@ sobs_count %>%
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
                           Year == "Y2" ~ "Year 2",
                           Year == "Y3" ~ "Year 3")) %>% 
-  group_by(Route.ID, Route.Type, Year, Species) %>% 
-  reframe(Route.ID, Route.Type, Year, Species, Count = sum(Count)) %>% 
-  distinct(Route.ID, Route.Type, Year, Species, Count) %>% 
+  group_by(Grid.ID, Grid.Type, Year, Species) %>% 
+  reframe(Grid.ID, Grid.Type, Year, Species, Count = sum(Count)) %>% 
+  distinct(Grid.ID, Grid.Type, Year, Species, Count) %>% 
   mutate(Observed = case_when(Count == 0 ~ 0,
                               TRUE ~ 1)) %>% 
-  group_by(Route.Type, Year, Species) %>% 
-  reframe(Route.Type, Year, Species, 
-          Prop.Obs = case_when(Route.Type == "Burn" ~sum(Observed)/31,
-                               Route.Type == "Reference" ~ sum(Observed)/29)) %>% 
-  distinct(Route.Type, Year, Species, Prop.Obs) %>% 
-  mutate(Year.Type = paste(Year, Route.Type, sep = " ")) %>% 
+  group_by(Grid.Type, Year, Species) %>% 
+  reframe(Grid.Type, Year, Species, 
+          Prop.Obs = case_when(Grid.Type == "Burn" ~sum(Observed)/31,
+                               Grid.Type == "Reference" ~ sum(Observed)/29)) %>% 
+  distinct(Grid.Type, Year, Species, Prop.Obs) %>% 
+  mutate(Year.Type = paste(Year, Grid.Type, sep = " ")) %>% 
   ggplot(aes(x = Year.Type, y = Prop.Obs, fill = Year.Type)) +
   geom_col() +
   theme_bw() +
@@ -399,7 +423,7 @@ for(i in 1:n_species){
   bird <- important_species[i]
   # Isolate the counts for that bird in reference grids
   counts <- sobs_count %>% 
-    filter(Species == bird & Route.Type == "R") %>%
+    filter(Species == bird & Burned == 0) %>%
     dplyr::select(Species, Count) %>% 
     arrange(Count)
   #Pull out stats
@@ -421,48 +445,47 @@ for(i in 1:n_species){
 print(ref_stats)
 
 # Join these to the data 
-sobs_count <- sobs_count %>% 
+tsf_count <- sobs_count %>% 
+  filter(Species %in% important_species) %>% 
   left_join(ref_stats, by = "Species")
 #... and view
-glimpse(sobs_count)
+glimpse(tsf_count)
 
 # Graph time since fire
-sobs_count %>% 
+tsf_count  %>% 
+  filter(Species == "BRSP") %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "VESP" ~ "Vesper Sparrow",
                              Species == "HOLA" ~ "Horned Lark")) %>% 
   mutate(Species = factor(Species, levels = c("Brewer's Sparrow", 
                                               "Vesper Sparrow", 
                                               "Horned Lark"))) %>% 
-  filter(Route.Type == "B") %>% 
-  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                      Year == "Y2"   ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
+  filter(Years.Since.Fire < 45) %>% 
   ggplot() +
   geom_jitter(aes(x = Years.Since.Fire, y = Count, color = "Burn Grid Counts"), 
               width = 0.2, height = 0.4, size = 1) +
   geom_smooth(aes(x = Years.Since.Fire, y = Count, color = "Trend"), 
               method = "glm", 
               fill = "red1",
-              method.args = list(family = "poisson"),
-              # se = FALSE,
-              size = 2) +
+              method.args = list(family = "quasipoisson"),
+              se = TRUE,
+              linewidth = 2) +
   geom_line(aes(x = Years.Since.Fire, y = Mean),
-            linewidth = 1, col = "navyblue", alpha = 0.7) +
+            linewidth = 2, col = "navyblue", alpha = 0.7) +
   geom_ribbon(aes(x = Years.Since.Fire, ymin = lb, ymax = ub, fill = "Mean and 75% CI for Reference Grid Counts"), 
               alpha = 0.2, linewidth = 0.5, color = "navyblue") +
   labs(x = "Years Since Fire", y = "Number of Observations on a Survey Grid", 
        color = "", fill = "") +
   theme_bw() +
-  theme(axis.title.x = element_text(size = 25, family = "sans"),
-        axis.text.x = element_text(size = 22),
-        axis.text.y = element_text(size = 25),
-        axis.title.y = element_text(size = 22, family = "sans"),
-        strip.text = element_text(size= 23, family = "sans"),
+  theme(axis.title.x = element_text(size = 18, family = "sans"),
+        axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 18),
+        axis.title.y = element_text(size = 18, family = "sans"),
+        strip.text = element_text(size= 22, family = "sans"),
         # legend.position = "right",
         legend.position = "none",
-        legend.text = element_text(size = 25),
-        legend.title = element_text(size = 20), 
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 14), 
         legend.key.size = unit(2, "cm")) +    
   ylim(0, 60) +
   facet_wrap(~Species, dir = "h") +
@@ -486,7 +509,7 @@ sobs_count %>%
                              Species == "HOLA" ~ "Horned Lark",
                              Species == "GRFL" ~ "Gray Flycatcher",
                              Species == "LASP" ~ "Lark Sparrow")) %>%
-  filter(Route.Type == "B") %>% 
+  filter(Grid.Type == "B") %>% 
   filter(!is.na(Burn.Sevarity)) %>% 
   mutate(Burn.Sevarity = as.factor(Burn.Sevarity)) %>% 
   ggplot(aes(x = Burn.Sevarity, y = Count, fill = Burn.Sevarity)) +
@@ -504,9 +527,9 @@ sobs_count %>%
 #compare two species to each other -----------------
 #Brewers sparrow vs sage thrasher
 brsp_vs_sath <- sobs_count %>% 
-  group_by(Route.ID, Species) %>% 
-  reframe(Route.ID, Species, Mean.Count = mean(Count)) %>% 
-  distinct(Route.ID, Species, Mean.Count) %>% 
+  group_by(Grid.ID, Species) %>% 
+  reframe(Grid.ID, Species, Mean.Count = mean(Count)) %>% 
+  distinct(Grid.ID, Species, Mean.Count) %>% 
   pivot_wider(names_from = Species, values_from = Mean.Count) %>% 
   ggplot(aes(x = BRSP, y = SATH)) +
   geom_point(col = "darkmagenta", size = 1) +
@@ -520,9 +543,9 @@ brsp_vs_sath <- sobs_count %>%
 
 #western meadowlark vs horned lark
 brsp_vs_hola <- sobs_count %>% 
-  group_by(Route.ID, Species) %>% 
-  reframe(Route.ID, Species, Mean.Count = mean(Count)) %>% 
-  distinct(Route.ID, Species, Mean.Count) %>% 
+  group_by(Grid.ID, Species) %>% 
+  reframe(Grid.ID, Species, Mean.Count = mean(Count)) %>% 
+  distinct(Grid.ID, Species, Mean.Count) %>% 
   pivot_wider(names_from = Species, values_from = Mean.Count) %>% 
   ggplot(aes(x = BRSP, y = VESP)) +
   geom_point(col = "darkmagenta", size = 1) +
@@ -539,34 +562,35 @@ grid.arrange(brsp_vs_sath, brsp_vs_hola, ncol = 2)
 
 #Species on burned plots at different elevations
 sobs_count %>% 
-  filter(Species %in% c("BRSP", "SATH", "GTTO",  #Only the species that have enough observations
-                        "VESP", "WEME", "HOLA")) %>% 
-  mutate(Elevation = factor(case_when(Elevation < 1800 & Route.Type == "B"  ~ "LB",
-                                      Elevation >= 1800 & Route.Type == "B" ~ "HB",
-                                      Elevation < 1800 & Route.Type == "R" ~ "LR",
-                                      Elevation >= 1800 & Route.Type == "R" ~ "HR"),
-                               levels = c("LB", 
-                                          "LR", 
-                                          "HB",
-                                          "HR"))) %>% 
+  filter(Species == "VESP") %>% 
+  mutate(Elevation = factor(case_when(Elevation < 1800 & Burned == 1  ~ "Burned below 1800m",
+                                      Elevation >= 1800 & Burned == 1 ~ "Burned above 1800m",
+                                      Elevation < 1800 & Burned == 0 ~ "Reference below 1800m",
+                                      Elevation >= 1800 & Burned == 0 ~ "Reference above 1800m"),
+                               levels = c("Burned below 1800m",
+                                          "Burned above 1800m",
+                                          "Reference below 1800m",
+                                          "Reference above 1800m"))) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "VESP" ~ "Vesper Sparrow",
                              Species == "HOLA" ~ "Horned Lark")) %>% 
   ggplot(aes(x = Elevation, y = Count)) +
   geom_boxplot(aes(color = Elevation, fill = Elevation), color = "black") +
-  scale_fill_manual(values = c("darkgoldenrod2", "cadetblue", "darkorange2", "darkslategray")) +
+  scale_fill_manual(values = c("darkgoldenrod2", "darkorange2", "cadetblue", "darkslategray")) +
   labs(x = "",
        y = "Average Number of Observations on a Survey Grid") +
   theme_bw()+
   theme(axis.text.x = element_blank(),
-        axis.text.y = element_text(size = 14),
-        axis.title.y = element_text(size = 14, family = "sans"),
-        strip.text = element_text(size= 14, family = "sans"),
+        axis.text.y = element_text(size = 18),
+        axis.title.y = element_text(size = 18, family = "sans"),
+        strip.text = element_text(size= 22, family = "sans"),
+        legend.text = element_text(size = 14, family = "sans"),
+        legend.title = element_blank(),
+        legend.key.size = unit(1.4, 'cm'),
         legend.position = "none") +    
   ylim(0, 60) +
-  facet_wrap(~ factor(Species, levels = c("Brewer's Sparrow",
-                                          "Vesper Sparrow",
-                                          "Horned Lark")), dir = "v")
+  facet_wrap(~ factor(Species, levels = c("Brewer's Sparrow", "Vesper Sparrow", "Horned Lark")), 
+             dir = "h")
 
 #Combine grassland and shrubland species ##############################################################
 grass_sp <- c("WEME", "HOLA", "VESP")
@@ -578,10 +602,10 @@ sobs_count %>%
                         "VESP", "WEME", "HOLA")) %>% 
   mutate(Species.Type = case_when(Species %in% grass_sp ~ "Grassland Associated Birds",
                                   Species %in% shrub_sp ~ "Sagebrush Associated Birds")) %>% 
-  group_by(Route.ID, Route.Type, Fire.Year, Year, Visit, Species.Type) %>% 
+  group_by(Grid.ID, Grid.Type, Fire.Year, Year, Visit, Species.Type) %>% 
   reframe(Total.Count = sum(Count)) %>% 
-  distinct(Route.ID, Route.Type, Fire.Year, Year, Visit, Species.Type, Total.Count) %>% 
-  filter(Route.Type == "B") %>% 
+  distinct(Grid.ID, Grid.Type, Fire.Year, Year, Visit, Species.Type, Total.Count) %>% 
+  filter(Grid.Type == "B") %>% 
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year)) %>% 
   ggplot(aes(x = Years.Since.Fire, y = Total.Count)) +
@@ -608,9 +632,9 @@ sobs_count %>%
   filter(Species %in% c(grass_sp, shrub_sp)) %>% 
   mutate(Species.Type = case_when(Species %in% grass_sp ~ "Grassland Associated Birds",
                                   Species %in% shrub_sp ~ "Sagebrush Associated Birds")) %>% 
-  group_by(Route.ID, Shrub.Cover, Fire.Year, Year, Visit, Species.Type) %>% 
+  group_by(Grid.ID, Shrub.Cover, Fire.Year, Year, Visit, Species.Type) %>% 
   reframe(Total.Count = sum(Count)) %>% 
-  distinct(Route.ID, Shrub.Cover, Fire.Year, Year, Visit, Species.Type, Total.Count) %>% 
+  distinct(Grid.ID, Shrub.Cover, Fire.Year, Year, Visit, Species.Type, Total.Count) %>% 
   mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year)) %>% 
   ggplot(aes(x = Shrub.Cover, y = Total.Count)) +
@@ -637,11 +661,11 @@ sobs_count %>%
   filter(Species %in% c(grass_sp, shrub_sp)) %>% 
   mutate(Species.Type = case_when(Species %in% grass_sp ~ "Grassland Associated",
                                   Species %in% shrub_sp ~ "Sagebrush Associated")) %>% 
-  group_by(Route.ID, Route.Type, Fire.Year, Year, Visit, Species.Type) %>% 
+  group_by(Grid.ID, Grid.Type, Fire.Year, Year, Visit, Species.Type) %>% 
   reframe(Total.Count = sum(Count)) %>% 
-  distinct(Route.ID,  Route.Type, Year, Visit, Species.Type, Total.Count) %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn Grids",
-                                Route.Type == "R" ~ "Reference Grids")) %>% 
+  distinct(Grid.ID,  Grid.Type, Year, Visit, Species.Type, Total.Count) %>% 
+  mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn Grids",
+                                Grid.Type == "R" ~ "Reference Grids")) %>% 
   ggplot(aes(x = Species.Type, y = Total.Count, fill = Species.Type)) +
   geom_boxplot() +
   theme_bw() +
@@ -655,15 +679,15 @@ sobs_count %>%
         strip.text = element_text(size= 20, family = "sans"),
         legend.position = "none") +
   ylim(0, 75) +
-  facet_wrap(~Route.Type)
+  facet_wrap(~Grid.Type)
 
 #Total number of observations between burned and unburned plots ----------------------------
 sobs_count %>% 
   filter(Species %in% c(grass_sp, shrub_sp)) %>% 
   mutate(Species.Type = case_when(Species %in% grass_sp ~ "Grassland Associated",
                                   Species %in% shrub_sp ~ "Sagebrush Associated")) %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn Grids",
-                                Route.Type == "R" ~ "Reference Grids")) %>% 
+  mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn Grids",
+                                Grid.Type == "R" ~ "Reference Grids")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
                              Species == "SATH" ~ "Sage Thrasher",
                              Species == "SABS" ~ "Sagebrush Sparrow",
@@ -688,22 +712,22 @@ sobs_count %>%
         legend.position = "right",
         strip.text = element_text(size= 20, family = "sans")
   ) +
-  facet_wrap(~Route.Type)
+  facet_wrap(~Grid.Type)
 
 #Average number of observations between low and high elevation  ------------------------
 sobs_count %>% 
-  filter(Route.Type == "B") %>% 
+  filter(Grid.Type == "B") %>% 
   mutate(Elevation = factor(case_when(Elevation < 1800 ~ "Below 1800m",
                                       Elevation >= 1800 ~ "Above 1800m"),
                             levels = c("Below 1800m", "Above 1800m"))) %>% 
   filter(Species %in% c(grass_sp, shrub_sp)) %>% 
   mutate(Species.Type = case_when(Species %in% grass_sp ~ "Grassland Associated",
                                   Species %in% shrub_sp ~ "Sagebrush Associated")) %>% 
-  group_by(Route.ID, Route.Type, Elevation, Year, Visit, Species.Type) %>% 
+  group_by(Grid.ID, Grid.Type, Elevation, Year, Visit, Species.Type) %>% 
   reframe(Total.Count = sum(Count)) %>% 
-  distinct(Route.ID, Route.Type, Elevation, Year, Visit, Species.Type, Total.Count) %>% 
-  mutate(Route.Type = case_when(Route.Type == "B" ~ "Burn Grids",
-                                Route.Type == "R" ~ "Reference Grids")) %>% 
+  distinct(Grid.ID, Grid.Type, Elevation, Year, Visit, Species.Type, Total.Count) %>% 
+  mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn Grids",
+                                Grid.Type == "R" ~ "Reference Grids")) %>% 
   ggplot(aes(x = Species.Type, y = Total.Count, fill = Species.Type)) +
   geom_boxplot() +
   theme_bw() +
