@@ -107,9 +107,11 @@ sobs_obs <- sobs %>%
 glimpse(sobs_obs)
 
 # 2) View correlations among numeric variables #####################################################
+installed.packages("ggcorrplot")
+library(ggcorrplot)
 
 #pick a single species
-soi <- "BRSP"
+study_species <- "BRSP"
 
 # Pull out all the variables I am interested in
 # Define numeric covariates
@@ -119,7 +121,7 @@ num_covs <- c( "Sage.Cover", "Perennial.Cover", "Elevation",
 
 #Pull out numeric data
 num_cov_dat <- sobs_count %>% 
-  filter(Species == soi)
+  filter(Species == study_species)
 num_cov_dat <- num_cov_dat[,num_covs]
 
 # Fill in years since fire

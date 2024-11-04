@@ -1,0 +1,146 @@
+---
+title: "Model_Equations"
+author: "Will Harrod"
+date: "2024-10-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Add packages
+
+```{r, include=FALSE}
+library(tidyverse)
+library(nimble)
+```
+
+
+# Simulate distance draws from a catagorical distribution
+
+```{r}
+# Simulate distance classes
+dist_classes <- c(25, 50, 75, 100, 125)
+
+# Simulate detections probabilities for those classes
+dct_probs <- c(0.99, 0.7, 0.4, 0.3, 0.2)
+
+# Number of detections
+n_dct <- 100000
+
+# Pull draws from that catagorical distribution
+detections <- rcat(n = n_dct, prob = dct_probs)
+
+# Combine into a tibble
+dat <- tibble(Detections = detections) %>% 
+  mutate(Dist.Class = case_when(Detections == 1 ~ dist_classes[1],
+                                Detections == 2 ~ dist_classes[2],
+                                Detections == 3 ~ dist_classes[3],
+                                Detections == 4 ~ dist_classes[4],
+                                Detections == 5 ~ dist_classes[5])) %>% 
+  group_by(Dist.Class) %>% 
+  reframe(Dist.Class,  n.Cap = n()) %>% 
+  distinct() %>% 
+  mutate(Dect.Probs = dct_probs)
+  
+# Maximum detection probability
+true_ncap <- length(detections[detections == 1])
+
+# Plot
+dat %>%
+  distinct() %>% 
+  ggplot(aes(x = Dist.Class, y = Dect.Probs)) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = gaussian(link = "log")), 
+              se = FALSE, 
+              color = "darkblue") +
+  xlab("Distance from Observer (m)") +
+  ylab("Proportion of birds captured") +
+  ylim(0, 1) +
+  theme_classic()
+  
+# Plot integral approximation
+dat %>%
+  distinct() %>% 
+  ggplot(aes(x = Dist.Class, y = Dect.Probs)) +
+  geom_col(fill = "lightblue") +
+  geom_smooth(method = "glm", 
+              method.args = list(family = gaussian(link = "log")), 
+              se = FALSE, 
+              color = "darkblue") +
+  xlab("Distance from Observer (m)") +
+  ylab("Proportion of birds captured") +
+  ylim(0, 1) +
+  theme_classic()
+```
+
+# Model written out 
+
+$$
+\text{Observed Distances} \sim \text{Catagorical}\left( \pi d^c \right)
+$$
+$$
+\pi d^c = \frac{}{}
+$$
+
+
+# Simulate time removal draws from a catagorical distributions
+
+```{r}
+# Simulate distance classes
+intervals <- c(1, 2, 3, 4, 5, 6)
+
+# Simulate detections probabilities for those classes
+avail_probs <- c(0.1, 0.2, 0.3, 0.4, 0.55, 0.7)
+
+# Number of detections
+n_dct <- 100000
+
+# Pull draws from that catagorical distribution
+detections <- rcat(n = n_dct, prob = avail_probs)
+
+# Combine into a tibble
+dat <- tibble(Detections = detections) %>% 
+  mutate(Intervals = case_when(Detections == 1 ~ intervals[1],
+                               Detections == 2 ~ intervals[2],
+                               Detections == 3 ~ intervals[3],
+                               Detections == 4 ~ intervals[4],
+                               Detections == 5 ~ intervals[5],
+                               Detections == 6 ~ intervals[6])) %>% 
+  group_by(Intervals) %>% 
+  reframe(Intervals,  n.Cap = n()) %>% 
+  distinct() %>% 
+  mutate(Avail.Probs = avail_probs)
+  
+# Maximum detection probability
+true_ncap <- length(detections[detections == 6])
+
+# Plot
+dat %>%
+  distinct() %>% 
+  ggplot(aes(x = Intervals, y = Avail.Probs)) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = gaussian(link = "log")), 
+              se = FALSE, 
+              color = "darkblue") +
+  xlab("Survey Duration (minutes)") +
+  ylab("Proportion of birds captured") +
+  ylim(0, 1) +
+  theme_classic()
+  
+# Plot integral approximation
+dat %>%
+  distinct() %>% 
+  ggplot(aes(x = Intervals, y = Avail.Probs)) +
+  geom_col(fill = "lightblue") +
+  geom_smooth(method = "glm", 
+              method.args = list(family = gaussian(link = "log")), 
+              se = FALSE, 
+              color = "darkblue") +
+  xlab("Survey Duration (minutes)") +
+  ylab("Proportion of birds captured") +
+  ylim(0, 1) +
+  theme_classic()
+```
+
