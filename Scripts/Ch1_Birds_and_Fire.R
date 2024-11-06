@@ -54,7 +54,7 @@ glimpse(covs)
 # 1.2) Prepare the count level data ################################################################
 
 # Define single species
-study_species <- "BRSP"
+study_species <- "VESP"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
@@ -90,7 +90,7 @@ visit_count <- sobs %>%
           # Each visit should be treated separately
            Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   group_by(Grid.ID, Grid.Type, Year, Visit.ID, Ord.Date) %>% 
-  reframe(Grid.ID, Grid.Type, Year, Visit.ID, Ord.Date,
+  reframe(Grid.ID, Visit.ID, 
           # Average minutes after sunrise on the survey
           Mean.MAS = mean(MAS),
           # Observer who submitted the most points
@@ -385,10 +385,10 @@ sobs_const <- list (
   nvst = nvst,                 # Number of times each grid was surveyed (6)
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
-  nyears = nyears,            # Number of years we surveyed (3)
+  # nyears = nyears,            # Number of years we surveyed (3)
 
   # Non-stochastic constants
-  years = years,              # Year when each survey took place
+  # years = years,              # Year when each survey took place
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
   observers = observers       # Effect of observer associated with each survey
@@ -418,7 +418,7 @@ sobs_dat <- list(
 # View Nimble data 
 str(sobs_dat)
 
-#set seed
+# set seed
 # set.seed(01151999)
 
 # Object dimensions
@@ -448,9 +448,9 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
-  mean_beta0 = runif(1, 0, 1),
-  sd_beta0 = runif(1, 0, 0.1),
-  beta0_year = runif(nyears, 0, 1),
+  # mean_beta0 = runif(1, 0, 1),
+  # sd_beta0 = runif(1, 0, 0.1),
+  beta0 = runif(1, 0, 1),
   beta_burn = rnorm(1, 0, 0.1),
   beta_elv = rnorm(1, 0, 0.1),
   beta_burn_elv = rnorm(1, 0, 0.1),
@@ -489,22 +489,23 @@ sobs_model_code <- nimbleCode({
   }
 
   # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, 2)        # Mean abundance hyperparameter
-  sd_beta0 ~ dunif(0, 3)          # Sd in yearly abundance hyperparameter
+  # mean_beta0 ~ dnorm(0, 5)       # Mean abundance hyperparameter
+  # sd_beta0 ~ dunif(0, 5)         # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
-  for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
-  }
+  # for(t in 1:nyears){
+  #   # beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
+  # }
   
   # Fixed effects for the abundance component of the model
-  beta_burn ~ dnorm(0, sd = 3)         # Effect of fire
+  beta0 ~ dnorm(0, 5)                  # Intercept on abundance
+  beta_burn ~ dnorm(0, sd = 5)         # Effect of fire
   beta_elv ~ dnorm(0, sd = 1)          # Effect of elevation
   beta_burn_elv ~ dnorm(0, sd = 1)     # Interaction between fire and elevation
   beta_fyear ~ dnorm(0, sd = 1)        # Effect of years since fire on burned grids
   beta_burnsev ~ dnorm(0, sd = 1)      # Effect of initial burn severity on burned grids
-  beta_burn_elv2 ~ dnorm(0, sd = 1)    # Effect of fire and elevation squared
-  beta_fyear2 ~ dnorm(0, sd = 1)       # Effect of years since fire on burned grids squared
-  beta_elv2 ~ dnorm(0, sd = 1)         # Effect of elevation squared
+  beta_burn_elv2 ~ dnorm(0, sd = 0.5)  # Effect of fire and elevation squared
+  beta_fyear2 ~ dnorm(0, sd = 0.5)     # Effect of years since fire on burned grids squared
+  beta_elv2 ~ dnorm(0, sd = 0.5)       # Effect of elevation squared
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -559,8 +560,8 @@ sobs_model_code <- nimbleCode({
                           gamma_time2 * time[s, y]^2                          # Effect of scaled time of day squared
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_year[years[s, y]] +                          # Intercept on abundance 
-                           beta_burn * burned[s] +                            # Intercept on abundance on burned grids 
+      log(lambda[s, y]) <- beta0 +                                            # Intercept on abundance 
+                           beta_burn * burned[s] +                            # Effect of fire 
                            beta_elv * elevation[s] +                          # Effect of elevation on reference grids                            
                            beta_burn_elv * burned[s] * elevation[s] +         # Interaction between fire and elevation
                            beta_fyear * fire_year[s, y] * burned[s] +         # Effect of years since fire on burned grids
@@ -587,7 +588,7 @@ sobs_model_code <- nimbleCode({
 # 2.4) Configure and Run the model ###########################################################
 
 # Params to save
-sobs_params <- c("beta0_year",
+sobs_params <- c("beta0",
                  "beta_burn",
                  "beta_elv", 
                  "beta_burn_elv",
@@ -608,8 +609,8 @@ sobs_params <- c("beta0_year",
 
 # MCMC settings. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1          # Quick test to see if the model runs
-nc <- 3  ;  ni <- 50000  ;  nb <- 25000;  nt <- 5    # longer test where most parameters should
-# nc <- 4;  ni <- 150000;  nb <- 75000;  nt <- 10        # Run the model for real
+# nc <- 3  ;  ni <- 50000  ;  nb <- 25000;  nt <- 5    # longer test where most parameters should
+nc <- 4;  ni <- 200000;  nb <- 100000;  nt <- 20        # Run the model for real
 
 #Run the sampler
 start <- Sys.time()                                     # Start time for the sampler
@@ -630,7 +631,7 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Fi les//", 
                                      study_species, "_fire_model.rds"))
 
 

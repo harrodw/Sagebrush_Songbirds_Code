@@ -433,9 +433,9 @@ sobs_inits <- list(
   gamma_time = rnorm(1, 0, 0.1),
   gamma_date2 = rnorm(1, 0, 0.1),  
   gamma_time2 = rnorm(1, 0, 0.1),
-  # Abidance 
-  mean_beta0 = runif(1, 0, 1),
-  sd_beta0 = runif(1, 0, 0.1),
+  # Abundance 
+  # mean_beta0 = runif(1, 0, 1),
+  # sd_beta0 = runif(1, 0, 0.1),
   beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
   beta_sage = rnorm(1, 0, 0.1),
   beta_sage2 = rnorm(1, 0, 0.1),
@@ -471,15 +471,16 @@ sobs_model_code <- nimbleCode({
   
   # Parameters in the detection portion of the model
   for(o in 1:nobsv) {
-    alpha0_obsv[o] ~  dnorm(0, 10) # Effect of each observer on detecability
+    alpha0_obsv[o] ~  dnorm(0, 5)  # Effect of each observer on detecability
   }
 
   # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, 1)        # Mean abundance hyperparameter
-  sd_beta0 ~ dunif(0, 3)          # Sd in yearly abundance hyperparameter
+  # mean_beta0 ~ dnorm(0, 1)        # Mean abundance hyperparameter
+  # sd_beta0 ~ dunif(0, 3)          # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
-  beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
+    beta0_year[t] ~ dnorm(0, 5)
+    # beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
   
   beta_sage ~ dnorm(0, 1)       # Effect of sagebrush cover
