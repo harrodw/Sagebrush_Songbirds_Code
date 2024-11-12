@@ -463,15 +463,15 @@ sobs_model_code <- nimbleCode({
   # ------------------------------------------------------------------
   
   # Parameters in the availability component of the detection model
-  gamma0 ~ dnorm(0, 1)         # Mean availability
-  gamma_date ~ dnorm(0, 1)     # Effect of day of year on singing rate
-  gamma_date2 ~ dnorm(0, 1)    # Effect of day of year on singing rate (quadratic)
-  gamma_time ~ dnorm(0, 1)     # Effect of time of day on singing rate
-  gamma_time2 ~ dnorm(0, 1)    # Effect of time of day on singing rate (quadratic)
+  gamma0 ~ dnorm(0, sd = 1)         # Mean availability
+  gamma_date ~ dnorm(0, sd = 1)     # Effect of day of year on singing rate
+  gamma_date2 ~ dnorm(0, sd = 1)    # Effect of day of year on singing rate (quadratic)
+  gamma_time ~ dnorm(0, sd = 1)     # Effect of time of day on singing rate
+  gamma_time2 ~ dnorm(0, sd = 1)    # Effect of time of day on singing rate (quadratic)
   
   # Parameters in the detection portion of the model
   for(o in 1:nobsv) {
-    alpha0_obsv[o] ~  dnorm(0, 5)  # Effect of each observer on detecability
+    alpha0_obsv[o] ~  dnorm(0, sd  = 3)  # Effect of each observer on detecability
   }
 
   # Parameters on the abundance component of the model
@@ -479,16 +479,16 @@ sobs_model_code <- nimbleCode({
   # sd_beta0 ~ dunif(0, 3)          # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(0, 5)
+    beta0_year[t] ~ dnorm(0, sd = 3)
     # beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
-  
-  beta_sage ~ dnorm(0, 1)       # Effect of sagebrush cover
-  beta_sage2 ~ dnorm(0, 1)      # Effect of sagebrush cover squared
-  beta_pern ~ dnorm(0, 1)       # Effect of Perennial Cover
-  beta_pern2 ~ dnorm(0, 1)      # Effect of perennial cover squared
-  beta_elv ~ dnorm(0, 1)        # Effect of elevation
-  beta_elv2 ~ dnorm(0, 1)       # Effect of elevation squared
+  # beta0 ~ dnorm(0, sd = 3)
+  beta_sage ~ dnorm(0, sd = 1)       # Effect of sagebrush cover
+  beta_sage2 ~ dnorm(0, sd =1)      # Effect of sagebrush cover squared
+  beta_pern ~ dnorm(0, sd = 1)       # Effect of Perennial Cover
+  beta_pern2 ~ dnorm(0, sd = 1)      # Effect of perennial cover squared
+  beta_elv ~ dnorm(0, sd = 1)        # Effect of elevation
+  beta_elv2 ~ dnorm(0, sd = 1)       # Effect of elevation squared
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -532,8 +532,7 @@ sobs_model_code <- nimbleCode({
       N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0 +                                    # Intercept on detectability
-                          alpha_obsv[observers[s, y]]                 # Effect of each observer on detectability
+      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]                # Effect of each observer on detectability
       
       # Availability (p_a) Log-linear model for availability
       logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability 
@@ -575,7 +574,6 @@ sobs_model_code <- nimbleCode({
   mean_psi <- mean(psi[])                                  # Average occupancy probability
   mean_phi <- mean(phi[,])                                 # Average availability probability
   mean_p_dct <- mean(p_dct[,])                             # Average detection probability
-  mean_lambda <- mean(lambda[,])                           # Average expected number of Birds
   
   # Add up fit stats across sites and years
   fit <- sum(FT[,]) 
@@ -592,24 +590,22 @@ sobs_model_code <- nimbleCode({
 # 2.4) Configure and Run the model ###########################################################
 
 # Params to save
-sobs_params <- c("alpha0_obsv",
-                 "mean_psi",
-                 "mean_p_dct",
-                 "mean_phi",
-                 "mean_lambda",
+sobs_params <- c("beta0",
+                 "beta_sage",
+                 "beta_sage2",
+                 "beta_pern",
+                 "beta_pern2",
+                 "beta_elv",
+                 "beta_elv2",
                  "gamma0", 
                  "gamma_date", 
                  "gamma_date2", 
                  "gamma_time", 
                  "gamma_time2", 
-                 "beta0_year",
-                 "beta_sage",
-                 "beta_sage2",
-                 "beta_pern",
-                 "beta_pern2",
-                 "beta_elv", 
-                 "beta_elv2",
-                 "n_dct_new",
+                 "alpha0_obsv",
+                 "mean_psi",
+                 "mean_p_dct",
+                 "mean_phi",
                  "fit", 
                  "fit_new", 
                  "c_hat",
@@ -654,48 +650,19 @@ soi <- "BRSP"
 # Load the output back in
 sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                        soi, "_abundance_model_out.rds"))
-
-# Define which parameters I want to view
-# Params to save
-sobs_params_view <- c("alpha0",  
-                      "alpha_obsv",
-                      "mean_psi",
-                      "mean_p_dct",
-                      "mean_phi",
-                      "mean_lambda",
-                      "gamma0", 
-                      "gamma_date", 
-                      "gamma_date2", 
-                      "gamma_time", 
-                      "gamma_time2", 
-                      "beta0_year",
-                      "beta_sage", 
-                      "beta_sage2",
-                      "beta_pern", 
-                      "beta_pern2",
-                      "beta_elv", 
-                      "beta_elv2",
-                      "beta_burned",
-                      "beta_fyear",
-                      "beta_burnsev",
-                      "beta_offset",
-                      "fit", 
-                      "fit_new", 
-                      "c_hat",
-                      "bpv")
   
 # Traceplots and density graphs 
 MCMCtrace(object = sobs_mcmc_out$samples,
           pdf = FALSE,
           ind = TRUE,
-          params = sobs_params_view,
+          params = sobs_params,
           iter = 10000)
 
 # View MCMC summary
 MCMCsummary(object = sobs_mcmc_out$samples, 
-            params = sobs_params_view,
+            params = sobs_params,
             round = 2)
 
 # View MCMC plot
 MCMCplot(object = sobs_mcmc_out$samples,
-         params = sobs_params_view)
+         params = sobs_params)

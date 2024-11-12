@@ -54,16 +54,17 @@ glimpse(covs)
 # 1.2) Prepare the count level data ################################################################
 
 # Define single species
-study_species <- "VESP"
+study_species <- "BRSP"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
 
-# Function to find the mode
+# Function to find the mode of catigorical variables in the model
 find_mode <- function(x) {
   unique_x <- unique(x)
-  unique_x[which.max(tabulate(match(x, unique_x)))]  # Find the most frequent value
+  unique_x[which.max(tabulate(match(x, unique_x)))]  
 }
+
 
 # Make a table of important species sightings by visit
 counts_0inf <- sobs %>%
@@ -222,7 +223,7 @@ observations_temp <- sobs %>%
                               TRUE ~ NA)) %>% 
   # Calculate Midpoints
   mutate(Dist.Bin.Midpoint = Dist.Bin - bin_size/2) %>% 
-  # Change to a factor
+  # Change to a numeric factor
   mutate(Dist.Bin = case_when(Dist.Bin == bins[1] ~ 1,
                               Dist.Bin == bins[2] ~ 2,
                               Dist.Bin == bins[3] ~ 3,
@@ -262,6 +263,12 @@ observations <- observations_temp %>%
 
 # View Counts
 glimpse(counts)
+
+sobs %>% 
+  filter(Species == "VESP" & Observer.ID == "Will") %>% 
+  select(Observer.ID, Species, Full.Point.ID, Date, Distance) %>% 
+  arrange(Distance) %>% 
+  print(n = Inf)
 
 # View Observations
 glimpse(observations)
@@ -362,6 +369,7 @@ n_dct <- count_mat                                    # Matrix of the number of 
 years <- year_mat                                     # Matrix of year numbers
 elevation <- counts$Elevation[1:ngrids]               # Elevation (m) 
 burned <- counts$Burned[1:ngrids]                     # Whether or not each grid burned
+reference <- -1 * (burned - 1)                        # List of which grids are refernce 
 fire_year <- fyear_mat                                # How long since the most recent fire in each grid
 burn_sev <- counts$mean.rdnbr[1:ngrids]               # Burn severity from the most recent fire
 
@@ -385,10 +393,10 @@ sobs_const <- list (
   nvst = nvst,                 # Number of times each grid was surveyed (6)
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
-  # nyears = nyears,            # Number of years we surveyed (3)
+  nyears = nyears,            # Number of years we surveyed (3)
 
   # Non-stochastic constants
-  # years = years,              # Year when each survey took place
+  years = years,              # Year when each survey took place
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
   observers = observers       # Effect of observer associated with each survey
@@ -412,7 +420,8 @@ sobs_dat <- list(
   n_dct = n_dct,          # Number of detected individuals per site
   elevation = elevation,  # Scaled elevation
   fire_year = fire_year,  # How long since the most recent fire in each grid
-  burn_sev = burn_sev,   # Burn severity from the most recent fire
+  burn_sev = burn_sev,    # Burn severity from the most recent fire
+  reference = reference,  # Whether or not each grid is a reference 
   burned = burned         # Whether or not each grid burned
 )
 # View Nimble data 
@@ -434,7 +443,10 @@ sobs_dims <- list(
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   p_avail = c(ngrids, nvst),         # Availability probability
   p_marg = c(ngrids, nvst),          # Combined probability of detecting an available bird
-  lambda = c(ngrids, nvst)           # Poisson random variable
+  lambda = c(ngrids, nvst),          # Poisson random variable
+  e_val = c(ngrids, nvst),           # Expected value for binomial portion of the model
+  FT = c(ngrids, nvst),              # Freeman-Tuck Discrepancy for the data
+  FT_new = c(ngrids, nvst)           # Freeman-Tuck Discrepancy for the simulated data
 )
 
 # Initial Values
@@ -448,21 +460,19 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
-  # mean_beta0 = runif(1, 0, 1),
-  # sd_beta0 = runif(1, 0, 0.1),
-  beta0 = runif(1, 0, 1),
+  mean_beta0 = runif(1, 0, 1),
+  sd_beta0 = runif(1, 0, 0.1),
+  beta0_year = runif(nyears, 0, 1),
   beta_burn = rnorm(1, 0, 0.1),
   beta_elv = rnorm(1, 0, 0.1),
   beta_burn_elv = rnorm(1, 0, 0.1),
   beta_fyear = rnorm(1, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
-  beta_elv2 = rnorm(1, 0, 0.1),
-  beta_fyear2 = rnorm(1, 0, 0.1),
-  beta_burn_elv2 = rnorm(1, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
   # Simulated data
+  n_dct_new = count_mat,
   N_indv = count_mat + 1              # start each grid with an individual present
 )  
 # View the initial values
@@ -479,33 +489,29 @@ sobs_model_code <- nimbleCode({
   # Parameters in the availability component of the detection model
   gamma0 ~ dnorm(0, 1)                 # phi intercept on log scale 
   gamma_date ~ dnorm(0, sd = 1)        # Effect of day of year on singing rate
-  gamma_time ~ dnorm(0, sd = 1)        # Effect of time of day on singing rate
+  gamma_time ~ dnorm(0, sd = 1.7)      # Effect of time of day on singing rate
   gamma_date2 ~ dnorm(0, sd = 0.5)     # Effect of day of year on singing rate (quadratic)
   gamma_time2 ~ dnorm(0, sd = 0.5)     # Effect of time of day on singing rate (quadratic)
 
   # Parameters in the detection portion of the model
-  for(o in 1:nobsv) {
-    alpha0_obsv[o] ~ dnorm(0, 3)       # Effect of each observer on detecability 
+  for(o in 1:nobsv){
+    alpha0_obsv[o] ~ dnorm(0, sd = 3)     # Effect of each observer on detecability 
   }
 
   # Parameters on the abundance component of the model
-  # mean_beta0 ~ dnorm(0, 5)       # Mean abundance hyperparameter
-  # sd_beta0 ~ dunif(0, 5)         # Sd in yearly abundance hyperparameter
+  mean_beta0 ~ dnorm(0, 3)       # Mean abundance hyperparameter
+  sd_beta0 ~ dunif(0, 1)         # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
-  # for(t in 1:nyears){
-  #   # beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
-  # }
+  for(t in 1:nyears){
+    beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
+  }
   
   # Fixed effects for the abundance component of the model
-  beta0 ~ dnorm(0, 5)                  # Intercept on abundance
-  beta_burn ~ dnorm(0, sd = 5)         # Effect of fire
-  beta_elv ~ dnorm(0, sd = 1)          # Effect of elevation
-  beta_burn_elv ~ dnorm(0, sd = 1)     # Interaction between fire and elevation
-  beta_fyear ~ dnorm(0, sd = 1)        # Effect of years since fire on burned grids
-  beta_burnsev ~ dnorm(0, sd = 1)      # Effect of initial burn severity on burned grids
-  beta_burn_elv2 ~ dnorm(0, sd = 0.5)  # Effect of fire and elevation squared
-  beta_fyear2 ~ dnorm(0, sd = 0.5)     # Effect of years since fire on burned grids squared
-  beta_elv2 ~ dnorm(0, sd = 0.5)       # Effect of elevation squared
+  beta_burn ~ dnorm(0, sd = 3)           # Effect of fire
+  beta_elv ~ dnorm(0, sd = 1)            # Effect of elevation
+  beta_burn_elv ~ dnorm(0, sd = 1)       # Interaction between fire and elevation
+  beta_fyear ~ dnorm(0, sd = 1)          # Effect of years since fire on burned grids
+  beta_burnsev ~ dnorm(0, sd = 1)        # Effect of initial burn severity on burned grids
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -540,8 +546,7 @@ sobs_model_code <- nimbleCode({
       p_avail[s, y] <- sum(pi_pa[s, y, ])
 
       # Multiply availability with capture probability to yield total marginal probability
-      p_marg[s, y] <- p_dct[s, y] 
-      # * p_avail[s, y]
+      p_marg[s, y] <- p_dct[s, y] * p_avail[s, y]
       
       ### Binomial portion of mixture 
       n_dct[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])                          # Number of individual birds captured (observations)
@@ -560,15 +565,21 @@ sobs_model_code <- nimbleCode({
                           gamma_time2 * time[s, y]^2                          # Effect of scaled time of day squared
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0 +                                            # Intercept on abundance 
+      log(lambda[s, y]) <- beta0_year[years[s, y]] +                          # Intercept on abundance 
                            beta_burn * burned[s] +                            # Effect of fire 
-                           beta_elv * elevation[s] +                          # Effect of elevation on reference grids                            
+                           beta_elv * elevation[s] * reference[s] +           # Effect of elevation on reference grids
                            beta_burn_elv * burned[s] * elevation[s] +         # Interaction between fire and elevation
                            beta_fyear * fire_year[s, y] * burned[s] +         # Effect of years since fire on burned grids
-                           beta_burnsev * burn_sev[s] * burned[s] +           # Effect of initial burn severity on burned grids
-                           beta_fyear2 * fire_year[s, y]^2 +                  # Effect of years since fire on burned grids squared
-                           beta_elv2 *  elevation[s]^2 +                      # Effect of elevation squared
-                           beta_burn_elv2 * burned[s] * elevation[s]^2        # Interaction between fire and elevation squared
+                           beta_burnsev * burn_sev[s] * burned[s]             # Effect of initial burn severity on burned grids
+      
+      # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
+      # Compute fit statistic for observed data
+      e_val[s, y] <- p_marg[s, y] * N_indv[s, y]             # Expected value for binomial portion of the model
+      FT[s, y] <- (sqrt(n_dct[s, y]) - sqrt(e_val[s, y]))^2 
+      
+      # Generate replicate count data and compute same fit stats for them
+      n_dct_new[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])              
+      FT_new[s, y] <- (sqrt(n_dct_new[s, y]) - sqrt(e_val[s, y]))^2 
 
     } # end loop through visits
   } # end loop through survey grids
@@ -583,20 +594,28 @@ sobs_model_code <- nimbleCode({
   mean_p_avail <- mean(p_avail[,])                                            # Average availability probability
   mean_p_dct <- mean(p_dct[,])                                                # Average detection probability
   mean_psi <- mean(psi[])                                                     # Average occupancy probability
+  
+  # Add up fit stats across sites and years
+  fit <- sum(FT[,]) 
+  fit_new <- sum(FT_new[,]) 
+  
+  # c-hat value, should converge to 1
+  c_hat <- fit / fit_new
+  
+  # Compute Bayesian p-value for the model, should converge to ~0.5
+  bpv <- step(fit_new - fit)
+  
 })
 
 # 2.4) Configure and Run the model ###########################################################
 
 # Params to save
-sobs_params <- c("beta0",
+sobs_params <- c("beta0_year",
                  "beta_burn",
                  "beta_elv", 
                  "beta_burn_elv",
                  "beta_fyear",
                  "beta_burnsev",
-                 "beta_fyear2",
-                 "beta_elv2",
-                 "beta_burn_elv2",
                  "gamma0",
                  "gamma_date",
                  "gamma_time",
@@ -605,12 +624,16 @@ sobs_params <- c("beta0",
                  "alpha0_obsv",
                  "mean_p_avail",
                  "mean_p_dct",
-                 "mean_psi")
+                 "mean_psi",
+                 "fit",
+                 "fit_new",
+                 "c_hat",
+                 "bpv")
 
 # MCMC settings. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1          # Quick test to see if the model runs
 # nc <- 3  ;  ni <- 50000  ;  nb <- 25000;  nt <- 5    # longer test where most parameters should
-nc <- 4;  ni <- 200000;  nb <- 100000;  nt <- 20        # Run the model for real
+nc <- 4;  ni <- 150000;  nb <- 100000;  nt <- 10        # Run the model for real
 
 #Run the sampler
 start <- Sys.time()                                     # Start time for the sampler
@@ -631,13 +654,16 @@ sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Fi les//", 
+saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                      study_species, "_fire_model.rds"))
 
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
 ###################5#############################################################
+
+# Define a single species
+study_species <- "BRSP"
 
 # Clear plots
 # dev.off()
@@ -668,4 +694,3 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 MCMCplot(object = sobs_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
-

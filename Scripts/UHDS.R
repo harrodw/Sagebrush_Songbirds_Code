@@ -8,7 +8,7 @@ rm(list = ls())
 library(tidyverse)
 library(unmarked)
 library(AICcmodavg)
-library(raster)
+library(terra)
 library(sf)
 library(tmap)
 library(gridExtra)
@@ -38,11 +38,11 @@ trunc_dist <- 125
 #Define distance bin sizes
 bin_size <- 25
 
-# filter for only that species
+# Set of a matrix of distance detections
 ydist <- sobs %>%
+  # filter for only that species
   filter(Species == species_to_model) %>%
   dplyr::select(Visit.ID, Distance) %>%
-  mutate(Distance = as.numeric(Distance)) %>%
   filter(Distance <= trunc_dist) %>%
   mutate(Distance.Class = NA)
 #...and view
@@ -57,9 +57,9 @@ print(dist_breaks)
 for(j in 2:length(dist_breaks)){
   ydist <- ydist %>%
     mutate(Distance.Class = case_when(Distance == 0
-                                      ~ paste0("[", dist_breaks[1], "- ", dist_breaks[2], "]"),
+                                      ~ paste0("[", dist_breaks[1], "-", dist_breaks[2], "]"),
                                       Distance > dist_breaks[j - 1] & Distance <= dist_breaks[j]
-                                      ~ paste0("(", dist_breaks[j -1], "- ", dist_breaks[j], "]"),
+                                      ~ paste0("(", dist_breaks[j -1], "-", dist_breaks[j], "]"),
                                       TRUE ~ Distance.Class))
 } #end loop
 #... and view
@@ -87,27 +87,30 @@ dist_dat <- points %>%
   left_join(dist_dat_0inf,
             by = "Visit.ID") %>%
   mutate(across(everything(), ~ replace_na(., 0)))%>%
-  dplyr::select(Visit.ID, `(0- 25]`, `(25- 50]`, `(50- 75]`, `(75- 100]`, `(100- 125]`)
+  dplyr::select(Visit.ID, `(0-25]`, `(25-50]`, `(50-75]`, `(75-100]`, `(100-125]`)
 
 #... and view
 glimpse(dist_dat)
+# View how many rows have at least one observations
 dist_dat %>%
-  filter(`(0- 25]` != 0)
+  filter(`(0-25]` != 0 | `(25-50]` != 0 | `(50-75]` != 0 | `(75-100]` != 0 | `(100-125]` != 0)
 
 # 1.2) Prepare covariate data  ###############################################################
 
 # Add point level covariates
-covs <- tibble(read.csv("Data\\Outputs\\point_summaries.csv")) %>%
-  dplyr::select(-X, -Point.X, -Point.Y) %>%
-  tibble() 
+covs <- tibble(read.csv("Data/Outputs/point_covs.csv")) %>%
+  dplyr::select(-X, -UTM.X, -UTM.Y) %>%
+  tibble()
+#...and view
+glimpse(covs)
 
 # Transform the observation data into an object that can receive the covariates
 covs_tbl <- sobs %>%
   mutate(Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>%
-  dplyr::select(Visit.ID, Year, Visit, Full.Point.ID, Route.ID, Observer.ID,
+  dplyr::select(Visit.ID, Year, Visit, Full.Point.ID, Grid.ID, Observer.ID,
                 Ord.Date, Date, MAS, Temp.Start, Wind.Start, Sky.Start,
                 UTM.X, UTM.Y) %>%
-  distinct(Visit.ID, Year, Visit, Full.Point.ID, Route.ID, Observer.ID,
+  distinct(Visit.ID, Year, Visit, Full.Point.ID, Grid.ID, Observer.ID,
            Ord.Date, Date, MAS, Temp.Start, Wind.Start, Sky.Start,
            UTM.X, UTM.Y)
 #...and view
@@ -119,7 +122,7 @@ nrow(covs_tbl) == length(unique(covs_tbl$Visit.ID))
 
 # combine these with the covariates
 hdm_dat <- covs_tbl %>%
-  left_join(covs, by = c("Full.Point.ID", "Route.ID")) %>%
+  left_join(covs, by = c("Full.Point.ID")) %>%
   # How long since each fire
   mutate(Years.Since.Fire = lubridate::year(Date) - Fire.Year) %>%
   #Update the variables based on my exploratory analysis
@@ -143,12 +146,11 @@ glimpse(hdm_dat)
 #Make sure there are still the proper number of points
 nrow(hdm_dat) == length(unique(covs_tbl$Visit.ID))
 
-
 # 1.3) Formating these into unmarked objects ######################################
 
 # distance data
 dist_mat <- as.matrix(dist_dat %>%
-                        dplyr::select(`(0- 25]`, `(25- 50]`, `(50- 75]`, `(75- 100]`, `(100- 125]`))
+                        dplyr::select(`(0-25]`, `(25-50]`, `(50-75]`, `(75-100]`, `(100-125]`))
 # view
 head(dist_mat)
 dim(dist_mat)
@@ -172,8 +174,6 @@ site_covs <- hdm_dat %>%
          MAS = scale(MAS)[,1],
          Ord.Date = scale(Ord.Date)[,1],
          # Fire ecology covariates
-         Burned = as.numeric(factor(hdm_dat$Route.Type, levels = c("R", "B"))) -1,
-         # Burn.Sevarity = case_when(is.na(Burn.Sevarity) ~ 0, TRUE ~ Burn.Sevarity),
          Years.Since.Fire = scale(Years.Since.Fire)[,1]
   ) %>%
   # mutate(Burn.Sevarity = factor(Burn.Sevarity)) %>%
@@ -484,122 +484,114 @@ load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process4.RData"))
 
 # Combine all candidate models
 modlist_abd = list(mod_null = mod_abd_sage,
-                   modlist_abd = list(
                      # mod_null = mod_abd_sage,
                      mod_process1 = mod_abd_process1,
                      mod_process2 = mod_abd_process2,
                      mode_process3 = mod_abd_process3,
                      mod_process4 = mod_abd_process4)
                    
-                   # Check to confirm that all candidate models converged
-                   sapply(modlist_abd, checkConv)
+# Check to confirm that all candidate models converged
+sapply(modlist_abd, checkConv)
                    
-                   # Check the condition number from each model's Hessian matrix to see if they are overparameterized
-                   sapply(modlist_abd, extractCN)
+# Check the condition number from each model's Hessian matrix to see if they are overparameterized
+sapply(modlist_abd, extractCN)
                    
-                   # Check the standard errors of the candidate models
-                   lapply(modlist_abd, checkParms, se.max = 10, simplify = FALSE)
+# Check the standard errors of the candidate models
+lapply(modlist_abd, checkParms, se.max = 10, simplify = FALSE)
                    
-                   # Compare AIC scores among all candidate preocess models -------------
-                   aictab(modlist_abd)
+# Compare AIC scores among all candidate preocess models -------------
+aictab(modlist_abd)
                    
-                   # A function that calculates overdisperision estimate (c-hat) from pearson residuals
-                   c_hat_dist <- function(mod){
-                     # Extract the data from the fitted model
-                     mod_dat <- unmarked::getData(mod)
-                     #find the number of observations
-                     n_obs <- nrow(mod_dat@y)
-                     #Extract the Pearson residuals from the model
-                     resids <- residuals(mod, type = "pearson")
-                     # Sum of squared Pearson residuals
-                     sse <- sum(resids^2)
-                     # Residual degrees of freedom
-                     res_df <- n_obs - length(coef(mod))
-                     # Overdispersion parameter (c-hat)
-                     c_hat <- sse / res_df
-                     #Output
-                     return(c_hat)
-                   }
+# A function that calculates overdisperision estimate (c-hat) from pearson residuals
+c_hat_dist <- function(mod){
+   # Extract the data from the fitted model
+  mod_dat <- unmarked::getData(mod)
+  #find the number of observations
+  n_obs <- nrow(mod_dat@y)
+  #Extract the Pearson residuals from the model
+  resids <- residuals(mod, type = "pearson")
+  # Sum of squared Pearson residuals
+  sse <- sum(resids^2)
+  # Residual degrees of freedom
+  res_df <- n_obs - length(coef(mod))
+  # Overdispersion parameter (c-hat)
+  c_hat <- sse / res_df
+  #Output
+  return(c_hat)
+}
                    
-                   # Calculate c-hat for all models (Not relevant if using negative binomial)
-                   c_hat_modlist <- sapply(modlist_abd, c_hat_dist)
-                   c_hat_modlist
+# Calculate c-hat for all models (Not relevant if using negative binomial)
+c_hat_modlist <- sapply(modlist_abd, c_hat_dist)
+c_hat_modlist
                    
-                   # All of the Poisson models are overdispersed but they look good as negative binomials
+# All of the Poisson models are overdispersed but they look good as negative binomials
                    
-                   #Model summaries corrected for overdispersion (Poisson only)
-                   # summaryOD(mod_abd_shrub, c.hat = c_hat_modlist[1])
-                   # summaryOD(mod_abd_sage, c.hat = c_hat_modlist[1])
-                   # summaryOD(mod_abd_process1, c.hat = c_hat_modlist[2])
-                   # summaryOD(mod_abd_process2, c.hat = c_hat_modlist[3])
-                   # summaryOD(mod_abd_process3, c.hat = c_hat_modlist[4])
+# Model summaries corrected for overdispersion (Poisson only)
+# summaryOD(mod_abd_shrub, c.hat = c_hat_modlist[1])
+# summaryOD(mod_abd_sage, c.hat = c_hat_modlist[1])
+# summaryOD(mod_abd_process1, c.hat = c_hat_modlist[2])
+# summaryOD(mod_abd_process2, c.hat = c_hat_modlist[3])
+# summaryOD(mod_abd_process3, c.hat = c_hat_modlist[4])
                    
-                   # Compare QAIC scores among all candidate models
-                   aictab(modlist_abd, c.hat = mean(c_hat_modlist))
+# Compare QAIC scores among all candidate models
+aictab(modlist_abd, c.hat = mean(c_hat_modlist))
                    
-                   # Function returning three fit-statistics.
-                   fitstats <- function(mod) {
-                     #observed data
-                     observed <- getY(mod@data)
-                     #Expected values
-                     expected <- fitted(mod)
-                     #Residuals
-                     resids <- residuals(mod)
-                     #Sum of squared erros
-                     sse <- sum(resids^2)
-                     #chi-squared test statisitc
-                     chisq <- sum((observed - expected)^2 / expected)
-                     #Freeman Tucky discrepancy
-                     freeTuke <- sum((sqrt(observed) - sqrt(expected))^2)
-                     #combine the diagnostic test outputs
-                     out <- c(SSE = sse, Chisq = chisq, freemanTukey = freeTuke)
-                     #print the output
-                     return(out)
-                     
-                   }
+# Function returning three fit-statistics.
+fitstats <- function(mod) {
+    # observed data
+    observed <- getY(mod@data)
+    # Expected values
+    expected <- fitted(mod)
+    #Residuals
+    resids <- residuals(mod)
+    #Sum of squared erros
+    sse <- sum(resids^2)
+    #chi-squared test statisitc
+    chisq <- sum((observed - expected)^2 / expected)
+    #Freeman Tucky discrepancy
+    freeTuke <- sum((sqrt(observed) - sqrt(expected))^2)
+    #combine the diagnostic test outputs
+    out <- c(SSE = sse, Chisq = chisq, freemanTukey = freeTuke)
+    #print the output
+    return(out)
+}
                    
-                   # Use parametric bootstrapping to view model outputs (this could take a while)
-                   # pb_m8 <- unmarked::parboot(mod_abd_process8,
-                   #                         fitstats,
-                   #                         nsim = 5000,
-                   #                         report = 1)
+# Use parametric bootstrapping to view model outputs (this could take a while)
+# pb_m8 <- unmarked::parboot(mod_abd_process8, fitstats, nsim = 5000, report = 1)
                    
                    
-                   # 4.1) Load and view the best performing model  ##################################################
+# 4.1) Load and view the best performing model  ###############################################
+
+# Load the current best performing model
+# I'm chosing the elevation, sage_cvr, pern, bg model based on a combination of prior knowledge, AIC, and other fit statistics
+# The precipitation model has slightly lower AIC (4.75) but I like the predictive flexibility of using smaller rasters
+load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process1.RData"))
+mod_best <- mod_abd_process1
                    
-                   # Load the current best performing model
-                   # I'm chosing the Precipitation, sb_cvr, pern, tri model based on a combination of prior knowledge, AIC, and other fit statistics
-                   # The precipitation model has slightly lower AIC (4.75) but I like the predicitve flexability of using smaller rasters
-                   load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process7.RData"))
-                   mod_best <- mod_abd_process7
-                   # I'm chosing the elevation, sage_cvr, pern, bg model based on a combination of prior knowledge, AIC, and other fit statistics
-                   load(paste0("Model_Files/umk_", species_to_model, "_mod_abd_process1.RData"))
-                   mod_best <- mod_abd_process1
+#View model output again
+summary(mod_best)
                    
-                   #View model output again
-                   summary(mod_best)
+# View model data
+head(mod_best@data)
                    
-                   # View model data
-                   head(mod_best@data)
+#Pull out the data to make predictions with
+lam_dat <- mod_best@data@siteCovs
+#...and view
+head(lam_dat)
                    
-                   #Pull out the data to make predictions with
-                   lam_dat <- mod_best@data@siteCovs
-                   #...and view
-                   head(lam_dat)
+#Define the size of the simulated data set
+N_sim <- 1000
                    
-                   #Define the size of the simulated data set
-                   N_sim <- 1000
+# Pull out the original covariate means ----
+mean_shrub <- mean(hdm_dat$ln.Shrub.Cover)
+mean_sage <- mean(hdm_dat$ln.Sage.Cover)
+mean_pern <- mean(hdm_dat$Perennial.Cover)
+mean_precip <- mean(hdm_dat$Precipitation)
+mean_tri <- mean(hdm_dat$ln.TRI)
+mean_bg <- mean(hdm_dat$ln.Bare.Ground.Cover)
+mean_elv <- mean(hdm_dat$Elevation)
                    
-                   # Pull out the original covariate means ----
-                   mean_shrub <- mean(hdm_dat$ln.Shrub.Cover)
-                   mean_sage <- mean(hdm_dat$ln.Sage.Cover)
-                   mean_pern <- mean(hdm_dat$Perennial.Cover)
-                   mean_precip <- mean(hdm_dat$Precipitation)
-                   mean_tri <- mean(hdm_dat$ln.TRI)
-                   mean_bg <- mean(hdm_dat$ln.Bare.Ground.Cover)
-                   mean_elv <- mean(hdm_dat$Elevation)
-                   
-                   # Pull out the original covariate sd's ----
+# Pull out the original covariate sd's ----
                    sd_shrub <- sd(hdm_dat$ln.Shrub.Cover)
                    sd_sage <- sd(hdm_dat$ln.Sage.Cover)
                    sd_pern <- sd(hdm_dat$Perennial.Cover)
@@ -614,61 +606,43 @@ modlist_abd = list(mod_null = mod_abd_sage,
                      return(y)
                    }
                    
-                   # 4.2) simulating data for model predictions #########################################################
-                   
-                   #Simulate log shrub cover
-                   sim_shb <- data.frame(ln.Shrub.Cover = seq(from = min(lam_dat$ln.Shrub.Cover),
-                                                              to = max(lam_dat$ln.Shrub.Cover), length.out = N_sim),
-                                         #Simulate log sage cover
-                                         sim_sage <- data.frame(ln.Sage.Cover = seq(from = min(lam_dat$ln.Sage.Cover),
-                                                                                    to = max(lam_dat$ln.Sage.Cover), 
-                                                                                    length.out = N_sim),
-                                                                Perennial.Cover = rep(mean(lam_dat$Perennial.Cover), N_sim),
-                                                                Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
-                                                                ln.TRI = rep(mean(lam_dat$Precipitation), N_sim))
-                                         ln.Bare.Ground.Cover = rep(mean(lam_dat$ln.Bare.Ground.Cover), N_sim),
+# 4.2) simulating data for model predictions #########################################################
+
+# Simulate log sage cover
+sim_sage <- data.frame(ln.Sage.Cover = seq(from = min(lam_dat$ln.Sage.Cover),
+                                           to = max(lam_dat$ln.Sage.Cover),  
+                                           length.out = N_sim),
+                       Perennial.Cover = rep(mean(lam_dat$Perennial.Cover), N_sim),
+                       Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
+                       ln.TRI = rep(mean(lam_dat$Precipitation), N_sim),
+                       ln.Bare.Ground.Cover = rep(mean(lam_dat$ln.Bare.Ground.Cover), N_sim),
                                          Elevation = rep(mean(lam_dat$Elevation), N_sim))
                    
-                   # Make predictions based on shrub cover
-                   abund_est_shrub <- unmarked::predict(object = mod_best,
-                                                        # Make predictions based on sage cover
-                                                        abund_est_sage <- unmarked::predict(object = mod_best,
-                                                                                            type = "lambda",
-                                                                                            newdata = sim_shb,
-                                                                                            newdata = sim_sage,
-                                                                                            appendData = TRUE)
-                                                        abund_est_shrub <- abund_est_shrub %>%
-                                                          mutate(Shrub.Cover = exp(unscale(x = abund_est_shrub$ln.Shrub.Cover,
-                                                                                           mu = mean_shrub,
-                                                                                           sd = sd_shrub)))
-                                                        abund_est_sage <- abund_est_sage %>%
-                                                          mutate(Sage.Cover = exp(unscale(x = abund_est_sage$ln.Sage.Cover,
-                                                                                          mu = mean_sage,
-                                                                                          sd = sd_sage)))
-                                                        
-                                                        #Make a shrub cover plot
-                                                        shrub_est_plot <- ggplot(data = abund_est_shrub, aes(x = Shrub.Cover, y = exp(Predicted))) +
-                                                          #Make a sage cover plot
-                                                          sage_est_plot <- ggplot(data = abund_est_sage, aes(x = Sage.Cover, y = exp(Predicted))) +
-                                                          geom_point(alpha = 0.5) +
-                                                          geom_ribbon(aes(ymin = exp(lower), ymax = exp(upper)), stat = "identity",
-                                                                      color = "blue", fill = "lightblue", alpha = 0.3) +
-                                                          labs(x = NULL, y = "birds/ha",
-                                                               title = "% Shrub Cover") +
-                                                          title = "% sage Cover") +
-                     theme_minimal()
+# Make predictions based on shrub cover
+abund_est_sage <- unmarked::predict(object = mod_best,
+                                    type = "lambda",
+                                    newdata = sim_shb,
+                                    newdata = sim_sage,
+                                    appendData = TRUE)
+                                                      
+#Make a sage cover plot
+sage_est_plot <- ggplot(data = abund_est_sage, aes(x = Sage.Cover, y = exp(Predicted))) +
+                 geom_point(alpha = 0.5) +
+                 geom_ribbon(aes(ymin = exp(lower), ymax = exp(upper)), 
+                             stat = "identity", color = "blue", fill = "lightblue", alpha = 0.3) +
+                 labs(x = NULL, y = "birds/ha", title = "% sage Cover") +
+                 theme_minimal()
                    
-                   #-------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------
                    
-                   # Simulate perennial forb and grass cover
-                   sim_pern <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_sim),
-                                          sim_pern <- data.frame(ln.Sage.Cover = rep(mean(lam_dat$ln.Sage.Cover), N_sim),
-                                                                 Perennial.Cover = seq(from = min(lam_dat$Perennial.Cover),
-                                                                                       to = max(lam_dat$Perennial.Cover), length.out = N_sim),
-                                                                 Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
-                                                                 ln.TRI = rep(mean(lam_dat$ln.TRI), N_sim))
-                                          ln.Bare.Ground.Cover = rep(mean(lam_dat$ln.Bare.Ground.Cover), N_sim),
-                                          Elevation = rep(mean(lam_dat$Elevation), N_sim))
+# Simulate perennial forb and grass cover
+sim_pern <- data.frame(ln.Sage.Cover = rep(mean(lam_dat$ln.Sage.Cover), N_sim),
+                       Perennial.Cover = seq(from = min(lam_dat$Perennial.Cover),
+                                             to = max(lam_dat$Perennial.Cover), length.out = N_sim),
+                        Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
+                        ln.TRI = rep(mean(lam_dat$ln.TRI), N_sim),
+                        ln.Bare.Ground.Cover = rep(mean(lam_dat$ln.Bare.Ground.Cover), N_sim),
+                        Elevation = rep(mean(lam_dat$Elevation), N_sim))
                    
                    # Make predictions based on perennial cover
                    abund_est_pern <- unmarked::predict(object = mod_best,
@@ -732,59 +706,14 @@ modlist_abd = list(mod_null = mod_abd_sage,
                                                            title = "% Bare Ground Cover") +
                      theme_minimal()
                    
-                   # ---------------------------------------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------------------------------
                    
-                   # simulate log of ruggedness
-                   sim_tri <- data.frame(ln.Shrub.Cover = rep(mean(lam_dat$ln.Shrub.Cover), N_sim),
-                                         # simulate Elevation
-                                         sim_elv <- data.frame(ln.Sage.Cover = rep(mean(lam_dat$ln.Sage.Cover), N_sim),
-                                                               Perennial.Cover = rep(mean(lam_dat$Perennial.Cover), N_sim),
-                                                               Precipitation = rep(mean(lam_dat$Precipitation), N_sim),
-                                                               ln.TRI = seq(from = min(lam_dat$ln.TRI), to = max(lam_dat$ln.TRI), length.out = N_sim))
-                                         ln.Bare.Ground.Cover = rep(mean(lam_dat$ln.Bare.Ground.Cover), N_sim),
-                                         Elevation = seq(from = min(lam_dat$Elevation), to = max(lam_dat$Elevation), length.out = N_sim))
-                   
-                   
-                   # Make predictions based on ruggedness
-                   abund_est_tri <- unmarked::predict(object = mod_best,
-                                                      # Make predictions based on Elevation
-                                                      abund_est_elv <- unmarked::predict(object = mod_best,
-                                                                                         type = "lambda",
-                                                                                         newdata = sim_tri,
-                                                                                         newdata = sim_elv,
-                                                                                         appendData = TRUE)
-                                                      abund_est_tri <- abund_est_tri %>%
-                                                        mutate(TRI = exp(unscale(x = abund_est_tri$ln.TRI,
-                                                                                 mu = mean_tri,
-                                                                                 sd = sd_tri)))
-                                                      abund_est_elv <- abund_est_elv %>%
-                                                        mutate(Elevation.naive = unscale(x = abund_est_elv$Elevation,
-                                                                                         mu = mean_elv,
-                                                                                         sd = sd_elv))
-                                                      
-                                                      #make a ruggedness plot
-                                                      tri_est_plot <- ggplot(data = abund_est_tri, aes(x = ln.TRI, y = exp(Predicted))) +
-                                                        #make a Elevationplot
-                                                        elv_est_plot <- ggplot(data = abund_est_elv, aes(x = Elevation.naive, y = exp(Predicted))) +
-                                                        geom_point(alpha = 0.5) +
-                                                        geom_ribbon(aes(ymin = exp(lower), ymax = exp(upper)), stat = "identity",
-                                                                    color = "blue", fill = "lightblue", alpha = 0.3) +
-                                                        labs(x = NULL, y = "birds/ha",
-                                                             title = "Topographic Ruggedness") +
-                                                        title = "Elevation (m)") +
-                     theme_minimal()
-                   
-                   # ----------------------------------------------------------------------------------------------------
-                   
-                   # View prediction graphs
-                   gridExtra::grid.arrange(shrub_est_plot,
-                                           gridExtra::grid.arrange(sage_est_plot,
-                                                                   pern_est_plot,
-                                                                   precip_est_plot,
-                                                                   tri_est_plot,
-                                                                   bg_est_plot,
-                                                                   elv_est_plot,
-                                                                   nrow = 2, ncol = 2)
+# View prediction graphs
+gridExtra::grid.arrange(sage_est_plot,
+                                                pern_est_plot,
+                                                elv_est_plot,
+                                                nrow = 2, ncol = 2)
                                            
                                            # 4.3) Making Spatial predictions from the best performing model ##################################################################
                                            
