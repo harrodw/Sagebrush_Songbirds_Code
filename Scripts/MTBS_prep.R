@@ -14,8 +14,8 @@ library(tmap)
 
 # 1) Add existing spatial data ######################################################################
 
-# Define the target CRS for NAD 1983 Zone 12N
-target_crs <- CRS("+proj=utm +zone=12 +datum=NAD83 +units=m +no_defs")
+# Set a coordinate reference system (UTM Zone 12N)
+target_crs <- "EPSG:32612"
 
 # Define the path to my existing spatial data
 dat_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"

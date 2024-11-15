@@ -24,7 +24,7 @@ library(nimble)
 dist_classes <- c(25, 50, 75, 100, 125)
 
 # Simulate detections probabilities for those classes
-dct_probs <- c(0.99, 0.7, 0.4, 0.3, 0.2)
+dct_probs <- c(1, 0.7, 0.5, 0.3, 0.1)
 
 # Number of detections
 n_dct <- 100000
@@ -70,7 +70,7 @@ dat %>%
               se = FALSE, 
               color = "darkblue") +
   xlab("Distance from Observer (m)") +
-  ylab("Proportion of birds captured") +
+  ylab("Proportion of birds detected") +
   ylim(0, 1) +
   theme_classic()
 ```

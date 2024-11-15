@@ -53,8 +53,14 @@ glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 
+# List of all species
+all_species <- c("BRSP", "SATH", "HOLA", "WEME", "VESP", "GTTO", "SABS")
+
+# Loop over all species
+for(j in 1:length(all_species)) {
+
 # Define single species
-study_species <- "BRSP"
+study_species <- all_species[j]
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
@@ -421,7 +427,6 @@ sobs_dat <- list(
   elevation = elevation,  # Scaled elevation
   fire_year = fire_year,  # How long since the most recent fire in each grid
   burn_sev = burn_sev,    # Burn severity from the most recent fire
-  reference = reference,  # Whether or not each grid is a reference 
   burned = burned         # Whether or not each grid burned
 )
 # View Nimble data 
@@ -465,7 +470,6 @@ sobs_inits <- list(
   beta0_year = runif(nyears, 0, 1),
   beta_burn = rnorm(1, 0, 0.1),
   beta_elv = rnorm(1, 0, 0.1),
-  beta_burn_elv = rnorm(1, 0, 0.1),
   beta_fyear = rnorm(1, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
   # Presence 
@@ -489,7 +493,7 @@ sobs_model_code <- nimbleCode({
   # Parameters in the availability component of the detection model
   gamma0 ~ dnorm(0, 1)                 # phi intercept on log scale 
   gamma_date ~ dnorm(0, sd = 1)        # Effect of day of year on singing rate
-  gamma_time ~ dnorm(0, sd = 1.7)      # Effect of time of day on singing rate
+  gamma_time ~ dnorm(0, sd = 1)       # Effect of time of day on singing rate
   gamma_date2 ~ dnorm(0, sd = 0.5)     # Effect of day of year on singing rate (quadratic)
   gamma_time2 ~ dnorm(0, sd = 0.5)     # Effect of time of day on singing rate (quadratic)
 
@@ -509,7 +513,6 @@ sobs_model_code <- nimbleCode({
   # Fixed effects for the abundance component of the model
   beta_burn ~ dnorm(0, sd = 3)           # Effect of fire
   beta_elv ~ dnorm(0, sd = 1)            # Effect of elevation
-  beta_burn_elv ~ dnorm(0, sd = 1)       # Interaction between fire and elevation
   beta_fyear ~ dnorm(0, sd = 1)          # Effect of years since fire on burned grids
   beta_burnsev ~ dnorm(0, sd = 1)        # Effect of initial burn severity on burned grids
 
@@ -520,26 +523,26 @@ sobs_model_code <- nimbleCode({
   for(s in 1:ngrids){
     
     # Zero-inflation component on abundance
-    psi[s] ~ dunif(0.0001, 0.9999)                                     # Occupancy probability
-    present[s] ~ dbern(psi[s])                                         # Number of grids where that individual can be present
+    psi[s] ~ dunif(0.0001, 0.9999)                              # Occupancy probability
+    present[s] ~ dbern(psi[s])                                  # Number of grids where that individual can be present
 
     # Iterate over all of the visits to each survey grid 
     for(y in 1:nvst){ 
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[s, y, b]) <- -(midpt[b]^2) / (2 * sigma[s, y]^2)                # Half-normal detection function
-        f[s, y, b] <- (2 * midpt[b] * delta) / trunc_dist^2                   # Prob density function out to max truncation distance 
-        pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]                             # Detection cell probability
-        pi_pd_c[s, y, b] <- f[s, y, b] / p_dct[s, y]                          # Proportion of total probability in each cell probability
+        log(g[s, y, b]) <- -(midpt[b]^2) / (2 * sigma[s, y]^2) # Half-normal detection function
+        f[s, y, b] <- (2 * midpt[b] * delta) / trunc_dist^2    # Prob density function out to max truncation distance 
+        pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]              # Detection cell probability
+        pi_pd_c[s, y, b] <- f[s, y, b] / p_dct[s, y]           # Proportion of total probability in each cell probability
       }
       # Rectangular integral approx. of integral that yields the Pr(capture)
       p_dct[s, y] <- sum(pi_pd[s, y, ])
       
       # Construction of the cell probabilities for the nints time intervals
       for (k in 1:nints){
-        pi_pa[s, y, k] <- p_a[s, y] * (1 - p_a[s, y])^(k - 1)                 # Availability cell probability
-        pi_pa_c[s, y, k] <- pi_pa[s, y, k] / p_avail[s, y]                    # Proportion of availability probability in each time interval class
+        pi_pa[s, y, k] <- p_a[s, y] * (1 - p_a[s, y])^(k - 1)  # Availability cell probability
+        pi_pa_c[s, y, k] <- pi_pa[s, y, k] / p_avail[s, y]     # Proportion of availability probability in each time interval class
       }
 
       # Rectangular integral approx. of integral that yields the Pr(available)
@@ -549,28 +552,27 @@ sobs_model_code <- nimbleCode({
       p_marg[s, y] <- p_dct[s, y] * p_avail[s, y]
       
       ### Binomial portion of mixture 
-      n_dct[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])                          # Number of individual birds captured (observations)
+      n_dct[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])         # Number of individual birds captured (observations)
       
       # Poisson abundance portion of mixture
       N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]                        # Effect of each observer on detectability
+      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]       # Effect of each observer on detectability
       
       # Availability (p_a) Log-linear model for availability
-      logit(p_a[s, y]) <- gamma0 +                                            # Intercept on availability
-                          gamma_date * day[s, y] +                            # Effect of scaled ordinal date
-                          gamma_time * time[s, y] +                           # Effect of scaled time of day
-                          gamma_date2 * day[s, y]^2 +                         # Effect of scaled ordinal date squared
-                          gamma_time2 * time[s, y]^2                          # Effect of scaled time of day squared
+      logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability
+                          gamma_date * day[s, y] +                    # Effect of scaled ordinal date
+                          gamma_time * time[s, y] +                   # Effect of scaled time of day
+                          gamma_date2 * day[s, y]^2 +                 # Effect of scaled ordinal date squared
+                          gamma_time2 * time[s, y]^2                  # Effect of scaled time of day squared
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_year[years[s, y]] +                          # Intercept on abundance 
-                           beta_burn * burned[s] +                            # Effect of fire 
-                           beta_elv * elevation[s] * reference[s] +           # Effect of elevation on reference grids
-                           beta_burn_elv * burned[s] * elevation[s] +         # Interaction between fire and elevation
-                           beta_fyear * fire_year[s, y] * burned[s] +         # Effect of years since fire on burned grids
-                           beta_burnsev * burn_sev[s] * burned[s]             # Effect of initial burn severity on burned grids
+      log(lambda[s, y]) <- beta0_year[years[s, y]] +                  # Intercept on abundance 
+                           beta_burn * burned[s] +                    # Effect of fire 
+                           beta_elv * elevation[s]  +                 # Effect of elevation on reference grids
+                           beta_fyear * fire_year[s, y] * burned[s] + # Effect of years since fire on burned grids
+                           beta_burnsev * burn_sev[s] * burned[s]     # Effect of initial burn severity on burned grids
       
       # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
       # Compute fit statistic for observed data
@@ -662,9 +664,6 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3) Model output and diagnostics ##############################################
 ###################5#############################################################
 
-# Define a single species
-study_species <- "BRSP"
-
 # Clear plots
 # dev.off()
 
@@ -694,3 +693,59 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 MCMCplot(object = sobs_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
