@@ -194,81 +194,81 @@ for (i in 1:nyears) {
   
   # dnbr rasters ------------------------------------------------------
   
-  # # Define the dnbr burn sevarity layers in that year 
-  # dnbr_year <- dnbr_df %>% 
-  #   filter(Year == year)
-  # 
-  # # Define the file paths to those rasters
-  # dnbr_files <- dnbr_year$File.Name
-  # 
-  # # Create a list of dnbr raster objects
-  # dnbr_lg <- lapply(dnbr_files, function(file) {
-  #   tryCatch(raster(file), error = function(e) {
-  #     message(paste("Error reading raster file:", file, "-", e$message))
-  #     return(NULL)  # Return NULL if there's an error
-  #   })
-  # })
-  # 
-  # # Remove any NULL rasters that failed to load
-  # dnbr_lg <- dnbr_lg[!sapply(dnbr_lg, is.null)]
-  # 
-  # # Initialize a list to store clipped rasters
-  # dnbr_ext <- vector("list", length(dnbr_lg))
-  # 
-  # # extend the dnbr rasters to match the fires from that year
-  # for (j in 1:length(dnbr_lg)) {
-  #   # Project the raster to the target CRS
-  #   projected_raster <- projectRaster(dnbr_lg[[j]], crs = target_crs)
-  #   
-  #   # Extend the raster to match the reference extent
-  #   extended_raster <- extend(projected_raster, reference_extent)
-  #   message(paste0("extended dnbr raster from year ", year, ": ", j, " out of ", length(dnbr_lg)))
-  #   
-  #   # Save the rasters
-  #   dnbr_ext[[j]] <- extended_raster 
-  # }
-  # 
-  # # Use the first raster from that year as the reference raster
-  # reference_ras <- dnbr_ext[[1]]
-  # 
-  # # Initialize a list to store clipped rasters
-  # dnbr_res <- vector("list", length(dnbr_ext))
-  # 
-  # # Resample rasters
-  # for (j in 1:length(dnbr_ext)) {
-  #   # resample the raster
-  #   resampled_raster <- resample(dnbr_ext[[j]], reference_ras, method = "bilinear")
-  #   
-  #   # Clip the extended raster to the fires
-  #   dnbr_res[[j]] <- raster::mask(resampled_raster, fires_mrg)
-  #   message(paste0("resampled and clipped dnbr raster from year ", year, ": ", j, " out of ", length(dnbr_ext)))
-  # }
-  # 
-  #        
-  # # Merge the rasters for the current year
-  # if (length(dnbr_res) > 1) {
-  #   # If there are multiple rasters, stack them first
-  #   dnbr_stack <- raster::stack(dnbr_res)
-  #   #then merge them
-  #   dnbr_mrg <- terra::merge(dnbr_stack)
-  # } else if (length(dnbr_res) == 1) {
-  #   # If there is only one raster, assign it directly
-  #   dnbr_mrg <- dnbr_res[[1]]
-  # } else {
-  #   # Handle the case where no rasters are available
-  #   message(paste("Error merging dnbr raster in year:", year))
-  # }
-  # 
-  # # Clip the combined raster to the study region
-  # dnbr_clp <- raster::mask(dnbr_mrg, study_region)
-  # 
-  # # save the raster file
-  # raster::writeRaster(dnbr_clp, filename = paste0(save_path, "dnbr_", year, ".tif"), overwrite = TRUE)
-  # message(paste("successful dnbr raster created for year:", year, "with", nrow(fires_year), "fires found."))
-  # 
-  # # Remove the old rasters
-  # remove(dnbr_lg, dnbr_ext, dnbr_res, dnbr_stack, dnbr_mrg, dnbr_clp)
-  # 
+  # Define the dnbr burn sevarity layers in that year
+  dnbr_year <- dnbr_df %>%
+    filter(Year == year)
+
+  # Define the file paths to those rasters
+  dnbr_files <- dnbr_year$File.Name
+
+  # Create a list of dnbr raster objects
+  dnbr_lg <- lapply(dnbr_files, function(file) {
+    tryCatch(raster(file), error = function(e) {
+      message(paste("Error reading raster file:", file, "-", e$message))
+      return(NULL)  # Return NULL if there's an error
+    })
+  })
+
+  # Remove any NULL rasters that failed to load
+  dnbr_lg <- dnbr_lg[!sapply(dnbr_lg, is.null)]
+
+  # Initialize a list to store clipped rasters
+  dnbr_ext <- vector("list", length(dnbr_lg))
+
+  # extend the dnbr rasters to match the fires from that year
+  for (j in 1:length(dnbr_lg)) {
+    # Project the raster to the target CRS
+    projected_raster <- projectRaster(dnbr_lg[[j]], crs = target_crs)
+
+    # Extend the raster to match the reference extent
+    extended_raster <- extend(projected_raster, reference_extent)
+    message(paste0("extended dnbr raster from year ", year, ": ", j, " out of ", length(dnbr_lg)))
+
+    # Save the rasters
+    dnbr_ext[[j]] <- extended_raster
+  }
+
+  # Use the first raster from that year as the reference raster
+  reference_ras <- dnbr_ext[[1]]
+
+  # Initialize a list to store clipped rasters
+  dnbr_res <- vector("list", length(dnbr_ext))
+
+  # Resample rasters
+  for (j in 1:length(dnbr_ext)) {
+    # resample the raster
+    resampled_raster <- resample(dnbr_ext[[j]], reference_ras, method = "bilinear")
+
+    # Clip the extended raster to the fires
+    dnbr_res[[j]] <- raster::mask(resampled_raster, fires_mrg)
+    message(paste0("resampled and clipped dnbr raster from year ", year, ": ", j, " out of ", length(dnbr_ext)))
+  }
+
+
+  # Merge the rasters for the current year
+  if (length(dnbr_res) > 1) {
+    # If there are multiple rasters, stack them first
+    dnbr_stack <- raster::stack(dnbr_res)
+    #then merge them
+    dnbr_mrg <- terra::merge(dnbr_stack)
+  } else if (length(dnbr_res) == 1) {
+    # If there is only one raster, assign it directly
+    dnbr_mrg <- dnbr_res[[1]]
+  } else {
+    # Handle the case where no rasters are available
+    message(paste("Error merging dnbr raster in year:", year))
+  }
+  
+  # replace negative values
+  dnbr_mrg[dnbr_mrg < 0] <- NA
+
+  # save the raster file
+  raster::writeRaster(dnbr_mrg, filename = paste0(save_path, "dnbr_", year, ".tif"), overwrite = TRUE)
+  message(paste("successful dnbr raster created for year:", year, "with", nrow(fires_year), "fires found."))
+
+  # Remove the old rasters
+  remove(dnbr_lg, dnbr_ext, dnbr_res, dnbr_stack, dnbr_mrg, dnbr_clp)
+
   # rdnbr rasters ------------------------------------------------------
 
   # Define the rdnbr burn sevarity layers in that year
@@ -334,12 +334,12 @@ for (i in 1:nyears) {
     # Handle the case where no rasters are available
     message(paste("Error merging rdnbr raster in year:", year))
   }
-
-  # Clip the combined raster to the study region
-  rdnbr_clp <- raster::mask(rdnbr_mrg, study_region)
-
+  
+  # replace negative values
+  rdnbr_mrg[rdnbr_mrg < 0] <- NA
+  
   # save the raster file
-  raster::writeRaster(rdnbr_clp, filename = paste0(save_path, "rdnbr_", year, ".tif"), overwrite = TRUE)
+  raster::writeRaster(rdnbr_mrg, filename = paste0(save_path, "rdnbr_", year, ".tif"), overwrite = TRUE)
   message(paste("successful rdnbr raster created for year:", year, "with", nrow(fires_year), "fires found."))
 
   # Remove the old rasters

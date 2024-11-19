@@ -164,4 +164,3 @@ writeRaster(tree_patches, paste0(ras_path, "tree_patches.tif"), overwrite = TRUE
 writeRaster(elevation_prj, paste0(ras_path, "elevation.tif"), overwrite = TRUE)
 writeRaster(tri, paste0(ras_path, "tri.tif"), overwrite = TRUE)
 writeRaster(aspect_recl, paste0(ras_path, "aspect.tif"), overwrite = TRUE)
-

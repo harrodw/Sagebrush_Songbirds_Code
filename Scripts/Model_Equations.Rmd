@@ -47,7 +47,17 @@ dat <- tibble(Detections = detections) %>%
 # Maximum detection probability
 true_ncap <- length(detections[detections == 1])
 
-# Plot
+# Plot histogram
+dat %>%
+  distinct() %>% 
+  ggplot(aes(x = Dist.Class, y = Dect.Probs)) +
+  geom_col(fill = "lightblue") +
+  xlab("Distance from Observer (m)") +
+  ylab("Proportion of birds detected") +
+  ylim(0, 1) +
+  theme_classic()
+
+# Plot trendline
 dat %>%
   distinct() %>% 
   ggplot(aes(x = Dist.Class, y = Dect.Probs)) +
@@ -60,7 +70,7 @@ dat %>%
   ylim(0, 1) +
   theme_classic()
   
-# Plot integral approximation
+# Plot histogram with trnedline
 dat %>%
   distinct() %>% 
   ggplot(aes(x = Dist.Class, y = Dect.Probs)) +

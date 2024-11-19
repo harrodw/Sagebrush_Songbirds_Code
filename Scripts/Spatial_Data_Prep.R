@@ -28,9 +28,9 @@ ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geopr
 target_crs <- "EPSG:32612"
 
 # Define radii to summarize rasters
-point_rad_sm <- 125
-grid_rad_med <- 1000
-grid_rad_lg <- 5000
+rad_sm <- 125
+rad_med <- 1000
+rad_lg <- 5000
 
 # Object for point coordinates
 grid_covs <- sobs %>%
@@ -52,23 +52,23 @@ grid_buff_sm <- sobs %>%
   distinct(Full.Point.ID, Grid.ID, Grid.Type, UTM.X, UTM.Y) %>% 
   st_as_sf(coords = c("UTM.X", "UTM.Y")) %>% 
   st_set_crs(target_crs) %>% 
-  st_buffer(dist = point_rad_sm) %>% 
+  st_buffer(dist = rad_sm) %>% 
   group_by(Grid.ID, Grid.Type) %>%
   reframe(geometry = st_union(geometry)) %>% 
   st_as_sf()
 
-# Create circular buffers
 # Create medium Buffer
 grid_buff_med  <- st_as_sf(grid_centers) %>% 
-  st_buffer(dist = grid_rad_med)
+  st_buffer(dist = rad_med)
+
 # Largest buffer
 grid_buff_lg <- st_as_sf(grid_centers) %>% 
-  st_buffer(dist = grid_rad_lg)
+  st_buffer(dist = rad_lg)
 
 
 # Add in the fire perimeters
-fire_perms <- st_read(paste0(ras_path, "Fire_Perimeters.shp")) %>% 
-  select(geometry) %>% 
+fire_perms <- st_read(paste0(ras_path, "fire_perimeters.shp")) %>% 
+  dplyr::select(geometry) %>% 
   st_transform(target_crs)
 
 # Tmap perameters 
@@ -85,22 +85,9 @@ tm_shape(grid_buff_lg) +
   tm_shape(fire_perms) +
   tm_polygons(col = "red", alpha = 0.1)
 
-# Create a buffer around each point
-point_buffs <- sobs %>%
-  distinct(Full.Point.ID, UTM.X, UTM.Y) %>% 
-  st_as_sf(coords = c("UTM.X", "UTM.Y")) %>% 
-  st_set_crs(target_crs) %>% 
-  st_buffer(dist = point_rad_sm) 
-#...and view
-point_buffs
 
-# Create a storage object for point level covariate information
-point_covs <- sobs %>%
-  distinct(Full.Point.ID, UTM.X, UTM.Y)
-#...and view
-glimpse(point_covs)
 
-#1.2) Add rasters ############################################################################
+# 1.2) Add rasters ############################################################################
 
 # Add in raster layers
 shrub_cvr <- rast(paste0(ras_path, "shrub_cvr.tif"))
@@ -114,12 +101,12 @@ tri <- rast(paste0(ras_path, "tri.tif"))
 aspect <- rast(paste0(ras_path, "aspect.tif"))
 
 # Empty raster template for fires
-fire_ras_template <- rast(extent = ext(fire_perms), resolution = c(30, 30), crs = target_crs)
+fire_ras_template <- rast(extent = ext(fire_perms), resolution = c(25, 25), crs = target_crs)
 
 # Burned vs unburned raster
-fires <- rasterize(fire_perms, fire_ras_template)
+fires_ras <- rasterize(fire_perms, fire_ras_template)
 
-# Add vector layers
+# The study region
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
 
 # Plot the rasters
@@ -162,6 +149,15 @@ Elevation.125m <- terra::extract(x = elevation,
 TRI.125m <- terra::extract(x = tri,
                             y = grid_buff_sm,
                             fun = function(x) mean(x, na.rm = TRUE))
+# Summarize aspect
+Aspect.125m <- terra::extract(x = aspect,
+                             y = grid_buff_sm,
+                             fun = function(x) modal(x, na.rm = TRUE))
+
+# Percent of area that burned
+Prop.Burned.125m <- terra::extract(x = fires_ras,
+                                   y = grid_buff_sm,
+                                   fun = function(x) sum(x, na.rm = TRUE))
 
 # Add these to the data frame
 grid_covs$Shrub.Cover.125m <- Shrub.Cover.125m[,2]
@@ -170,6 +166,7 @@ grid_covs$Annual.Cover.125m <- Annual.Cover.125m[,2]
 grid_covs$Bare.Ground.Cover.125m <- Bare.Ground.Cover.125m[,2]
 grid_covs$Elevation.125m <- Elevation.125m[,2]
 grid_covs$TRI.125m <- TRI.125m[,2]
+grid_covs$Prop.Burned.125m <- Prop.Burned.125m[,2] 
 
 # View the new point covariates
 glimpse(grid_covs)
@@ -208,6 +205,10 @@ TRI.1km <- terra::extract(x = tri,
 Aspect.1km <- terra::extract(x = aspect,
                          y = grid_buff_med,
                          fun = function(x) modal(x, na.rm = TRUE))
+# Percent of area that burned
+Prop.Burned.1km <- terra::extract(x = fires_ras,
+                                   y = grid_buff_med,
+                                   fun = function(x) sum(x, na.rm = TRUE))
 
 # Add these to the data frame
 grid_covs$Shrub.Cover.1km <- Shrub.Cover.1km[,2]
@@ -217,6 +218,7 @@ grid_covs$Bare.Ground.Cover.1km <- Bare.Ground.Cover.1km[,2]
 grid_covs$Elevation.1km <- Elevation.1km[,2]
 grid_covs$TRI.1km <- TRI.1km[,2]
 grid_covs$Aspect.1km <- Aspect.1km[,2]
+grid_covs$Prop.Burned.1km <- Prop.Burned.1km[,2]
 
 # View the new point covariates
 glimpse(grid_covs)
@@ -250,6 +252,10 @@ Elevation.5km <- terra::extract(x = elevation,
 TRI.5km <- terra::extract(x = tri,
                           y = grid_buff_lg,
                           fun = function(x) mean(x, na.rm = TRUE))
+# Percent of area that burned
+Prop.Burned.5km <- terra::extract(x = fires_ras,
+                                   y = grid_buff_lg,
+                                   fun = function(x) sum(x, na.rm = TRUE))
 
 # Add these to the data frame
 grid_covs$Shrub.Cover.5km <- Shrub.Cover.5km[,2]
@@ -258,6 +264,7 @@ grid_covs$Annual.Cover.5km <- Annual.Cover.5km[,2]
 grid_covs$Bare.Ground.Cover.5km <- Bare.Ground.Cover.5km[,2]
 grid_covs$Elevation.5km <- Elevation.5km[,2]
 grid_covs$TRI.5km <- TRI.5km[,2]
+grid_covs$Prop.Burned.5km <- 100 * Prop.Burned.5km[,2] / 125663
 
 # View the new point covariates
 glimpse(grid_covs)
@@ -279,9 +286,8 @@ ngrids <- nrow(grid_buff_sm)
 for(g in 1:ngrids){
 
   # Select a single grid
-  grid <- grid_buff_sm[g,] %>% select(Grid.Type, geometry)
-  plot(shrub_patches)
-  plot(grid, add = TRUE)
+  grid <- grid_buff_sm[g,] %>% dplyr::select(Grid.Type, geometry)
+  
   # Shrub patch characteristics
   # Crop the shrub patch raster extent
   shrub_patch_crop <- crop(shrub_patches, grid)
@@ -328,15 +334,14 @@ grid_covs <- grid_covs %>%
          n.Tree.Patches.1km = NA)
 
 # List of survey grids
-ngrids <- nrow(grid_buff_sm)
+ngrids <- nrow(grid_buff_med)
 
 # Summarize tree and shrub patches within each grid
 for(g in 1:ngrids){
   
   # Select a single grid
-  grid <- grid_buff_sm[g,] %>% select(Grid.Type, geometry)
-  plot(shrub_patches)
-  plot(grid, add = TRUE)
+  grid <- grid_buff_med[g,] %>% dplyr::select(Grid.Type, geometry)
+  
   # Shrub patch characteristics
   # Crop the shrub patch raster extent
   shrub_patch_crop <- crop(shrub_patches, grid)
@@ -389,9 +394,8 @@ ngrids <- nrow(grid_buff_sm)
 for(g in 1:ngrids){
   
   # Select a single grid
-  grid <- grid_buff_sm[g,] %>% select(Grid.Type, geometry)
-  plot(shrub_patches)
-  plot(grid, add = TRUE)
+  grid <- grid_buff_lg[g,] %>% dplyr::select(Grid.Type, geometry)
+  
   # Shrub patch characteristics
   # Crop the shrub patch raster extent
   shrub_patch_crop <- crop(shrub_patches, grid)
@@ -419,6 +423,7 @@ for(g in 1:ngrids){
   np_tree <- landscapemetrics::lsm_l_np(tree_patch_clp)
   # Assign the number of tree patches to the grid covs 
   grid_covs$n.Tree.Patches.5km[g] <- np_tree$value
+
   
   # Progress message
   message(paste("Extracted patch 5km characteristics for grid", g, "out of", ngrids))
@@ -451,18 +456,14 @@ print(nyears)
 
 # Add storage covariates to the point summaries
 grid_covs_fire <- grid_covs %>% 
-  select(Grid.ID) %>% 
+  dplyr::select(Grid.ID) %>% 
   mutate(
     # temporarty storage object covariates
-    mean.dnbr.tmp = NA,
-    mean.rdnbr.tmp = NA,
-    sd.dnbr.tmp = NA,
-    sd.rdnbr.tmp = NA,
+    rdnbr.125m.tmp = NA,
+    rdnbr.1km.tmp = NA,
     # permanent covariates
-    mean.dnbr = 0,
-    mean.rdnbr = 0,
-    sd.dnbr = 0,
-    sd.rdnbr = 0,
+    rdnbr.125m = 0,
+    rdnbr.1km = 0,
     Fire.Year = 1800,
     Fire.Count = 0)
 
@@ -473,48 +474,30 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
   
   # define the year for the current itteration
   year <- fire_years[i]
-
-  # read in dnbr for that year
-  dnbr <- rast(paste0(mtbs_path, "dnbr_", year, ".tif")) 
-  
-  # replace negative values
-  dnbr[dnbr < 0] <- NA
   
   # read in rdnbr for that year
-  rdnbr <- rast(paste0(mtbs_path, "rdnbr_", year, ".tif"))
+  rdnbr_ras <- rast(paste0(mtbs_path, "rdnbr_", year, ".tif"))
   
   # replace negative values
-  rdnbr[rdnbr < 0] <- NA
+  rdnbr_ras[rdnbr_ras < 0] <- NA
   
-  # reset a temporary points object for the mean dnbr
-  mean.dnbr.tmp <- terra::extract(x = dnbr, y = grid_buff_sm, fun = function(x) mean(x, na.rm = TRUE))
-  grid_covs_fire$mean.dnbr.tmp <- mean.dnbr.tmp[,2] 
+  # reset a temporary points object for the mean rdnbr at the 125m scale
+  rdnbr.125m.tmp <- terra::extract(x = rdnbr_ras, y = grid_buff_sm, fun = function(x) mean(x, na.rm = TRUE))
+  grid_covs_fire$rdnbr.125m.tmp <- rdnbr.125m.tmp[,2]
   
-  # reset a temporary points object for the sd dnbr
-  sd.dnbr.tmp <- terra::extract(x = dnbr, y = grid_buff_sm, fun = function(x) sd(x, na.rm = TRUE))
-  grid_covs_fire$sd.dnbr.tmp <- sd.dnbr.tmp[,2] 
-    
-  # reset a temporary points object for the mean rdnbr
-  mean.rdnbr.tmp <- terra::extract(x = rdnbr, y = grid_buff_sm, fun = function(x) mean(x, na.rm = TRUE))
-  grid_covs_fire$mean.rdnbr.tmp <- mean.rdnbr.tmp[,2]
-    
-  # reset a temporary points object for the sd rdnbr
-  sd.rdnbr.tmp <- terra::extract(x = rdnbr, y = grid_buff_sm, fun = function(x) sd(x, na.rm = TRUE))
-  grid_covs_fire$sd.rdnbr.tmp  <- sd.rdnbr.tmp[,2] 
+  # reset a temporary points object for the mean rdnbr at the 1km scale
+  rdnbr.1km.tmp <- terra::extract(x = rdnbr_ras, y = grid_buff_sm, fun = function(x) mean(x, na.rm = TRUE))
+  grid_covs_fire$rdnbr.1km.tmp <- rdnbr.1km.tmp[,2]
     
   # Pull out the values where there were fires at the point for that year
   grid_covs_fire <- grid_covs_fire %>% 
-    mutate(mean.dnbr = case_when(!is.na(mean.dnbr.tmp) ~ mean.dnbr.tmp,
-                                 TRUE ~ mean.dnbr),
-           sd.dnbr = case_when(!is.na(sd.dnbr.tmp) ~ sd.dnbr.tmp,
-                                 TRUE ~ sd.dnbr),
-           mean.rdnbr = case_when(!is.na(mean.rdnbr.tmp) ~ mean.rdnbr.tmp,
-                                 TRUE ~ mean.rdnbr),
-           sd.rdnbr = case_when(!is.na(sd.rdnbr.tmp) ~ sd.rdnbr.tmp,
-                               TRUE ~ sd.rdnbr),
-           Fire.Count = case_when(!is.na(mean.dnbr.tmp) | ! is.na(mean.rdnbr.tmp) ~ Fire.Count + 1,
+    mutate(rdnbr.125m = case_when(!is.na(rdnbr.125m.tmp) ~ rdnbr.125m.tmp,
+                                 TRUE ~ rdnbr.125m),
+           rdnbr.1km = case_when(!is.na(rdnbr.1km.tmp) ~ rdnbr.1km.tmp,
+                                  TRUE ~ rdnbr.1km),
+           Fire.Count = case_when(! is.na(rdnbr.125m.tmp) ~ Fire.Count + 1,
                                   TRUE ~ Fire.Count),
-           Fire.Year = case_when(!is.na(mean.dnbr.tmp) | ! is.na(mean.rdnbr.tmp) ~ year,
+           Fire.Year = case_when(! is.na(rdnbr.125m.tmp) ~ year,
                                  TRUE ~ Fire.Year))
   
   # finished with one itteration
@@ -524,18 +507,12 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
 
 # Remove the temporary attributes
 grid_covs_fire2 <- grid_covs_fire %>% 
-  dplyr::select(-mean.dnbr.tmp, -mean.rdnbr.tmp, -sd.dnbr.tmp, -sd.rdnbr.tmp) %>% 
+  dplyr::select(-rdnbr.125m.tmp, -rdnbr.1km.tmp) %>% 
   # Need to manually add in data for UT-B02 since the fire is too small foor mtbs
   mutate(Fire.Year = case_when(Grid.ID == "UT-B02" ~ 2017, 
                                TRUE ~ Fire.Year),
-         mean.dnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$mean.dnbr[which(grid_covs_fire$mean.dnbr != 0)]), 
-                               TRUE ~ mean.dnbr),
-         sd.dnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$sd.dnbr[which(grid_covs_fire$sd.dnbr != 0)]), 
-                               TRUE ~ sd.dnbr),
-         mean.rdnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$mean.rdnbr[which(grid_covs_fire$mean.rdnbr != 0)]), 
-                               TRUE ~ mean.rdnbr),
-         sd.rdnbr = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$sd.rdnbr[which(grid_covs_fire$sd.rdnbr != 0)]), 
-                             TRUE ~ sd.rdnbr),
+         rdnbr.125m = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$rdnbr.125m[which(grid_covs_fire$rdnbr.125m != 0)]), 
+                               TRUE ~ rdnbr.125m),
          Fire.Count= case_when(Grid.ID == "UT-B02" ~ 1, 
                                TRUE ~ Fire.Count))
 # View the changes
@@ -546,11 +523,13 @@ grid_covs_fire2 %>%
 grid_covs_final <- grid_covs %>% 
   left_join(grid_covs_fire2, by = "Grid.ID")
 
-# View the covariate trends
+# View all covariates
 glimpse(grid_covs_final)
-# ggplot(grid_covs, aes(x = mean.dnbr, y = Sage.Cover)) +
-#   geom_smooth(method = "lm") +
-#   geom_point()
+
+# View the covariate trends
+ggplot(grid_covs_final, aes(x = rdnbr.125m, y = Shrub.Cover.125m)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
 # Export the grid summaries to the current workspace
 write.csv(grid_covs_final, "Data\\Outputs\\grid_covs.csv")

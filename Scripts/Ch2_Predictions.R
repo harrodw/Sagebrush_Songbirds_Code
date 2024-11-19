@@ -57,7 +57,7 @@ glimpse(covs)
 soi <- "BRSP"
 
 # Define a truncation distance (km)
-trunc_dist <- 0.140
+trunc_dist <- 0.125
 
 # Function to find the mode
 find_mode <- function(x) {
@@ -137,28 +137,28 @@ new_dat <- tibble(Grid.ID = c("ID-C11", "ID-C22"),
 
 # Bind these to the exisitng data 
 counts_temp2 <- bind_rows(counts_temp, new_dat)
-
+glimpse(counts_temp2)
 # Define levels for wind factors
 wind_lvl <- c("<1 mph", "1-3 mph", "4-7 mph", "8-12 mph", "13-18 mph", "Unknown")
 
 # Change necessary variables to scales and factors
 counts_temp3 <- counts_temp2 %>%
   # Add covariates
-  left_join(covs, by = c("Grid.ID")) %>% 
+  left_join(covs, by = c("Grid.ID", "Grid.Type")) %>% 
   # Sort the data
   arrange(Visit.ID, Grid.ID) %>% 
-  mutate(# Numeric burned vs unburned
-         Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
+         # Numeric burned vs unburned
+  mutate(Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
          # Time since Fire
          Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>%
+                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
   # Change the wind data to a factor with set levels
   mutate(Wind = case_when(is.na(Wind) ~ 'Unknown', 
                           TRUE ~ Wind)) %>% 
   mutate(Wind = factor(Wind, levels = wind_lvl)) %>%
   # Other things that should be factors
-  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year", "Aspect"), factor) %>% 
+  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year"), factor) %>% 
   # Remove columns that are no longer needed
   dplyr::select(-Grid.Type) 
 
@@ -166,11 +166,12 @@ counts_temp3 <- counts_temp2 %>%
 glimpse(counts_temp3)
 
 # Scale the other covariates
-counts <- counts_temp3 %>% 
+counts_125m <- counts_temp3 %>% 
   # First landscape covariates
-  mutate(Sage.Cover = scale(Sage.Cover)[,1],
-         Perennial.Cover = scale(Perennial.Cover)[,1],
-         Annual.Cover = scale(Annual.Cover)[,1],
+  mutate(Shrub.Cover = scale(Shrub.Cover.125m)[,1],
+         PFG.Cover = scale(Perennial.Cover.125m)[,1],
+         AFG.Cover = scale(Annual.Cover.125m)[,1],
+         Shrub.Patch.Size = scale(Avg.Shrub.Patch.Size.125m)[,1],
          Trees = case_when(Trees.Count == 0 ~ 0, Trees.Count > 0 ~ 1),
          Bare.Ground.Cover = scale(Bare.Ground.Cover)[,1],
          Elevation = scale(Elevation)[,1],
@@ -463,11 +464,11 @@ sobs_model_code <- nimbleCode({
   # ------------------------------------------------------------------
   
   # Parameters in the availability component of the detection model
-  gamma0 ~ dnorm(0, sd = 1)         # Mean availability
-  gamma_date ~ dnorm(0, sd = 1)     # Effect of day of year on singing rate
-  gamma_date2 ~ dnorm(0, sd = 1)    # Effect of day of year on singing rate (quadratic)
-  gamma_time ~ dnorm(0, sd = 1)     # Effect of time of day on singing rate
-  gamma_time2 ~ dnorm(0, sd = 1)    # Effect of time of day on singing rate (quadratic)
+  gamma0 ~ dnorm(0, sd = 5)         # Mean availability
+  gamma_date ~ dnorm(0, sd = 5)     # Effect of day of year on singing rate
+  gamma_date2 ~ dnorm(0, sd = 5)    # Effect of day of year on singing rate (quadratic)
+  gamma_time ~ dnorm(0, sd = 5)     # Effect of time of day on singing rate
+  gamma_time2 ~ dnorm(0, sd = 5)    # Effect of time of day on singing rate (quadratic)
   
   # Parameters in the detection portion of the model
   for(o in 1:nobsv) {
@@ -479,16 +480,16 @@ sobs_model_code <- nimbleCode({
   # sd_beta0 ~ dunif(0, 3)          # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(0, sd = 3)
+    beta0_year[t] ~ dnorm(0, sd = 5)
     # beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
-  # beta0 ~ dnorm(0, sd = 3)
-  beta_sage ~ dnorm(0, sd = 1)       # Effect of sagebrush cover
+
+  beta_sage ~ dnorm(0, sd = 5)       # Effect of sagebrush cover
   beta_sage2 ~ dnorm(0, sd =1)      # Effect of sagebrush cover squared
-  beta_pern ~ dnorm(0, sd = 1)       # Effect of Perennial Cover
-  beta_pern2 ~ dnorm(0, sd = 1)      # Effect of perennial cover squared
-  beta_elv ~ dnorm(0, sd = 1)        # Effect of elevation
-  beta_elv2 ~ dnorm(0, sd = 1)       # Effect of elevation squared
+  beta_pern ~ dnorm(0, sd = 5)       # Effect of Perennial Cover
+  beta_pern2 ~ dnorm(0, sd = 5)      # Effect of perennial cover squared
+  beta_elv ~ dnorm(0, sd = 5)        # Effect of elevation
+  beta_elv2 ~ dnorm(0, sd = 5)       # Effect of elevation squared
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
