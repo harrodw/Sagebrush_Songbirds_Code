@@ -53,9 +53,8 @@ glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 
-
 # Define single species
-study_species <- "BRSP"
+study_species <- "SATH"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
@@ -388,23 +387,14 @@ sobs_model_code <- nimbleCode({
   gamma_time2 ~ dnorm(0, sd = 0.5)     # Effect of time of day on singing rate (quadratic)
 
   # Parameters in the detection portion of the model
-  for(o in 1:nobsv){
-    alpha0_obsv[o] ~ dnorm(0, sd = 3)     # Effect of each observer on detecability 
-  }
-
-  # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, 3)       # Mean abundance hyperparameter
-  sd_beta0 ~ dunif(0, 1)         # Sd in yearly abundance hyperparameter
-  # Random intercept on abundance
-  for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
-  }
+  alpha0 ~ dnorm(0, sd = 3)            # Intercept for detecability 
   
   # Fixed effects for the abundance component of the model
-  beta_burn ~ dnorm(0, sd = 2)           # Effect of fire
-  beta_elv ~ dnorm(0, sd = 2)            # Effect of elevation
-  beta_fyear ~ dnorm(0, sd = 2)          # Effect of years since fire on burned grids
-  beta_burnsev ~ dnorm(0, sd = 2)        # Effect of initial burn severity on burned grids
+  beta0 ~ dnorm(0, sd = 3)              # Intercept for abundance
+  beta_burn ~ dnorm(0, sd = 2)          # Effect of fire
+  beta_elv ~ dnorm(0, sd = 2)           # Effect of elevation
+  beta_fyear ~ dnorm(0, sd = 2)         # Effect of years since fire on burned grids
+  beta_burnsev ~ dnorm(0, sd = 2)       # Effect of initial burn severity on burned grids
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -448,7 +438,7 @@ sobs_model_code <- nimbleCode({
       N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]       # Effect of each observer on detectability
+      log(sigma[s, y]) <- alpha0                                      # Intercept for detectability
       
       # Availability (p_a) Logit-linear model for availability
       logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability
@@ -458,7 +448,7 @@ sobs_model_code <- nimbleCode({
                           gamma_time2 * time[s, y]^2                  # Effect of scaled time of day squared
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_year[years[s, y]] +                  # Intercept on abundance 
+      log(lambda[s, y]) <- beta0 +                                    # Intercept on abundance 
                            beta_burn * burned[s] +                    # Effect of fire 
                            beta_elv * elevation[s]  +                 # Effect of elevation on reference grids
                            beta_fyear * fire_year[s, y] * burned[s] + # Effect of years since fire on burned grids
@@ -552,7 +542,7 @@ sobs_dims <- list(
 # Initial Values
 sobs_inits <- list(
   # Detectablility
-  alpha0_obsv = runif(nobsv, 0, 1),
+  alpha0 = rnorm(1, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -560,9 +550,7 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
-  mean_beta0 = runif(1, 0, 1),
-  sd_beta0 = runif(1, 0, 0.1),
-  beta0_year = runif(nyears, 0, 1),
+  beta0_year = rnorm(1, 0, 0.1),
   beta_burn = rnorm(1, 0, 0.1),
   beta_elv = rnorm(1, 0, 0.1),
   beta_fyear = rnorm(1, 0, 0.1),
@@ -571,14 +559,13 @@ sobs_inits <- list(
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
   # Simulated data
-  # n_dct_new = count_mat,
   N_indv = count_mat + 1              # start each grid with an individual present
 )  
 # View the initial values
 str(sobs_inits)
 
 # Params to save
-sobs_params <- c("beta0_year",
+sobs_params <- c("beta0",
                  "beta_burn",
                  "beta_elv", 
                  "beta_fyear",
@@ -588,7 +575,7 @@ sobs_params <- c("beta0_year",
                  "gamma_time",
                  "gamma_date2",
                  "gamma_time2",
-                 "alpha0_obsv",
+                 "alpha0",
                  "mean_p_avail",
                  "mean_p_dct",
                  "mean_psi"
@@ -633,20 +620,6 @@ sobs_mcmcConf <- configureMCMC(sobs_model_vect,
 sobs_mcmcConf$removeSamplers("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2")
 
 sobs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2"),
-                         type = 'RW_block')
-
-# Block all detection (alpha) nodes together
-sobs_mcmcConf$removeSamplers("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]", 
-                             "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
-                             "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]", 
-                             "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", 
-                             "alpha0_obsv[17]")
-
-sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]", 
-                                    "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
-                                    "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]", 
-                                    "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", 
-                                    "alpha0_obsv[17]"),
                          type = 'RW_block')
 
 # Block all abundance (beta) nodes together

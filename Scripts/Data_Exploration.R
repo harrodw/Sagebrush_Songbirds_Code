@@ -102,25 +102,26 @@ glimpse(sobs_obs)
 
 # 2) View correlations among numeric variables #####################################################
 
-#pick a single species
+# pick a single species
 study_species <- "BRSP"
 
 # Pull out all the variables I am interested in
 # Define numeric covariates
 num_covs_125m <- c("Shrub.Cover.125m", "Perennial.Cover.125m", "Annual.Cover.125m", "Bare.Ground.Cover.125m", 
-                   "Elevation.125m", "TRI.125m",
-                   "Prop.Burned.125m", "Avg.Shrub.Patch.Size.125m",
-                   "n.Shrub.Patches.125m", "Avg.Tree.Patch.Size.125m", "n.Tree.Patches.125m",
-                   "rdnbr.125m",  "Fire.Count", "Years.Since.Fire"
+                   "Elevation.125m", "TRI.125m", "ln.Shrub.Patch.Size.125m",
+                   "n.Shrub.Patches.125m", "ln.Tree.Patch.Size.125m", "n.Tree.Patches.125m",
+                   "Trees.Present.125m"
+                   # "Prop.Burned.125m", "rdnbr.125m",  "Fire.Count", "Years.Since.Fire"
                    )
 
 num_covs_1km <- c("Shrub.Cover.1km", "Perennial.Cover.1km", "Annual.Cover.1km", "Bare.Ground.Cover.1km",
                   "Elevation.1km", "TRI.1km", "Aspect.1km", "Prop.Burned.1km", "rdnbr.1km",
-                  "Avg.Shrub.Patch.Size.1km", "n.Shrub.Patches.1km", "Avg.Tree.Patch.Size.1km", "n.Tree.Patches.1km")
+                  "Avg.Shrub.Patch.Size.1km", "n.Shrub.Patches.1km", "Avg.Tree.Patch.Size.1km", "n.Tree.Patches.1km",
+                  "Trees.Present.1km")
                
 num_covs_5km <-c("Shrub.Cover.5km", "Perennial.Cover.5km", "Annual.Cover.5km", "Bare.Ground.Cover.5km",
                  "Elevation.5km", "TRI.5km", "Prop.Burned.5km", "Avg.Shrub.Patch.Size.5km", 
-                 "n.Shrub.Patches.5km", "Avg.Tree.Patch.Size.5km", "n.Tree.Patches.5km")
+                 "n.Shrub.Patches.5km", "Avg.Tree.Patch.Size.5km", "n.Tree.Patches.5km", "Trees.Present.5km")
 
 # Pick a scale 
 num_covs <- num_covs_125m
@@ -221,13 +222,12 @@ for(i in 1:length(num_covs)){
 
 # Histogram of a specific covariate
 view_num_dat(dat = num_cov_dat,
-             cov = "Sage.Cover")
-
+             cov = "TRI.125m")
 
 # Make a list of important catagoorical variables
 cat_covs <- c("Observer.ID", "Wind.Start", "Sky.Start", "Grid.Type", "Fire.Name", "Burn.Sevarity")
 
-#pull the catagorical variables out of the data
+#pull the categorical variables out of the data
 cat_cov_dat <- sobs_count %>% 
   filter(Species == soi)
 cat_cov_dat <- cat_cov_dat[, cat_covs]
@@ -277,11 +277,8 @@ glimpse(sobs_count)
 
 # 4) How does each covariate predict species abundance? ###########################################
 
-# Build an object of transformed numeric covariates
-num_covs_trans <- c("ln.Sage.Cover", "Perennial.Cover", "Elevation",  
-                    "Burn.Sevarity", "Years.Since.Fire", "ln.Fire.Distance",
-                    "MAS", "Ord.Date")
-
+# Pick a scale to examine
+num_covs <- num_covs_125m 
 
 # Build a function that plots each numeric variable against the observed counts for each species
 obs_scatter <- function(dat, cov) { 
@@ -315,7 +312,7 @@ obs_scatter <- function(dat, cov) {
 # Plot all of these with the function
 for(i in 1:length(num_covs)){
   # Define a particular covariate
-  cov <- num_covs_trans[i]
+  cov <- num_covs[i]
   #Plot them using my custom function
   obs_scatter(dat = sobs_count,
               cov = cov)
@@ -323,8 +320,7 @@ for(i in 1:length(num_covs)){
 
 #View a covariate on its own
 sobs_count %>% 
-  filter(ln.Fire.Distance < 15) %>% 
-  obs_scatter(cov = "ln.Fire.Distance")
+  obs_scatter(cov = "n.Shrub.Patches.125m")
 
 #View a specific variable before and after the log transformation
 scat_plot1 <- obs_scatter(dat = sobs_count,
@@ -336,7 +332,7 @@ grid.arrange(scat_plot1, scat_plot2)
 # Build a function that plots each categorical variable against the observed counts for each species
 obs_boxp <- function(dat, cov) { 
   test_plots <- dat %>% 
-    mutate(across(all_of(cat_covs), factor)) %>%  # Convert categorical variables to factors
+    # mutate(across(all_of(cat_covs), factor)) %>%  # Convert categorical variables to factors
     ggplot(aes(x = .data[[cov]], y = Count, fill = .data[[cov]])) +
     geom_boxplot(color = "black",  # Black border for boxes
                  outlier.shape = 21,  # Custom outlier shape
@@ -370,6 +366,13 @@ for(i in 1:length(cat_covs)){
   obs_boxp(dat = sobs_count,
               cov = cov)
 }
+
+# View a single catagorical variables
+sobs_count %>% 
+  mutate(Trees.Present.125m = case_when(n.Tree.Patches.125m > 1 ~ 1,
+                                        n.Tree.Patches.125m <= 1 ~ 0)) %>% 
+  mutate(Trees.Present.125m = factor(Trees.Present.125m)) %>% 
+  obs_boxp(cov = "Trees.Present.125m")
 
 # 5) Other random useful plots #########################################################################
 

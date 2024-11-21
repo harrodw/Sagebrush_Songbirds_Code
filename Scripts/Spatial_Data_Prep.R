@@ -521,7 +521,21 @@ grid_covs_fire2 %>%
 
 # Join these to the exisitng covariates
 grid_covs_final <- grid_covs %>% 
-  left_join(grid_covs_fire2, by = "Grid.ID")
+  left_join(grid_covs_fire2, by = "Grid.ID") %>% 
+  # Log transform certain covariates
+  mutate(ln.Shrub.Patch.Size.125m = log(Avg.Shrub.Patch.Size.125m),
+         ln.Shrub.Patch.Size.1km = log(Avg.Shrub.Patch.Size.1km),
+         ln.Shrub.Patch.Size.5km = log(Avg.Shrub.Patch.Size.5km),
+         ln.Tree.Patch.Size.125m = log(Avg.Tree.Patch.Size.125m),
+         ln.Tree.Patch.Size.1km = log(Avg.Tree.Patch.Size.1km),
+         ln.Tree.Patch.Size.5km = log(Avg.Tree.Patch.Size.5km)) %>% 
+  # Make a binary variable for whether or not trees are present
+  mutate(Trees.Present.125m = case_when(n.Tree.Patches.125m > 1 ~ 1,
+                                        n.Tree.Patches.125m <= 1 ~ 0),
+         Trees.Present.1km = case_when(n.Tree.Patches.1km > 1 ~ 1,
+                                        n.Tree.Patches.1km <= 1 ~ 0),
+         Trees.Present.5km = case_when(n.Tree.Patches.5km > 1 ~ 1,
+                                        n.Tree.Patches.5km <= 1 ~ 0))
 
 # View all covariates
 glimpse(grid_covs_final)

@@ -54,7 +54,7 @@ glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 # Define relevant species
-soi <- "BRSP"
+study_species <- "BRSP"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
@@ -69,7 +69,7 @@ find_mode <- function(x) {
 counts_0inf <- sobs %>%
   mutate(Distance = Distance/1000) %>% #Switch from m to km
   filter(Distance <= trunc_dist) %>% # only observations closer than the truncation distance
-  filter(Species  == soi) %>% # only one species
+  filter(Species  == study_species) %>% # only one species
   mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
   group_by(Grid.ID, Visit.ID) %>% 
   reframe(Grid.ID, Year, Visit.ID, Ord.Date, 
@@ -170,11 +170,8 @@ counts_125m <- counts_temp3 %>%
   # First landscape covariates
   mutate(Shrub.Cover = scale(Shrub.Cover.125m)[,1],
          PFG.Cover = scale(Perennial.Cover.125m)[,1],
-         AFG.Cover = scale(Annual.Cover.125m)[,1],
-         Shrub.Patch.Size = scale(Avg.Shrub.Patch.Size.125m)[,1],
-         Trees = case_when(Trees.Count == 0 ~ 0, Trees.Count > 0 ~ 1),
-         Bare.Ground.Cover = scale(Bare.Ground.Cover)[,1],
-         Elevation = scale(Elevation)[,1],
+         TRI = scale(TRI.125m)[,1],
+         Shrub.Patch.Size = scale(ln.Shrub.Patch.Size.125m)[,1],
          # Then detection covariates
          Mean.MAS = scale(Mean.MAS)[,1],
          Ord.Date = scale(Ord.Date)[,1])
@@ -241,7 +238,7 @@ sort(unique(observations_temp$Dist.Bin.Midpoint))
 sort(unique(observations_temp$Time.Interval))
 
 # Make sure the same numeric values for factors are shaped between the two datasets
-counts <- counts %>% 
+counts_125m <- counts_125m %>% 
   arrange(Year, Visit.ID,  Grid.ID) %>% 
   mutate(Grid.ID.num = as.numeric(Grid.ID),
          Year.num = as.numeric(Year),
@@ -249,7 +246,7 @@ counts <- counts %>%
          Observer.ID.num = as.numeric(Observer.ID)) 
 
 # Pull out the covariates that need to be shared across counts and observations
-point_ids <- counts %>% 
+point_ids <- counts_125m %>% 
   mutate_at(c("Grid.ID", "Year", "Visit.ID"), as.character) %>% 
   dplyr::select(Grid.ID, Grid.ID.num, Year, Year.num, Visit.ID, Visit.ID.num, Observer.ID, Observer.ID.num)
 #...and view
@@ -260,24 +257,24 @@ observations <- observations_temp %>%
   left_join(point_ids, by = c("Grid.ID", "Year", "Visit.ID"))
 
 # View Counts
-glimpse(counts)
+glimpse(counts_125m)
 
 # View Observations
 glimpse(observations)
 
 # Plot a specific covariate against bird abundance
-counts %>%
-  ggplot(aes(x = Elevation, y = Count)) +
-  # geom_boxplot()
-  geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
-  geom_jitter(col = "aquamarine4") +
-  theme_bw()
+# counts_125m %>%
+#   ggplot(aes(x = Elevation.125m, y = Count)) +
+#   # geom_boxplot()
+#   geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
+#   geom_jitter(col = "aquamarine4") +
+#   theme_bw()
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
 # Matrix dimentions
-nrows <- length(unique(counts$Grid.ID.num))  # Number of survey grids
-ncols <- length(unique(counts$Visit.ID.num)) # Times each grid was visited
+nrows <- length(unique(counts_125m$Grid.ID.num))  # Number of survey grids
+ncols <- length(unique(counts_125m$Visit.ID.num)) # Times each grid was visited
 
 # Build a storage matrix of observations by visit
 count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
@@ -291,13 +288,11 @@ date_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 points_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for who conducted each survey
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for years since fire during each survey
-fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
   # Filter for a specific grid
-  count_visit <- counts %>% 
+  count_visit <- counts_125m %>% 
     arrange(Visit.ID.num) %>% 
     filter(Grid.ID.num == y)
   # Assign values to each row
@@ -308,7 +303,6 @@ for(y in 1:nrow(count_mat)){
   # Area surveyd din km^2
   points_mat[y,] <- pi * count_visit$n.Points * trunc_dist^2 
   obsv_mat[y,] <- count_visit$Observer.ID.num
-  fyear_mat[y,] <- count_visit$Years.Since.Fire
 }
 
 # View the matrices
@@ -318,16 +312,15 @@ time_mat   # Scaled mean time of day for each visit
 date_mat   # Scaled date for each visit
 points_mat # Number of points visited during each survey 
 obsv_mat   # Who conducted each survey
-fyear_mat  # Years since fire during each survey
 
 # Loop sizes 
-ngrids <- length(unique(counts$Grid.ID.num))          # Number of survey grids
+ngrids <- length(unique(counts_125m$Grid.ID.num))          # Number of survey grids
 nind <- nrow(observations)                            # Number of individuals detected 
-nobsv <- length(unique(counts$Observer.ID.num))       # Number of unique observers
+nobsv <- length(unique(counts_125m$Observer.ID.num))       # Number of unique observers
 nbins <- length(unique(observations$Dist.Bin))        # Number of distance bins
 nints <- length(unique(observations$Time.Interval))   # Number of time intervals
-nvst <- length(unique(counts$Visit.ID))               # Number of visits in each year
-nyears <- length(unique(counts$Year.num))             # Number of years we surveyed
+nvst <- length(unique(counts_125m$Visit.ID))               # Number of visits in each year
+nyears <- length(unique(counts_125m$Year.num))             # Number of years we surveyed
 
 # Observation Level data 
 midpt <- sort(unique(observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
@@ -344,117 +337,17 @@ day <- date_mat                                       # Matrix of scaled dates
 # Grid level data
 n_dct <- count_mat                                    # Matrix of the number of detected individuals per grid per survey 
 years <- year_mat                                     # Matrix of year numbers
-sage_cvr <- counts$Sage.Cover[1:ngrids]               # Percent sagebrush cover
-pern_cvr <- counts$Perennial.Cover[1:ngrids]          # Percent perennial forb and grass cover
-annu_cvr <- counts$Annual.Cover[1:ngrids]             # Annual forb and grass cover
-bg_cvr <- counts$Bare.Ground.Cover[1:ngrids]          # Bare ground cover
-trees <- counts$Trees.Present[1:ngrids]               # Whether or not trees are present in the grid 
-elevation <- counts$Elevation[1:ngrids]               # Elevation (m) 
-tri <- counts$TRI[1:ngrids]                           # Topographic ruggedness
+shrub_cvr <- counts_125m$Shrub.Cover[1:ngrids]        # Percent shrub cover
+pfg_cvr <- counts_125m$PFG.Cover[1:ngrids]            # Percent perennial forb and grass cover
+tri <- counts_125m$TRI[1:ngrids]                      # Topographic ruggedness
+patch_size <- counts_125m$Shrub.Patch.Size[1:ngrids]  # Average size of shrub patches on the log scale
+trees <- counts_125m$Trees.Present.125m[1:ngrids]     # Whether or not trees are present in the grid 
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
 #########################################################################################################
 
-# 2.1) Constants, data, Initial values, and dimensions #############################################
-
-# Constants to be fed into Nimble
-sobs_const <- list (
-  # Misc. Constants
-  area = points_mat,       # Number of points surveyed per grid per visit
-  delta = bin_size,        # Bin width
-  trunc_dist = trunc_dist, # Truncation distance
-  
-  # For loop sizes
-  ngrids = ngrids,         # Number of survey grids
-  nind = nind,             # Number of individuals detected 
-  nobsv = nobsv,           # Number of unique observers
-  nvst = nvst,             # Number of times each grid was surveyed (6)
-  nbins = nbins,           # Number of distance bins
-  nints = nints,           # Number of time intervals
-  nyears = nyears,          # Number of years we surveyd
-
-  # Non-stochastic constants
-  years = years,          # Year when each survey took place
-  obs_visit  = obs_visit,  # Visit when each observation took place
-  obs_grid  = obs_grid,    # Grid of each observation 
-  observers = observers    # Effect of observer associated with each survey
-)
-
-# View Nimble constants 
-str(sobs_const)
-
-# Data to be fed into Nimble 
-sobs_dat <- list(
-  # Observation Level data
-  dclass = dclass,        # Distance category for each observation
-  midpt = midpt,          # Midpoints of distance bins
-  
-  # Abundance data
-  tint = tint,            # Time interval for each observation
-  time = time,            # Scaled mean time after sunrise 
-  day = day,              # Scaled date
-  
-  #Point level data
-  n_dct = n_dct,          # Number of detected individuals per site
-  sage_cvr = sage_cvr,    # Scaled percent sagebrush cover
-  pern_cvr = pern_cvr,    # Perennial forb and grass cover
-  elevation = elevation   # Scaled elevation
-)
-# View Nimble data 
-str(sobs_dat)
-
-#set seed
-set.seed(123)
-
-#Object dimensions
-sobs_dims <- list(
-  g = c(ngrids, nvst, nbins),        # Cell prob x radial distance
-  f = c(ngrids, nvst, nbins),        # Cell prob x radial distance
-  sigma = c(ngrids, nvst),           # Linear combination on detectability
-  pi_pd = c(ngrids, nvst, nbins),    # Detection probability in each cell
-  pi_pd_c = c(ngrids, nvst, nbins),  # Proportion of total detection probability in each cell
-  p_dct = c(ngrids, nvst),           # Detection probability 
-  p_a = c(ngrids, nvst),             # Linear combination on avalibility  
-  pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
-  pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
-  phi = c(ngrids, nvst),             # Availability probability
-  lambda = c(ngrids, nvst),          # Poisson random variable
-  FT = c(ngrids , nvst),             # Freeman Tukey Discrepancy
-  FT_new = c(ngrids, nvst)           # New Freeman Tukey Discrepancy
-)
-
-# Initial Values
-sobs_inits <- list(
-  # Detecability 
-  alpha0_obsv = rnorm(nobsv, 0, 0.1),
-  # Availability 
-  gamma0 = rnorm(1, 0, 0.1),
-  gamma_date = rnorm(1, 0, 0.1), 
-  gamma_time = rnorm(1, 0, 0.1),
-  gamma_date2 = rnorm(1, 0, 0.1),  
-  gamma_time2 = rnorm(1, 0, 0.1),
-  # Abundance 
-  # mean_beta0 = runif(1, 0, 1),
-  # sd_beta0 = runif(1, 0, 0.1),
-  beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
-  beta_sage = rnorm(1, 0, 0.1),
-  beta_sage2 = rnorm(1, 0, 0.1),
-  beta_pern = rnorm(1, 0, 0.1),
-  beta_pern2 = rnorm(1, 0, 0.1),
-  beta_elv = rnorm(1, 0, 0.1),
-  beta_elv2 = rnorm(1, 0, 0.1),
-  # Presence 
-  psi = runif(ngrids, 0.4, 0.6),
-  present = rbinom(ngrids, 1, 0.5),
-  # Simulated data
-  n_dct_new = count_mat,              # Initialize the new capture data at the existing data values
-  N_indv = count_mat + 1              # start each grid with an individual present
-)  
-# View the initial values
-str(sobs_inits)
-
-# 2.3) Model definition ################################################################
+# 2.1) Model definition ################################################################
 # Add random noise in the detection function intercepts
 # Note all distances are in units of 1km (and area in 1km2 units)
 
@@ -464,32 +357,34 @@ sobs_model_code <- nimbleCode({
   # ------------------------------------------------------------------
   
   # Parameters in the availability component of the detection model
-  gamma0 ~ dnorm(0, sd = 5)         # Mean availability
-  gamma_date ~ dnorm(0, sd = 5)     # Effect of day of year on singing rate
-  gamma_date2 ~ dnorm(0, sd = 5)    # Effect of day of year on singing rate (quadratic)
-  gamma_time ~ dnorm(0, sd = 5)     # Effect of time of day on singing rate
-  gamma_time2 ~ dnorm(0, sd = 5)    # Effect of time of day on singing rate (quadratic)
+  gamma0 ~ dnorm(0, sd = 3)         # Mean availability
+  gamma_date ~ dnorm(0, sd = 3)     # Effect of day of year on singing rate
+  gamma_date2 ~ dnorm(0, sd = 3)    # Effect of day of year on singing rate (quadratic)
+  gamma_time ~ dnorm(0, sd = 3)     # Effect of time of day on singing rate
+  gamma_time2 ~ dnorm(0, sd = 3)    # Effect of time of day on singing rate (quadratic)
   
   # Parameters in the detection portion of the model
+  alpha0 ~ dnorm(0, sd = 3)            # Intercept on detecability
   for(o in 1:nobsv) {
-    alpha0_obsv[o] ~  dnorm(0, sd  = 3)  # Effect of each observer on detecability
+    alpha_obsv[o] ~  dnorm(0, sd = 3)   # Effect of each observer on detecability
   }
 
   # Parameters on the abundance component of the model
-  # mean_beta0 ~ dnorm(0, 1)        # Mean abundance hyperparameter
-  # sd_beta0 ~ dunif(0, 3)          # Sd in yearly abundance hyperparameter
+  mean_beta0 ~ dnorm(0, sd = 3)        # Mean abundance hyperparameter
+  sd_beta0 ~ dunif(0, 1)               # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(0, sd = 5)
-    # beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
+    beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
 
-  beta_sage ~ dnorm(0, sd = 5)       # Effect of sagebrush cover
-  beta_sage2 ~ dnorm(0, sd =1)      # Effect of sagebrush cover squared
-  beta_pern ~ dnorm(0, sd = 5)       # Effect of Perennial Cover
-  beta_pern2 ~ dnorm(0, sd = 5)      # Effect of perennial cover squared
-  beta_elv ~ dnorm(0, sd = 5)        # Effect of elevation
-  beta_elv2 ~ dnorm(0, sd = 5)       # Effect of elevation squared
+  beta_shrub ~ dnorm(0, sd = 3)     # Effect of shrub cover
+  # beta_sage2 ~ dnorm(0, sd = 3)     # Effect of shrub cover squared
+  beta_pfg ~ dnorm(0, sd = 3)       # Effect of Perennial Cover
+  # beta_pfg2 ~ dnorm(0, sd = 3)      # Effect of perennial cover squared
+  beta_tri ~ dnorm(0, sd = 3)       # Effect of ruggedness
+  # beta_tri2 ~ dnorm(0, sd = 3)      # Effect of ruggedness squared
+  beta_patch ~ dnorm(0, sd = 3)     # Effect of patch size
+  beta_tree ~ dnorm(0, sd = 3)      # Effect of trees being present
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -533,7 +428,8 @@ sobs_model_code <- nimbleCode({
       N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]                # Effect of each observer on detectability
+      log(sigma[s, y]) <- alpha0 +                                    # Intercept on detecability
+                          alpha_obsv[observers[s, y]]                 # Effect of each observer on detectability
       
       # Availability (p_a) Log-linear model for availability
       logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability 
@@ -544,13 +440,15 @@ sobs_model_code <- nimbleCode({
       
       # Abundance (lambda) Log-linear model 
       log(lambda[s, y]) <- beta0_year[years[s, y]] +                  # Intercept on abundance
-                           beta_sage * sage_cvr[s] +                  # Effect of sagebrush cover
-                           beta_sage2 * sage_cvr[s]^2 +               # Effect of sagebrush cover squared
-                           beta_pern *  pern_cvr[s] +                 # Effect of Perennial Cover
-                           beta_pern2 * pern_cvr[s]^2 +               # Effect of perennial cover squared
-                           beta_elv * elevation[s] +                  # Effect of elevation
-                           beta_elv2 * elevation[s]^2 +               # Effect of elevation squared
-                           
+                           beta_shrub * shrub_cvr[s] +                # Effect of shrub cover
+                           # beta_shrub2 * shrub_cvr[s]^2 +            # Effect of shrubcover squared
+                           beta_pfg *  pfg_cvr[s] +                   # Effect of Perennial Cover
+                           # beta_pfg2 * pfg_cvr[s]^2 +                # Effect of perennial cover squared
+                           beta_tri * tri[s] +                        # Effect of ruggedness
+                           # beta_tri2 * tri[s]^2 +                    # Effect of ruggedness squared
+                           beta_patch * patch_size[s] +               # Effect of shrub patch size
+                           beta_tree * trees[s]                       # Effect of trees being present
+  
       # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
       # Compute fit statistic for observed data
       e_val[s, y] <- p_marg[s, y] * N_indv[s, y]             # Expected value for binomial portion of the model
@@ -588,22 +486,125 @@ sobs_model_code <- nimbleCode({
   
 })
 
-# 2.4) Configure and Run the model ###########################################################
+# 2.2) Constants, data, Initial values, and dimensions #############################################
+
+# Constants to be fed into Nimble
+sobs_const <- list (
+  # Misc. Constants
+  area = points_mat,       # Number of points surveyed per grid per visit
+  delta = bin_size,        # Bin width
+  trunc_dist = trunc_dist, # Truncation distance
+  
+  # For loop sizes
+  ngrids = ngrids,         # Number of survey grids
+  nind = nind,             # Number of individuals detected 
+  nobsv = nobsv,           # Number of unique observers
+  nvst = nvst,             # Number of times each grid was surveyed (6)
+  nbins = nbins,           # Number of distance bins
+  nints = nints,           # Number of time intervals
+  nyears = nyears,          # Number of years we surveyd
+  
+  # Non-stochastic constants
+  years = years,          # Year when each survey took place
+  obs_visit  = obs_visit,  # Visit when each observation took place
+  obs_grid  = obs_grid,    # Grid of each observation 
+  observers = observers    # Effect of observer associated with each survey
+)
+
+# View Nimble constants 
+str(sobs_const)
+
+# Data to be fed into Nimble 
+sobs_dat <- list(
+  # Observation Level data
+  dclass = dclass,        # Distance category for each observation
+  midpt = midpt,          # Midpoints of distance bins
+  
+  # Abundance data
+  tint = tint,            # Time interval for each observation
+  time = time,            # Scaled mean time after sunrise 
+  day = day,              # Scaled date
+  
+  #Point level data
+  n_dct = n_dct,           # Number of detected individuals per site
+  shrub_cvr = shrub_cvr,   # Percent shrub cover
+  pfg_cvr = pfg_cvr,       # Percent perennial forb and grass cover
+  tri = tri,               # Topographic ruggedness
+  patch_size = patch_size, # Average size of shrub patches on the log scale
+  trees = trees            # Whether or not trees are present in the grid 
+)
+# View Nimble data 
+str(sobs_dat)
+
+#set seed
+set.seed(123)
+
+#Object dimensions
+sobs_dims <- list(
+  g = c(ngrids, nvst, nbins),        # Cell prob x radial distance
+  f = c(ngrids, nvst, nbins),        # Cell prob x radial distance
+  sigma = c(ngrids, nvst),           # Linear combination on detectability
+  pi_pd = c(ngrids, nvst, nbins),    # Detection probability in each cell
+  pi_pd_c = c(ngrids, nvst, nbins),  # Proportion of total detection probability in each cell
+  p_dct = c(ngrids, nvst),           # Detection probability 
+  p_a = c(ngrids, nvst),             # Linear combination on avalibility  
+  pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
+  pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
+  phi = c(ngrids, nvst),             # Availability probability
+  lambda = c(ngrids, nvst),          # Poisson random variable
+  FT = c(ngrids , nvst),             # Freeman Tukey Discrepancy
+  FT_new = c(ngrids, nvst)           # New Freeman Tukey Discrepancy
+)
+
+# Initial Values
+sobs_inits <- list(
+  # Detecability 
+  alpha0 = rnorm(1, 0, 0.1),
+  alpha_obsv = rnorm(nobsv, 0, 0.1),
+  # Availability 
+  gamma0 = rnorm(1, 0, 0.1),
+  gamma_date = rnorm(1, 0, 0.1), 
+  gamma_time = rnorm(1, 0, 0.1),
+  gamma_date2 = rnorm(1, 0, 0.1),  
+  gamma_time2 = rnorm(1, 0, 0.1),
+  # Abundance 
+  mean_beta0 = runif(1, 0, 1),
+  sd_beta0 = runif(1, 0, 0.1),
+  beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
+  beta_shrub = rnorm(1, 0, 0.1),
+  # beta_shrub2 = rnorm(1, 0, 0.1),
+  beta_pfg = rnorm(1, 0, 0.1),
+  # beta_pfg2 = rnorm(1, 0, 0.1),
+  beta_tri = rnorm(1, 0, 0.1),
+  # beta_tri2 = rnorm(1, 0, 0.1),
+  beta_patch = rnorm(1, 0, 0.1),
+  beta_tree = rnorm(1, 0, 0.1),
+  # Presence 
+  psi = runif(ngrids, 0.4, 0.6),
+  present = rbinom(ngrids, 1, 0.5),
+  # Simulated data
+  n_dct_new = count_mat,              # Initialize the new capture data at the existing data values
+  N_indv = count_mat + 1              # start each grid with an individual present
+)  
+# View the initial values
+str(sobs_inits)
 
 # Params to save
-sobs_params <- c("beta0",
-                 "beta_sage",
-                 "beta_sage2",
-                 "beta_pern",
-                 "beta_pern2",
-                 "beta_elv",
-                 "beta_elv2",
+sobs_params <- c("beta0_year",
+                 "beta_shrub",
+                 # "beta_shrub2",
+                 "beta_pfg",
+                 # "beta_pfg2",
+                 "beta_tri",
+                 # "beta_tri2",
+                 "beta_patch",
+                 "beta_tree",
                  "gamma0", 
                  "gamma_date", 
                  "gamma_date2", 
                  "gamma_time", 
                  "gamma_time2", 
-                 "alpha0_obsv",
+                 "alpha_obsv",
                  "mean_psi",
                  "mean_p_dct",
                  "mean_phi",
@@ -612,45 +613,128 @@ sobs_params <- c("beta0",
                  "c_hat",
                  "bpv")
 
-# MCMC settings. Pick one, comment out the rest 
-# nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1          # Quick test to see if the model runs
-nc <- 3  ;  ni <- 50000  ;  nb <- 25000;  nt <- 5    # longer test where most parameters should
-# nc <- 4;  ni <- 150000;  nb <- 75000;  nt <- 10        # Run the model for real
 
-#Run the sampler
-start <- Sys.time() # Start time for the sampler
-start               # Print the sampler start time
-sobs_mcmc_out <- nimbleMCMC(code = sobs_model_code,
-                            data = sobs_dat,
-                            constants = sobs_const,
-                            dimensions = sobs_dims,
-                            inits = sobs_inits,
-                            monitors = sobs_params,
-                            niter = ni,
-                            nburnin = nb,
-                            thin = nt,
-                            nchains = nc,
-                            setSeed = 123,
-                            samples = TRUE,
-                            summary = TRUE)
-difftime(Sys.time(), start) # End time for the sampler
+# 2.3) Configure and Run the model ###########################################################
+
+# Build the nimble model
+sobs_model_vect <- nimbleModel(sobs_model_code, 
+                               data = sobs_dat,
+                               constants = sobs_const,
+                               dimensions = sobs_dims,
+                               inits = sobs_inits)
+
+# MCMC settings for default nimble model setup
+nc_test <- 1  ;  ni_test <- 1000  ;  nb_test <- 500  ;  nt_test <- 10          
+
+# From Kezia and Liz:
+# Next, run an MCMC with NIMBLE defaults; this can be a slow step.
+# the just-do-it way to run an MCMC. this will take all steps to set up
+# and run an MCMC using NIMBLE’s default configuration. Handles everything from 
+# model building to compilation to running the MCMC
+# sobs_model_out_test <- nimbleMCMC(code = sobs_model_code,
+#                                          constants = sobs_const,
+#                                          data = sobs_dat,
+#                                          dimensions = sobs_dims,
+#                                          inits = sobs_inits,
+#                                          monitors = sobs_params,
+#                                          nchains = nc_test,
+#                                          niter = ni_test, 
+#                                          nburnin = nb_test, 
+#                                          thin = nt_test, 
+#                                          samplesAsCodaMCMC = T,
+#                                          summary = T)
+
+# Assign default samplers to nodes
+sobs_mcmcConf <- configureMCMC(sobs_model_vect, 
+                               monitors = sobs_params)
+
+# Block all availability (gamma) nodes together
+sobs_mcmcConf$removeSamplers("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2")
+
+sobs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2"),
+                         type = 'RW_block')
+
+# Block all detection (alpha) nodes together
+sobs_mcmcConf$removeSamplers("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", "alpha_obsv[3]", "alpha_obsv[4]", 
+                             "alpha_obsv[5]", "alpha_obsv[6]", "alpha_obsv[7]", "alpha_obsv[8]",
+                             "alpha_obsv[9]", "alpha_obsv[10]", "alpha_obsv[11]", "alpha_obsv[12]", 
+                             "alpha_obsv[13]", "alpha_obsv[14]", "alpha_obsv[15]", "alpha_obsv[16]", 
+                             "alpha_obsv[17]")
+
+sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", "alpha_obsv[3]", "alpha_obsv[4]", 
+                                    "alpha_obsv[5]", "alpha_obsv[6]", "alpha_obsv[7]", "alpha_obsv[8]",
+                                    "alpha_obsv[9]", "alpha_obsv[10]", "alpha_obsv[11]", "alpha_obsv[12]", 
+                                    "alpha_obsv[13]", "alpha_obsv[14]", "alpha_obsv[15]", "alpha_obsv[16]", 
+                                    "alpha_obsv[17]"),
+                         type = 'RW_block')
+
+# Block all abundance (beta) nodes together
+sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+                             "beta_shrub", 
+                             # "beta_shrub2",
+                             "beta_pfg", 
+                             # "beta_pfg2", 
+                             "beta_tri",
+                             # "beta_tri2",
+                             "beta_patch", "beta_tree")
+
+sobs_mcmcConf$addSampler(target = c("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+                                    "beta_shrub", 
+                                    # "beta_shrub2",
+                                    "beta_pfg", 
+                                    # "beta_pfg2", 
+                                    "beta_tri",
+                                    # "beta_tri2",
+                                    "beta_patch", "beta_tree"),
+                         type = 'RW_block')
+
+# View the blocks
+sobs_mcmcConf$printSamplers() # print samplers being used 
+sobs_mcmcConf$unsampledNodes  # look at unsampled nodes
+
+# Build MCMC object: can customize thinning, monitors, etc.
+sobs_modelMCMC <- buildMCMC(sobs_mcmcConf) # Update mcmc configuration based on graph
+
+# Compile Nimble object and MCMC object to one C++ object (gets an ~3 fold speed up, even 
+# if you do nothing else) spend time on getting this step right because this is the 
+# easiest way to accelerate convergence. 
+cModel <- compileNimble(sobs_model_vect) # compiled model
+cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # compiled mcmc
+
+# MCMC settings for the real model. Pick one, comment out the rest 
+# nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1           # Quick test to see if the model runs
+# nc <- 3  ;  ni <- 150000  ;  nb <- 50000;  nt <- 10    # longer test where most parameters should
+nc <- 4;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
+
+# Quick check of how many samples we'll keep in the posterior
+message(paste((ni - nb) / nt), " samples will be kept from the posterior")
+
+# Run the sampler
+start <- Sys.time()                                     # Start time for the sampler
+start
+sobs_mcmc_out <- runMCMC(cMCMC,
+                         niter = ni, 
+                         nburnin = nb, 
+                         thin = nt, 
+                         nchains = nc,
+                         samplesAsCodaMCMC = T,
+                         summary = T)
+difftime(Sys.time(), start)                             # End time for the sampler
+
 
 # Save model output to local drive
 saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                     soi, "_abundance_model_out.rds"))
+                                     study_species, "_landscape_model_out.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
 ################################################################################
 
-# Pick a species
-soi <- "BRSP"
-
-# 3.1) View model output
+# 3.1) View model output #######################################################
 
 # Load the output back in
 sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       soi, "_abundance_model_out.rds"))
+                                       study_species, "_landscape_model_out.rds"))
   
 # Traceplots and density graphs 
 MCMCtrace(object = sobs_mcmc_out$samples,
