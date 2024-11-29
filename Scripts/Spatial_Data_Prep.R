@@ -11,6 +11,7 @@ library(sf)
 library(tmap)
 library(RColorBrewer)
 library(landscapemetrics)
+library(viridis)
 
 # 1.1) Prepare points ########################################################################
 
@@ -73,20 +74,22 @@ fire_perms <- st_read(paste0(ras_path, "fire_perimeters.shp")) %>%
 
 # Tmap perameters 
 tmap_mode("view")
+# tmap_mode("plot")
 tmap_options(check.and.fix = TRUE)
 
 # Plot
-tm_shape(grid_buff_lg) +
-  tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"), alpha = 0.99) +
+tm_shape(fire_perms) +
+  tm_polygons(col = "darkred", alpha = 0.4) +
+  tm_shape(grid_buff_lg) +
+  tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"), 
+              alpha = 0.7, title = "125m radius") +
   tm_shape(grid_buff_med) +
-  tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"), alpha = 0.99) +
+  tm_polygons(col = "Grid.Type", palette = c("orange", "turquoise"), 
+              alpha = 0.7, title = "1km radius") +
   tm_shape(grid_buff_sm) +
-  tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"), alpha = 0.99) +
-  tm_shape(fire_perms) +
-  tm_polygons(col = "red", alpha = 0.1)
-
-
-
+  tm_polygons(col = "Grid.Type", palette = c("red", "blue"), 
+              alpha = 0.7, title = "5km radius") 
+  
 # 1.2) Add rasters ############################################################################
 
 # Add in raster layers
@@ -110,15 +113,15 @@ fires_ras <- rasterize(fire_perms, fire_ras_template)
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
 
 # Plot the rasters
-# plot(shrub_cvr)
-# plot(pfg_cvr)
-# plot(afg_cvr)
-# plot(bg_cvr)
-# plot(shrub_patches)
-# plot(tree_patches)
-# plot(elevation)
-# plot(tri)
-# plot(aspect)
+terra::plot(shrub_cvr, col = viridis(100))
+terra::plot(pfg_cvr, col = magma(100))
+terra::plot(afg_cvr)
+terra::plot(bg_cvr)
+terra::plot(shrub_patches, col = c("cornsilk", "darkcyan"))
+terra::plot(tree_patches, col = c("cornsilk", "darkgreen"))
+terra::plot(elevation)
+terra::plot(tri, col = turbo(100))
+terra::plot(aspect)
 
 # 2.1) Extracting values to a 125 radius around each point ##########################################
 

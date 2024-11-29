@@ -122,7 +122,7 @@ point_covs <- point_covs %>%
          n.Tree.Patches = NA)
 
 # List of survey points
-npoints <- nrow(point_buffs)
+npoints <- nrow(point_buff)
 
 # Summarize tree and shrub patches within each point 
 for(g in 1:npoints){
@@ -162,10 +162,16 @@ for(g in 1:npoints){
   message(paste("Extracted 125m patch characteristics for point", g, "out of", npoints))
 }
 
+# Make a binary Tree presence abcence column
+point_covs <- point_covs %>% 
+  mutate(Trees.Present = case_when(n.Tree.Patches > 1 ~ 1,
+                                    n.Tree.Patches <= 1 ~ 0))
+
+
 # And view
 glimpse(point_covs)
 
 # Export the grid summaries to the current workspace
-write.csv(point_covs, "Data\\Outputs\\point_covs.csv", overwrite = TRUE)
-# And to my box data folder. Feel free to comment this out
+write.csv(point_covs, "Data\\Outputs\\point_covs.csv")
+# And to my box data folder
 write.csv(point_covs, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\point_covs.csv")

@@ -94,7 +94,7 @@ glimpse(sobs_count_tmp)
 # Change necessary variables to scales and factors
 sobs_count <- sobs_count_tmp %>%
   # Add covariates
-  left_join(covs, by = c("Grid.ID")) %>% 
+  left_join(covs, by = c("Grid.ID", "Grid.Type")) %>% 
   # Sort the data
   arrange(Visit.ID, Grid.ID) %>% 
   mutate(# Numeric burned vs unburned
@@ -104,9 +104,7 @@ sobs_count <- sobs_count_tmp %>%
                                  Year == "Y2" ~ 2023 - Fire.Year,
                                  Year == "Y3" ~ 2024 - Fire.Year)) %>%
   # Other things that should be factors
-  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year", "Aspect"), factor) %>% 
-  # Remove columns that are no longer needed
-  dplyr::select(-Grid.Type) 
+  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year"), factor)
 #...and view
 glimpse(sobs_count)
 

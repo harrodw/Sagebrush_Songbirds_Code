@@ -41,11 +41,11 @@ glimpse(sobs)
 # Burn sevarity == 0 means that the area did not burn
 # Burn sevarity == -1 means that no data was available 
 # Fire year == 1800 means there are no recorded fires in the area
-covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
+covs <- tibble(read.csv("Data/Outputs/point_covs.csv")) %>%
   dplyr::select(-X) %>%
   tibble()
 # # or from github
-# covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
+# covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/point_covs.csv") %>%
 #   dplyr::select(-X) %>%
 #   tibble()
 
@@ -54,43 +54,20 @@ glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 
-# List of all species
-all_species <- c("SATH", "WEME", "VESP", "HOLA", "GTTO", "SABS")
-
-# Loop over all species
-for(j in 1:length(all_species)){
-
-# All possible scales
-model_scales <- c("125m", "5km")
-
-# Loop over both scales 
-for(m in 1:length(model_scales)){
-
-# Pick a scale
-model_scale <- model_scales[m]
-# model_scale <- model_scales[2]
-
 # Define relevant species
-study_species <- all_species[j]
-# study_species <- "BRSP"
+study_species <- "BRSP"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
 
-# Function to find the mode
-find_mode <- function(x) {
-  unique_x <- unique(x)
-  unique_x[which.max(tabulate(match(x, unique_x)))]  # Find the most frequent value
-}
-
 # Make a table of important species sightings by visit
 counts_0inf <- sobs %>%
-  mutate(Distance = Distance/1000) %>% #Switch from m to km
+  mutate(Distance = Distance/1000) %>% # Switch from m to km
   filter(Distance <= trunc_dist) %>% # only observations closer than the truncation distance
   filter(Species  == study_species) %>% # only one species
-  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  group_by(Grid.ID, Visit.ID) %>% 
-  reframe(Grid.ID, Year, Visit.ID, Ord.Date, 
+  mutate(Point.Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>% 
+  group_by(Point.Visit.ID) %>% 
+  reframe(Point.Visit.ID, 
           Count = n()) %>% 
   distinct()
 #...and view
@@ -98,102 +75,61 @@ glimpse(counts_0inf)
 
 # Make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
-  distinct(Full.Point.ID, Grid.ID, Grid.Type, Year, Ord.Date, MAS, Wind.Start, Observer.ID, Year, Visit) %>% 
+  distinct(Full.Point.ID, Grid.Type, Year, Ord.Date, MAS, Wind.Start, Observer.ID, Year, Visit) %>% 
   mutate(
     # Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
     Observer.ID = case_when(Observer.ID == "Alex" ~ "Ben", TRUE ~ Observer.ID),
     # Each visit should be treated separately
-    Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  group_by(Grid.ID, Visit.ID) %>% 
-  reframe(Grid.ID, Grid.Type, Year, Visit.ID, Ord.Date,
-          # Average minutes after sunrise on the survey
-          Mean.MAS = mean(MAS),
-          # Most common wind catagory used on the survey
-          Wind = find_mode(Wind.Start),
-          # Observer who submitted the most points
-          Observer.ID = find_mode(Observer.ID),
-          n.Points = n()) %>% 
+    Point.Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>% 
+  group_by(Point.Visit.ID) %>% 
+  reframe(Point.Visit.ID, Full.Point.ID, Grid.Type, Observer.ID, Year, MAS, Ord.Date) %>% 
   distinct()
 
 #...and view
 glimpse(visit_count)
 
 #Join the two, add zeros and average observations within year
-counts_temp <-  visit_count %>% 
-  left_join(counts_0inf, by = c("Grid.ID", "Year", "Visit.ID", "Ord.Date")) %>% 
+counts_temp1 <-  visit_count %>% 
+  left_join(counts_0inf, by = c("Point.Visit.ID")) %>% 
   mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count))
 
 #...and view
-glimpse(counts_temp)
-print(counts_temp, n = Inf)
-
-# View the surveys that weren't done
-counts_temp %>% 
-  group_by(Grid.ID) %>% 
-  filter(n() < 6)
-# ID-C11, Y1-V1 and ID-C22, Y1-V1 weren't recorded
-
-# For now I',m going to propagate the existing data to fill these in
-new_dat <- tibble(Grid.ID = c("ID-C11", "ID-C22"),
-                  Grid.Type = c("R", "R"),
-                  Year = c("Y1", "Y1"),
-                  Visit.ID = c("Y1-V1", "Y1-V1"),
-                  # Saying Rory filled in the data
-                  Observer.ID = c("Rory", "Rory"),
-                  # Average ordianal date across visits
-                  Ord.Date = c(floor(mean(counts_temp$Ord.Date[which(counts_temp$Grid.ID == "ID-C11")])),
-                               floor(mean(counts_temp$Ord.Date[which(counts_temp$Grid.ID == "ID-C22")]))),
-                  # Average survey time across visits
-                  Mean.MAS = c(mean(counts_temp$Mean.MAS[which(counts_temp$Grid.ID == "ID-C11")]),
-                               mean(counts_temp$Mean.MAS[which(counts_temp$Grid.ID == "ID-C22")])),
-                  # Average count across visits
-                  Count = c(floor(mean(counts_temp$Count[which(counts_temp$Grid.ID == "ID-C11")])),
-                            floor(mean(counts_temp$Count[which(counts_temp$Grid.ID == "ID-C22")]))),
-                  # Average number of points surevyed
-                  n.Points = c(floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C11")])),
-                               floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C22")]))))
-
-# Bind these to the exisitng data 
-counts_temp2 <- bind_rows(counts_temp, new_dat)
-glimpse(counts_temp2)
-# Define levels for wind factors
-wind_lvl <- c("<1 mph", "1-3 mph", "4-7 mph", "8-12 mph", "13-18 mph", "Unknown")
+glimpse(counts_temp1)
+print(counts_temp1, n = 50)
+hist(counts_temp1$Count)
 
 # Change necessary variables to scales and factors
-counts_temp3 <- counts_temp2 %>%
+counts_temp2 <- counts_temp1 %>%
   # Add covariates
-  left_join(covs, by = c("Grid.ID", "Grid.Type")) %>% 
+  left_join(covs, by = c("Full.Point.ID")) %>% 
   # Sort the data
-  arrange(Visit.ID, Grid.ID) %>% 
+  arrange(Point.Visit.ID) %>% 
          # Numeric burned vs unburned
-  mutate(Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
-         # Time since Fire
-         Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                      Year == "Y2" ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
-  # Change the wind data to a factor with set levels
-  mutate(Wind = case_when(is.na(Wind) ~ 'Unknown', 
-                          TRUE ~ Wind)) %>% 
-  mutate(Wind = factor(Wind, levels = wind_lvl)) %>%
+  mutate(Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1) %>% 
   # Other things that should be factors
-  mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Year"), factor) %>% 
+  mutate_at(c("Point.Visit.ID", "Full.Point.ID",  "Observer.ID", "Year"), factor) %>% 
   # Remove columns that are no longer needed
   dplyr::select(-Grid.Type) 
 
 #...and view
-glimpse(counts_temp3)
+glimpse(counts_temp2)
 
 # This is where I can change the scale ----
 # Scale the other covariates
-counts <- counts_temp3 %>%
+counts <- counts_temp2 %>%
+  # Remove the variables I don't need
+  select(Point.Visit.ID, Year, Observer.ID, Count, MAS, Ord.Date,
+         Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned, UTM.X, UTM.Y) %>% 
+  # Scale all covariates
   mutate(
-    Shrub.Cover = scale(!!sym(paste0("Shrub.Cover.", model_scale)))[,1],
-    PFG.Cover = scale(!!sym(paste0("Perennial.Cover.", model_scale)))[,1],
-    TRI = scale(!!sym(paste0("TRI.", model_scale)))[,1],
-    Shrub.Patch.Size = scale(!!sym(paste0("ln.Shrub.Patch.Size.", model_scale)))[,1],
-    Trees.Present = Trees.Present.125m, # Keep this at the smallest scale where it is relevant
-    Mean.MAS = scale(Mean.MAS)[,1],   
-    Ord.Date = scale(Ord.Date)[,1]    
+    Shrub.Cover = scale(Shrub.Cover)[,1],
+    Perennial.Cover = scale(Perennial.Cover)[,1],
+    TRI = scale(TRI)[,1],
+    Trees.Present = Trees.Present, 
+    MAS = scale(MAS)[,1],   
+    Ord.Date = scale(Ord.Date)[,1],
+    UTM.X = scale(UTM.X)[,1],
+    UTM.Y = scale(UTM.Y)[,1]
   )
 #...and view
 glimpse(counts)
@@ -218,20 +154,15 @@ observations_temp <- sobs %>%
   # Switch from m to km
   mutate(Distance = Distance / 1000) %>%  
   # Only one species
-  filter(Species == study_species) %>%   
-  # Same order as the counts
-  arrange(Year, Visit, Grid.ID) %>%
+  filter(Species == study_species) %>%  
   # Only close observations
   filter(Distance <= trunc_dist) %>%          
   # Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
   mutate(Observer.ID = case_when(Observer.ID == "Alex" ~ "Aidan", TRUE ~ Observer.ID),
          # A unique ID for each visit
-         Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  dplyr::select(Distance, Minute, Grid.ID, Observer.ID, Year, Visit.ID) %>% 
-  left_join(covs, by = "Grid.ID") %>% 
-  mutate(Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
-                                      Year == "Y2" ~ 2023 - Fire.Year,
-                                      Year == "Y3" ~ 2024 - Fire.Year)) %>% 
+         Point.Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>% 
+  # Same order as the counts
+  arrange(Point.Visit.ID) %>%
   # Calculate Distance Bins
   mutate(Dist.Bin = case_when(Distance >= 0 & Distance <= bins[1] ~ bins[1],
                               Distance > bins[1] & Distance <= bins[2] ~ bins[2],
@@ -252,7 +183,7 @@ observations_temp <- sobs %>%
   mutate(Time.Interval = case_when(Minute %in% c(1, 2) ~ 1,
                                    Minute %in% c(3, 4) ~ 2,
                                    Minute %in% c(5, 6) ~ 3)) %>% 
-  dplyr::select(Grid.ID, Observer.ID, Distance, Dist.Bin, Dist.Bin.Midpoint, Time.Interval, Year, Visit.ID)
+  dplyr::select(Point.Visit.ID, Observer.ID, Distance, Dist.Bin, Dist.Bin.Midpoint, Time.Interval, Year)
 
 # View the whole object
 glimpse(observations_temp)
@@ -262,25 +193,29 @@ sort(unique(observations_temp$Time.Interval))
 
 # Make sure the same numeric values for factors are shaped between the two datasets
 counts <- counts %>% 
-  arrange(Year, Visit.ID,  Grid.ID) %>% 
-  mutate(Grid.ID.num = as.numeric(Grid.ID),
+  mutate(Point.Visit.ID.num = as.numeric(Point.Visit.ID),
          Year.num = as.numeric(Year),
-         Visit.ID.num = as.numeric(Visit.ID),
-         Observer.ID.num = as.numeric(Observer.ID)) 
+         Observer.ID.num = as.numeric(Observer.ID)) %>% 
+  # Reoorder the columns
+  select(Point.Visit.ID, Point.Visit.ID.num, Year, Year.num, Observer.ID, Observer.ID.num, Count, 
+         MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned, UTM.X, UTM.Y) 
 
 # Pull out the covariates that need to be shared across counts and observations
 point_ids <- counts %>% 
-  mutate_at(c("Grid.ID", "Year", "Visit.ID"), as.character) %>% 
-  dplyr::select(Grid.ID, Grid.ID.num, Year, Year.num, Visit.ID, Visit.ID.num, Observer.ID, Observer.ID.num)
+  mutate_at(c("Point.Visit.ID", "Year", "Observer.ID"), as.character) %>% 
+  dplyr::select(Point.Visit.ID, Point.Visit.ID.num, Year, Year.num, Observer.ID, Observer.ID.num)
 #...and view
 glimpse(point_ids)
 
 # Link the factor levels from the count dataset to the observation dataset
 observations <- observations_temp %>% 
-  left_join(point_ids, by = c("Grid.ID", "Year", "Visit.ID"))
+  left_join(point_ids, by = c("Point.Visit.ID", "Year", "Observer.ID"))
 
 # View Counts
 glimpse(counts)
+
+# View Observations
+glimpse(observations)
 
 # Plot counts against a covaariate
 counts %>%
@@ -288,96 +223,49 @@ counts %>%
   ggplot(aes(x = Shrub.Cover, y = Count)) +
   # geom_boxplot()
   geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
-  geom_jitter(col = "aquamarine4") +
+  geom_jitter(col = "aquamarine4", alpha = 0.14) +
   theme_bw()
-
-
-# View Observations
-glimpse(observations)
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
-# Matrix dimentions
-nrows <- length(unique(counts$Grid.ID.num))  # Number of survey grids
-ncols <- length(unique(counts$Visit.ID.num)) # Times each grid was visited
-
-# Build a storage matrix of observations by visit
-count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of years by visit
-year_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of survey times by visit
-time_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of survey dates by visit
-date_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for the proportion of points visited during each survey
-area <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for who conducted each survey
-obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-
-# Fill in the matrix
-for(y in 1:nrow(count_mat)){
-  # Filter for a specific grid
-  count_visit <- counts %>% 
-    arrange(Visit.ID.num) %>% 
-    filter(Grid.ID.num == y)
-  # Assign values to each row
-  count_mat[y,] <- count_visit$Count
-  year_mat[y,] <- count_visit$Year
-  time_mat[y,] <- count_visit$Mean.MAS
-  date_mat[y,] <- count_visit$Ord.Date
-  # Area surveyd din km^2
-  area[y,] <- pi * count_visit$n.Points * trunc_dist^2 
-  obsv_mat[y,] <- count_visit$Observer.ID.num
-}
-
-# View the matrices
-count_mat  # Number of individuals recorded at each visit
-year_mat   # Year during which each visit took place
-time_mat   # Scaled mean time of day for each visit
-date_mat   # Scaled date for each visit
-area # Number of points visited during each survey 
-obsv_mat   # Who conducted each survey
-
 # Loop sizes 
-ngrids <- length(unique(counts$Grid.ID.num))          # Number of survey grids
+npoints <- length(unique(counts$Point.Visit.ID.num))  # Number of points visited
 nind <- nrow(observations)                            # Number of individuals detected 
 nobsv <- length(unique(counts$Observer.ID.num))       # Number of unique observers
 nbins <- length(unique(observations$Dist.Bin))        # Number of distance bins
 nints <- length(unique(observations$Time.Interval))   # Number of time intervals
-nvst <- length(unique(counts$Visit.ID))               # Number of visits in each year
 nyears <- length(unique(counts$Year.num))             # Number of years we surveyed
 
 # Observation Level data 
 midpt <- sort(unique(observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
-observers <- obsv_mat                                 # Random effect for observer associated with each survey
-obs_visit <- observations$Visit.ID.num                # During which visit did each observation take place
-obs_grid <- observations$Grid.ID.num                  # In which grid did each observation take place
+observers <- counts$Observer.ID.num                   # Random effect for observer associated with each survey
+obs_point <- observations$Point.Visit.ID.num          # In which grid did each observation take place
 dclass <- observations$Dist.Bin                       # Distance class of each observation
+delta <- bin_size                                     # Bin width
 
 # Availability date
 tint <- observations$Time.Interval                    # Time interval for each observation 
-time <- time_mat                                      # Matrix of scaled time after sunrise
-day <- date_mat                                       # Matrix of scaled dates
+time <- counts$MAS                                    # Matrix of scaled time after sunrise
+date <- counts$Ord.Date                               # Matrix of scaled dates
 
 # Grid level data
-n_dct <- count_mat                                    # Matrix of the number of detected individuals per grid per survey 
-years <- year_mat                                     # Matrix of year numbers
-shrub_cvr <- counts$Shrub.Cover[1:ngrids]             # Percent shrub cover
-pfg_cvr <- counts$PFG.Cover[1:ngrids]                 # Percent perennial forb and grass cover
-tri <- counts$TRI[1:ngrids]                           # Topographic ruggedness
-patch_size <- counts$Shrub.Patch.Size[1:ngrids]       # Average size of shrub patches on the log scale
-trees <- counts$Trees.Present[1:ngrids]          # Whether or not trees are present in the grid 
+n_dct <- counts$Count                                 # Matrix of the number of detected individuals per grid per survey 
+years <- counts$Year.num                              # Matrix of year numbers
+shrub_cvr <- counts$Shrub.Cover                       # Percent shrub cover
+pfg_cvr <- counts$Perennial.Cover                     # Percent perennial forb and grass cover
+tri <- counts$TRI                                     # Topographic ruggedness
+trees <- as.numeric(counts$Trees.Present)             # Whether or not trees are present in the grid 
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
 #########################################################################################################
 
 # 2.1) Model definition ################################################################
-# Add random noise in the detection function intercepts
 # Note all distances are in units of 1km (and area in 1km2 units)
 
 # Model code
 sobs_model_code <- nimbleCode({
+  
   # Priors for all parameters 
   # ------------------------------------------------------------------
   
@@ -401,107 +289,94 @@ sobs_model_code <- nimbleCode({
   for(t in 1:nyears){
     beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
-
+  # Fixed effects oon abundance 
   beta_shrub ~ dnorm(0, sd = 2)     # Effect of shrub cover
-  # beta_shrub2 ~ dnorm(0, sd = 2)    # Effect of shrub cover squared
   beta_pfg ~ dnorm(0, sd = 2)       # Effect of Perennial Cover
-  # beta_pfg2 ~ dnorm(0, sd = 2)      # Effect of perennial cover squared
   beta_tri ~ dnorm(0, sd = 2)       # Effect of ruggedness
-  # beta_tri2 ~ dnorm(0, sd = 2)      # Effect of ruggedness squared
-  beta_patch ~ dnorm(0, sd = 2)     # Effect of patch size
   beta_tree ~ dnorm(0, sd = 2)      # Effect of trees being present
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
   
-  # Iterate over all survey grids
-  for(s in 1:ngrids){
+  # Iterate over all points
+  for(s in 1:npoints){
     
     # Zero-inflation component on abundance
     psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
     present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
-
-    # Iterate over all of the visits to each survey grid 
-    for(y in 1:nvst){ 
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[s, y, b]) <- -(midpt[b]^2) / (2 * sigma[s, y]^2)        # Half-normal detection function
-        f[s, y, b] <- (2 * midpt[b] * delta) / trunc_dist^2           # Prob density function out to max truncation distance 
-        pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]                     # Detection cell probability
-        pi_pd_c[s, y, b] <- f[s, y, b] / p_dct[s, y]                  # Proportion of total probability in each cell probability
+        log(g[s, b]) <- -(midpt[b]^2) / (2 * sigma[s]^2)  # Half-normal detection function
+        f[s, b] <- (2 * midpt[b] * delta) / trunc_dist^2  # Prob density function out to max truncation distance 
+        pi_pd[s, b] <- g[s, b] * f[s, b]                  # Detection cell probability
+        pi_pd_c[s, b] <- f[s, b] / p_dct[s]               # Proportion of total probability in each cell probability
       }
       # Rectangular integral approx. of integral that yields the Pr(capture)
-      p_dct[s, y] <- sum(pi_pd[s, y, ])
+      p_dct[s] <- sum(pi_pd[s, ])
       
       # Construction of the cell probabilities for the nints time intervals
       for (k in 1:nints){
-        pi_pa[s, y, k] <- p_a[s, y] * (1 - p_a[s, y])^(k - 1)         # Availability cell probability
-        pi_pa_c[s, y, k] <- pi_pa[s, y, k] / phi[s, y]                # Proportion of availability probability in each time interval class
+        pi_pa[s, k] <- phi[s] * (1 - phi[s])^(k - 1)      # Availability cell probability
+        pi_pa_c[s, k] <- pi_pa[s, k] / p_avail[s]         # Proportion of availability probability in each time interval class
       }   
       
       # Rectangular integral approx. of integral that yields the Pr(available)
-      phi[s, y] <- sum(pi_pa[s, y, ])
+      p_avail[s] <- sum(pi_pa[s, ])
       
       # Multiply availability with capture probability to yield total marginal probability
-      p_marg[s, y] <- p_dct[s, y] * phi[s, y]
+      p_cap[s] <- p_dct[s] * p_avail[s]
       
-      ### Binomial portion of mixture 
-      n_dct[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])                  # Number of individual birds captured (observations)
+      # Binomial portion of mixture 
+      n_dct[s] ~ dbin(p_cap[s], N_indv[s])  # Number of individual birds captured (observations)
       
       # Poisson abundance portion of mixture
-      N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
+      N_indv[s] ~ dpois(lambda[s] * (present[s] + 0.0001)) # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0 +                                    # Intercept on detecability
-                          alpha_obsv[observers[s, y]]                 # Effect of each observer on detectability
+      log(sigma[s]) <- alpha0 +                     # Intercept on detecability
+                       alpha_obsv[observers[s]]     # Effect of each observer on detectability
       
-      # Availability (p_a) Log-linear model for availability
-      logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability 
-                          gamma_date * day[s, y] +                    # Effect of scaled ordinal date 
-                          gamma_date2 * day[s, y]^2 +                 # Effect of scaled ordinal date squared 
-                          gamma_time * time[s, y] +                   # Effect of scaled time of day 
-                          gamma_time2 * time[s, y]^2                  # Effect of scaled time of day squared 
+      # Availability (phi) Log-linear model for availability
+      logit(phi[s]) <- gamma0 +                     # Intercept on availability 
+                       gamma_date * date[s] +       # Effect of scaled ordinal date 
+                       gamma_date2 * date[s]^2 +    # Effect of scaled ordinal date squared 
+                       gamma_time * time[s] +       # Effect of scaled time of day 
+                       gamma_time2 * time[s]^2      # Effect of scaled time of day squared 
       
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_year[years[s, y]] +                  # Intercept on abundance
-                           beta_shrub * shrub_cvr[s] +                # Effect of shrub cover
-                           # beta_shrub2 * shrub_cvr[s]^2 +             # Effect of shrub cover squared
-                           beta_pfg *  pfg_cvr[s] +                   # Effect of Perennial Cover
-                           # beta_pfg2 * pfg_cvr[s]^2 +                 # Effect of perennial cover squared
-                           beta_tri * tri[s] +                        # Effect of ruggedness
-                           # beta_tri2 * tri[s]^2 +                     # Effect of ruggedness squared
-                           beta_patch * patch_size[s] +               # Effect of shrub patch size
-                           beta_tree * trees[s]                       # Effect of trees being present
+      log(lambda[s]) <- beta0_year[years[s]] +      # Intercept on abundance
+                        beta_shrub * shrub_cvr[s] + # Effect of shrub cover
+                        beta_pfg *  pfg_cvr[s] +    # Effect of Perennial Cove
+                        beta_tri * tri[s] +         # Effect of ruggedness
+                        beta_tree * trees[s]        # Effect of trees being present
 
       # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
       # Compute fit statistic for observed data
-      e_val[s, y] <- p_marg[s, y] * N_indv[s, y]             # Expected value for binomial portion of the model
-      FT[s, y] <- (sqrt(n_dct[s, y]) - sqrt(e_val[s, y]))^2 
+      e_val[s] <- p_cap[s] * N_indv[s]             # Expected value for binomial portion of the model
+      FT[s] <- (sqrt(n_dct[s]) - sqrt(e_val[s]))^2 
       
       # Generate replicate count data and compute same fit stats for them
-      n_dct_new[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])              
-      FT_new[s, y] <- (sqrt(n_dct_new[s, y]) - sqrt(e_val[s, y]))^2 
-      
-    } # end loop through visits
+      n_dct_new[s] ~ dbin(p_cap[s], N_indv[s])              
+      FT_new[s] <- (sqrt(n_dct_new[s]) - sqrt(e_val[s]))^2 
     
   } # end loop through survey grids
   
   # Model for binned distance observations of every detected individual
   for(i in 1:nind){       # Loop over all detected individuals
-    dclass[i] ~ dcat(pi_pd_c[obs_grid[i], obs_visit[i], ]) # linking distance class data
-    tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])   # linking time removal data
+    dclass[i] ~ dcat(pi_pd_c[obs_point[i], ])    # linking distance class data
+    tint[i] ~ dcat(pi_pa_c[obs_point[i], ])      # linking time removal data
   } # end observation loop
   
   
   # Averages across grids and years
   mean_psi <- mean(psi[])                                  # Average occupancy probability
-  mean_phi <- mean(phi[,])                                 # Average availability probability
-  mean_p_dct <- mean(p_dct[,])                             # Average detection probability
+  mean_p_avail <- mean(p_avail[])                                  # Average availability probability
+  mean_p_dct <- mean(p_dct[])                              # Average detection probability
   
   # Add up fit stats across sites and years
-  fit <- sum(FT[,]) 
-  fit_new <- sum(FT_new[,]) 
+  fit <- sum(FT[]) 
+  fit_new <- sum(FT_new[]) 
   
   # c-hat value, should converge to ~1
   c_hat <- fit / fit_new
@@ -511,28 +386,25 @@ sobs_model_code <- nimbleCode({
   
 })
 
-# 2.2) Cpoints_mat# 2.2) Constants, data, Initial values, and dimensions #############################################
+# 2.2) Constants, data, Initial values, and dimensions #############################################
 
 # Constants to be fed into Nimble
 sobs_const <- list (
   # Misc. Constants
-  area = area,       # Number of points surveyed per grid per visit
-  delta = bin_size,        # Bin width
+  delta = delta,           # Bin width
   trunc_dist = trunc_dist, # Truncation distance
   
   # For loop sizes
-  ngrids = ngrids,         # Number of survey grids
+  npoints = npoints,       # Number of survey grids
   nind = nind,             # Number of individuals detected 
   nobsv = nobsv,           # Number of unique observers
-  nvst = nvst,             # Number of times each grid was surveyed (6)
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
-  nyears = nyears,          # Number of years we surveyd
+  nyears = nyears,         # Number of years we surveyed
   
   # Non-stochastic constants
-  years = years,          # Year when each survey took place
-  obs_visit  = obs_visit,  # Visit when each observation took place
-  obs_grid  = obs_grid,    # Grid of each observation 
+  years = years,           # Year when each survey took place
+  obs_point  = obs_point,  # Point associated with each observation 
   observers = observers    # Effect of observer associated with each survey
 )
 
@@ -548,35 +420,37 @@ sobs_dat <- list(
   # Abundance data
   tint = tint,            # Time interval for each observation
   time = time,            # Scaled mean time after sunrise 
-  day = day,              # Scaled date
+  date = date,              # Scaled date
   
   #Point level data
   n_dct = n_dct,           # Number of detected individuals per site
   shrub_cvr = shrub_cvr,   # Percent shrub cover
   pfg_cvr = pfg_cvr,       # Percent perennial forb and grass cover
   tri = tri,               # Topographic ruggedness
-  patch_size = patch_size, # Average size of shrub patches on the log scale
   trees = trees            # Whether or not trees are present in the grid 
 )
 # View Nimble data 
 str(sobs_dat)
 
-# Object dimensions
+#Object dimensions
 sobs_dims <- list(
-  g = c(ngrids, nvst, nbins),        # Cell prob x radial distance
-  f = c(ngrids, nvst, nbins),        # Cell prob x radial distance
-  sigma = c(ngrids, nvst),           # Linear combination on detectability
-  pi_pd = c(ngrids, nvst, nbins),    # Detection probability in each cell
-  pi_pd_c = c(ngrids, nvst, nbins),  # Proportion of total detection probability in each cell
-  p_dct = c(ngrids, nvst),           # Detection probability 
-  p_a = c(ngrids, nvst),             # Linear combination on avalibility  
-  pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
-  pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
-  phi = c(ngrids, nvst),             # Availability probability
-  lambda = c(ngrids, nvst),          # Poisson random variable
-  FT = c(ngrids , nvst),             # Freeman Tukey Discrepancy
-  FT_new = c(ngrids, nvst)           # New Freeman Tukey Discrepancy
+  g = c(npoints, nbins),        # Cell prob x radial distance
+  f = c(npoints, nbins),        # Cell prob x radial distance
+  sigma = npoints,              # Linear combination on detectability
+  pi_pd = c(npoints, nbins),    # Detection probability in each cell
+  pi_pd_c = c(npoints, nbins),  # Proportion of total detection probability in each cell
+  p_dct = npoints,              # Detection probability 
+  phi = npoints,                # Linear combination on avalibility  
+  pi_pa =  c(npoints, nints),   # Availability cell prob in each time interval
+  pi_pa_c = c(npoints, nints),  # Proportion of total availability probability in each cell
+  p_avail = npoints,            # Availability probability
+  lambda = npoints,             # Poisson random variable
+  e_val = npoints,              # Expected value for binomial portion of the model
+  FT = npoints,                 # Freeman Tukey Discrepancy
+  FT_new = npoints              # New Freeman Tukey Discrepancy
 )
+# View dimensions
+str(sobs_dims)
 
 # Initial Values
 sobs_inits <- list(
@@ -594,19 +468,15 @@ sobs_inits <- list(
   sd_beta0 = runif(1, 0, 0.1),
   beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
   beta_shrub = rnorm(1, 0, 0.1),
-  # beta_shrub2 = rnorm(1, 0, 0.1),
   beta_pfg = rnorm(1, 0, 0.1),
-  # beta_pfg2 = rnorm(1, 0, 0.1),
   beta_tri = rnorm(1, 0, 0.1),
-  # beta_tri2 = rnorm(1, 0, 0.1),
-  beta_patch = rnorm(1, 0, 0.1),
   beta_tree = rnorm(1, 0, 0.1),
   # Presence 
-  psi = runif(ngrids, 0.4, 0.6),
-  present = rbinom(ngrids, 1, 0.5),
+  psi = runif(npoints, 0.4, 0.6),
+  present = rbinom(npoints, 1, 0.5),
   # Simulated data
-  n_dct_new = count_mat,              # Initialize the new capture data at the existing data values
-  N_indv = count_mat + 1              # start each grid with an individual present
+  n_dct_new = n_dct,              # Initialize the new capture data at the existing data values
+  N_indv = n_dct + 1              # start each grid with an individual present
 )  
 # View the initial values
 str(sobs_inits)
@@ -614,12 +484,8 @@ str(sobs_inits)
 # Params to save
 sobs_params <- c("beta0_year",
                  "beta_shrub",
-                 # "beta_shrub2",
                  "beta_pfg",
-                 # "beta_pfg2",
                  "beta_tri",
-                 # "beta_tri2",
-                 "beta_patch",
                  "beta_tree",
                  "gamma0", 
                  "gamma_date", 
@@ -630,7 +496,7 @@ sobs_params <- c("beta0_year",
                  "alpha_obsv",
                  "mean_psi",
                  "mean_p_dct",
-                 "mean_phi",
+                 "mean_p_avail",
                  "fit", 
                  "fit_new", 
                  "c_hat",
@@ -646,8 +512,8 @@ sobs_model_vect <- nimbleModel(sobs_model_code,
                                dimensions = sobs_dims,
                                inits = sobs_inits)
 
-# MCMC settings for default nimble model setup
-nc_test <- 1  ;  ni_test <- 1000  ;  nb_test <- 500  ;  nt_test <- 10          
+# # MCMC settings for default nimble model setup
+# nc_test <- 1  ;  ni_test <- 1000  ;  nb_test <- 500  ;  nt_test <- 10          
 
 # From Kezia and Liz:
 # Next, run an MCMC with NIMBLE defaults; this can be a slow step.
@@ -694,21 +560,15 @@ sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", 
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
                              "beta_shrub",
-                             # "beta_shrub2",
                              "beta_pfg",
-                             # "beta_pfg2",
                              "beta_tri",
-                             # "beta_tri2",
-                             "beta_patch", "beta_tree")
+                             "beta_tree")
 
 sobs_mcmcConf$addSampler(target = c("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
                                     "beta_shrub", 
-                                    # "beta_shrub2",
                                     "beta_pfg", 
-                                    # "beta_pfg2",
                                     "beta_tri", 
-                                    # "beta_tri2",
-                                    "beta_patch", "beta_tree"),
+                                    "beta_tree"),
                          type = 'RW_block')
 
 # View the blocks
@@ -749,9 +609,6 @@ difftime(Sys.time(), start)                             # End time for the sampl
 saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                      study_species, "_", model_scale, "_landscape_model_out.rds"))
 
-      } # End loop through scales
-  } # End loop over all species
-
 ################################################################################
 # 3) Model output and diagnostics ##############################################
 ################################################################################
@@ -785,7 +642,7 @@ sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pr
 # Perameters for the MCMC plot
 plot_params <- c(
   # "beta0_year",
-  "beta_shrub", "beta_pfg", "beta_tri", "beta_patch", "beta_tree")
+  "beta_shrub", "beta_pfg", "beta_tri", "beta_tree")
 
 
 # View MCMC plot
@@ -812,39 +669,26 @@ print(bind_rows(beta0_year1, beta0_year2, beta0_year3))
 
 # Extract effect sizes
 beta_shrub <- sobs_mcmc_out$summary$all.chains[24,]
-# beta_shrub2 <- sobs_mcmc_out$summary$all.chains[26,]
 beta_pfg <- sobs_mcmc_out$summary$all.chains[23,]
-# beta_pfg2 <- sobs_mcmc_out$summary$all.chains[24,]
 beta_tri <- sobs_mcmc_out$summary$all.chains[26,]
-# beta_tri2 <- sobs_mcmc_out$summary$all.chains[29,]
-beta_patch <- sobs_mcmc_out$summary$all.chains[22,]
 beta_tree <- sobs_mcmc_out$summary$all.chains[25,]
 # View Betas
 bind_rows(beta_shrub, 
-          # beta_shrub2, 
           beta_pfg, 
-          # beta_pfg2,
           beta_tri, 
-          # beta_tri2,
-          beta_patch, beta_tree)
+          beta_tree)
 
 # Combine everything into a dataframe
 beta_dat <- data.frame(bind_rows(beta0_year1, beta0_year2, beta0_year3,
                                  beta_shrub, 
-                                 # beta_shrub2, 
                                  beta_pfg,
-                                 # beta_pfg2,
                                  beta_tri, 
-                                 # beta_tri2, 
-                                 beta_patch, beta_tree)) %>% 
+                                 beta_tree)) %>% 
   mutate(Parameter = c("Beta0.Year1", "Beta0.Year2", "Beta0.Year3",
                        "Beta.Shrub", 
-                       # "Beta.Shrub2", 
                        "Beta.PFG", 
-                       # "Beta.PFG2",
                        "Beta.TRI", 
-                       # "Beta.TRI2", 
-                       "Beta.Patch", "Beta.Tree")) %>% 
+                       "Beta.Tree")) %>% 
   relocate(Parameter, .before = Mean) %>% 
   rename(CI.lb = X95.CI_low,
          CI.ub = X95.CI_upp)
@@ -991,40 +835,6 @@ tri_pred_plot <- beta_dat_pred %>%
 
 # Display the plot
 tri_pred_plot
-
-# Shrub patches plot -------------------------------------------------------
-
-# Find the mean and sd of Shrub patches
-# 125m scale
-# patches_mean <- mean(covs$ln.Shrub.Patch.Size.125m)
-# patches_sd = sd(covs$ln.Shrub.Patch.Size.125m)
-# 1km scale
-# patches_mean <- mean(covs$ln.Shrub.Patch.Size.1km)
-# patches_sd = sd(covs$ln.Shrub.Patch.Size.1km)
-# 5km scale
-patches_mean <- mean(covs$ln.Shrub.Patch.Size.5km)
-patches_sd = sd(covs$ln.Shrub.Patch.Size.5km)
-
-# Plot Shrub patches
-patch_pred_plot <- beta_dat_pred %>% 
-  mutate(
-    # Calculate the predicted response to shrub patch size for all years
-    Patch.Pred.Trend =  exp(Beta0.Mean + Beta.Patch.Mean * Pred),
-    Patch.Pred.lb = exp(Beta0.lb + Beta.Patch.CI.lb * Pred),
-    Patch.Pred.ub =  exp(Beta0.ub +  Beta.Patch.CI.ub * Pred),
-    # Transform shrub patches back to the native scale (and undo log-transformation)
-    Pred.Naive = exp(Pred * patches_sd + patches_mean)
-  ) %>% 
-  ggplot() +
-  geom_line(aes(x = Pred.Naive, y = Patch.Pred.Trend), color = "blue", lwd = 1) + 
-  geom_ribbon(aes(x = Pred.Naive, ymin = Patch.Pred.lb, ymax = Patch.Pred.ub), 
-              alpha = 0.2, fill = "blue") +  
-  labs(title = "", x = "Average Size of Shrub patches (m^2)", y = "Predicted Brewer's Sparrow Abundance (birds/km^2)") +
-  ylim(0, 65) +
-  theme_classic()
-
-# Display the plot
-patch_pred_plot
 
 # Trees Present plot -------------------------------------------------------
 

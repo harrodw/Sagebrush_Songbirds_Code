@@ -727,11 +727,11 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       study_species, "_fire_model.rds"))
+vesp_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+                                       "VESP", "_fire_model.rds"))
   
 # Traceplots and density graphs 
-MCMCtrace(object = sobs_mcmc_out$samples,
+MCMCtrace(object = vesp_mcmc_out$samples,
           params = sobs_params,
           pdf = TRUE,
           open_pdf = TRUE,
@@ -742,11 +742,223 @@ MCMCtrace(object = sobs_mcmc_out$samples,
           type = 'both')
 
 # View MCMC summary
-MCMCsummary(object = sobs_mcmc_out$samples, 
+MCMCsummary(object = vesp_mcmc_out$samples, 
             params = sobs_params,
             round = 2)
 
 # View MCMC plot
-MCMCplot(object = sobs_mcmc_out$samples,
+MCMCplot(object = vesp_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
+
+#####################################################################################
+# 4) Posterior Inference ############################################################
+#####################################################################################
+
+# View MCMC summary
+vesp_mcmc_out$summary$all.chains
+
+# 4.1) Extract coefficient values ###############################################################
+
+# Extract Beta0 values
+beta0_year1 <- vesp_mcmc_out$summary$all.chains[19,]
+beta0_year2 <- vesp_mcmc_out$summary$all.chains[20,]
+beta0_year3 <- vesp_mcmc_out$summary$all.chains[21,]
+# View intercepts
+print(bind_rows(beta0_year1, beta0_year2, beta0_year3))
+
+# Extract effect sizes
+beta_burn <- vesp_mcmc_out$summary$all.chains[22,]
+beta_burnsev <- vesp_mcmc_out$summary$all.chains[23,]
+beta_elv <- vesp_mcmc_out$summary$all.chains[24,]
+beta_fyear <- vesp_mcmc_out$summary$all.chains[25,]
+
+# View Betas
+bind_rows(beta_burn,
+          beta_burnsev,
+          beta_elv,
+          beta_fyear)
+
+# Combine everything into a dataframe
+beta_dat <- data.frame(bind_rows(beta0_year1, beta0_year2, beta0_year3,
+                                 beta_burn, 
+                                 beta_burnsev, 
+                                 beta_elv,
+                                 beta_fyear)) %>% 
+  mutate(Parameter = c("Beta0.Year1", "Beta0.Year2", "Beta0.Year3",
+                       "Beta.Burn", "Beta.Burn.Sev", "Beta.Elv", "Beta.fYear"
+  )) %>% 
+  relocate(Parameter, .before = Mean) %>% 
+  rename(CI.lb = X95.CI_low,
+         CI.ub = X95.CI_upp)
+
+# View output dataframe
+glimpse(beta_dat)
+
+# 4.2) Predicted values ##########################################################################
+
+# Pick a number of samples
+n <- 1000
+
+# Rearrange the columns that I need
+beta_dat_long <- beta_dat %>%
+  pivot_longer(cols = c(Mean, CI.lb, CI.ub),
+               names_to = "Statistic",
+               values_to = "Value") %>% 
+  mutate(ColumnName = paste(Parameter, Statistic, sep = ".")) %>%
+  select(ColumnName, Value)
+
+# Then pivot to the desired format
+
+# Then pivot to the desired format
+beta_dat_pred <- beta_dat_long %>%
+  pivot_wider(names_from = ColumnName,
+              values_from = Value) %>%
+  # Average the intercept across all years
+  mutate(Beta0.Mean = rowMeans(select(., matches("Beta0.Year[0-9]+\\.Mean")), na.rm = TRUE),
+         Beta0.lb = rowMeans(select(., matches("Beta0.Year[0-9]+\\.CI.lb")), na.rm = TRUE),
+         Beta0.ub = rowMeans(select(., matches("Beta0.Year[0-9]+\\.CI.ub")), na.rm = TRUE)) %>% 
+  # Repeat each sample n times
+  slice(rep(1:n(), each = n)) %>% 
+  # Add in the predictive values 
+  mutate(Pred = seq(from = -3, to = 3, length.out = n))
+
+# View the new data 
+glimpse(beta_dat_pred)
+head(beta_dat_pred, n = Inf)
+# 4.3) Plot each predicted value ###########################################
+
+# Burn verses unburned plot  --------------------------------------------------------------------
+
+# Make the plot
+burn_pred_plot <- beta_dat_pred %>% 
+  slice_head(n = 2) %>% 
+  select(Beta0.Mean, Beta0.lb, Beta0.ub, Beta.Burn.Mean, Beta.Burn.CI.lb, Beta.Burn.CI.ub) %>% 
+  mutate(Pred = c(0, 1)) %>% 
+  mutate(
+    # Calculate the predicted response to fire for all years
+    Burn.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean * Pred),
+    Burn.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb * Pred),
+    Burn.Pred.ub =  exp(Beta0.ub +  Beta.Burn.CI.ub * Pred)
+  ) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = factor(Pred), y = Burn.Pred.Trend), col = "blue") +
+  geom_errorbar(aes(x = factor(Pred), ymin = Burn.Pred.lb, ymax = Burn.Pred.ub), 
+                width = 0.2, color = "lightblue", size = 1) +
+  scale_x_discrete(labels = c("0" = "Reference", "1" = "Burned")) +
+  labs(title = "", x = "", y = "Predicted Abundance (birds/km^2)") +
+  theme_classic() +
+  ylim(0, 50) +
+  theme(axis.text = element_text(size = 12)) 
+
+# Display the plot
+burn_pred_plot
+
+# Burn Sevarity plot -------------------------------------------------------
+# Mean and sd for burn sevarity are found earlier in the script 
+
+# Plot burn sevarity
+rdnbr_pred_plot <- beta_dat_pred %>% 
+  mutate(
+    # Calculate the reference grid intercept 
+    Beta0.Pred.Trend =  exp(Beta0.Mean),
+    Beta0.Pred.lb = exp(Beta0.lb),
+    Beta0.Pred.ub =  exp(Beta0.ub),
+    # Calculate the predicted response to burn sevarity for all years
+    Burn.Sev.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.Burn.Sev.Mean * Pred),
+    Burn.Sev.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.Burn.Sev.CI.lb * Pred),
+    Burn.Sev.Pred.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.Burn.Sev.CI.ub * Pred),
+    # Transform burn severity cover back to the native scale
+    Pred.Naive = Pred * sd_rdnbr + mean_rdnbr
+  ) %>% 
+  filter(Pred.Naive > 0) %>% 
+  # filter(Burn.Sev.Pred.Trend >= Beta0.Pred.Trend) %>% 
+  ggplot() +
+  # Mean and CI for counts on reference grids
+  geom_line(aes(x = Pred.Naive, y = Beta0.Pred.Trend), col = "blue", lwd = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = Beta0.Pred.lb, ymax = Beta0.Pred.ub),
+              alpha = 0.2, fill = "blue") +
+  # Effect of burn sevarity
+  geom_line(aes(x = Pred.Naive, y = Burn.Sev.Pred.Trend), color = "red", lwd = 1) + 
+  geom_ribbon(aes(x = Pred.Naive, ymin = Burn.Sev.Pred.lb, ymax = Burn.Sev.Pred.ub), 
+              alpha = 0.2, fill = "red") +  
+  labs(title = "", x = "rDNBR Burn Sevarity", y = "Predicted Abundance (birds/km^2)") +
+  ylim(0, 60) +
+  theme_classic()
+
+# Display the plot
+rdnbr_pred_plot
+
+# Years since fire plot -------------------------------------------------------
+# Mean and sd for time since fire are found earlier in the script 
+
+# Plot burn sevarity
+fyear_pred_plot <- beta_dat_pred %>% 
+  mutate(
+    # Calculate the reference grid intercept 
+    Beta0.Pred.Trend =  exp(Beta0.Mean),
+    Beta0.Pred.lb = exp(Beta0.lb),
+    Beta0.Pred.ub =  exp(Beta0.ub),
+    # Calculate the predicted response to burn sevarity for all years
+    fYear.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.fYear.Mean * Pred),
+    fYear.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.fYear.CI.lb * Pred),
+    fYear.Pred.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.fYear.CI.ub * Pred),
+    # Transform burn severity cover back to the native scale
+    Pred.Naive = Pred * sd_burnY + mean_burnY
+  ) %>% 
+  # Time Since fire should start at 0 years
+  filter(Pred.Naive >= 0) %>%
+  ggplot() +
+  # Mean and CI for counts on reference grids
+  geom_line(aes(x = Pred.Naive, y = Beta0.Pred.Trend), col = "blue", lwd = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = Beta0.Pred.lb, ymax = Beta0.Pred.ub),
+              alpha = 0.2, fill = "blue") +
+  # Effect of burn sevarity
+  geom_line(aes(x = Pred.Naive, y = fYear.Pred.Trend), color = "red", lwd = 1) + 
+  geom_ribbon(aes(x = Pred.Naive, ymin = fYear.Pred.lb, ymax = fYear.Pred.ub), 
+              alpha = 0.2, fill = "red") +  
+  labs(title = "", x = "Years since Fire", y = "Predicted Abundance (birds/km^2)") +
+  ylim(0, 60) +
+  theme_classic()
+
+# Display the plot
+fyear_pred_plot
+
+# Elevation plot -------------------------------------------------------
+
+# Pull out the mean and sd for elevation
+mean_elv <- mean(covs$Elevation.125m)
+sd_elv <- sd(covs$Elevation.125m)
+
+# Plot Eevation
+elv_pred_plot <- beta_dat_pred %>% 
+  mutate(
+    # Calculate the reference grid trend with elevation 
+    Ref.Elv.Trend =  exp(Beta0.Mean + Beta.Elv.Mean * Pred),
+    Ref.Elv.lb = exp(Beta0.lb + Beta.Elv.CI.lb * Pred),
+    Ref.Elv.ub =  exp(Beta0.ub + Beta.Elv.CI.ub * Pred),
+    # Calculate the burn grid trend with elevation
+    Burn.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.Elv.Mean * Pred),
+    Burn.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.Elv.CI.lb * Pred),
+    Burn.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.Elv.CI.ub * Pred),
+    # Transform elevationcover back to the native scale
+    Pred.Naive = Pred * sd_elv + mean_elv
+  ) %>% 
+  # Elevation should start at 0 years
+  # filter(Pred.Naive >= 0) %>%
+  ggplot() +
+  # Effect of elevation on reference grids
+  geom_line(aes(x = Pred.Naive, y = Ref.Elv.Trend), col = "blue", lwd = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = Ref.Elv.lb, ymax = Ref.Elv.ub),
+              alpha = 0.2, fill = "blue") +
+  # Effect of elevation on burn grids
+  geom_line(aes(x = Pred.Naive, y = Burn.Trend), color = "red", lwd = 1) + 
+  geom_ribbon(aes(x = Pred.Naive, ymin = Burn.lb, ymax = Burn.ub), 
+              alpha = 0.2, fill = "red") +  
+  labs(title = "", x = "Elevation (m)", y = "Predicted Abundance (birds/km^2)") +
+  ylim(0, 100) +
+  theme_classic()
+
+# Display the plot
+elv_pred_plot
+
