@@ -98,8 +98,12 @@ Elevation <- terra::extract(x = elevation,
 TRI <- terra::extract(x = tri,
                            y = point_buff,
                            fun = function(x) mean(x, na.rm = TRUE))
+# Summarize Tree Cover
+Trees.Present <- terra::extract(x = tree_patches,
+                                y = point_buff,
+                                fun = function(x) sum(x, na.rm = TRUE))
 
-
+hist(Trees.Present[,2])
 # Add these to the data frame
 point_covs$Shrub.Cover <- Shrub.Cover[,2]
 point_covs$Perennial.Cover <- Perennial.Cover[,2]
@@ -107,6 +111,11 @@ point_covs$Annual.Cover <- Annual.Cover[,2]
 point_covs$Bare.Ground.Cover <- Bare.Ground.Cover[,2]
 point_covs$Elevation <- Elevation[,2]
 point_covs$TRI <- TRI[,2]
+point_covs$Trees.Present <- Trees.Present[,2]
+# Switch tree presence to binary
+point_covs <- point_covs %>% 
+  mutate(Trees.Present = case_when(Trees.Present >= 1 ~ 1,
+                                   Trees.Present < 1 ~ 0))
 
 # View the new point covariates
 glimpse(point_covs)
@@ -162,15 +171,9 @@ for(g in 1:npoints){
   message(paste("Extracted 125m patch characteristics for point", g, "out of", npoints))
 }
 
-# Make a binary Tree presence abcence column
-point_covs <- point_covs %>% 
-  mutate(Trees.Present = case_when(n.Tree.Patches > 1 ~ 1,
-                                    n.Tree.Patches <= 1 ~ 0))
-
-
 # And view
 glimpse(point_covs)
-
+hist(point_covs$Trees.Present)
 # Export the grid summaries to the current workspace
 write.csv(point_covs, "Data\\Outputs\\point_covs.csv")
 # And to my box data folder

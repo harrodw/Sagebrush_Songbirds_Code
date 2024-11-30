@@ -54,25 +54,19 @@ glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 
-# List of all species
-all_species <- c("SATH", "WEME", "VESP", "HOLA", "GTTO", "SABS")
-
-# Loop over all species
-for(j in 1:length(all_species)){
 
 # All possible scales
 model_scales <- c("125m", "5km")
 
 # Loop over both scales 
-for(m in 1:length(model_scales)){
+# for(m in 1:length(model_scales)){
 
 # Pick a scale
-model_scale <- model_scales[m]
-# model_scale <- model_scales[2]
+# model_scale <- model_scales[m]
+model_scale <- model_scales[1]
 
 # Define relevant species
-study_species <- all_species[j]
-# study_species <- "BRSP"
+study_species <- "BRSP"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
@@ -577,6 +571,8 @@ sobs_dims <- list(
   FT = c(ngrids , nvst),             # Freeman Tukey Discrepancy
   FT_new = c(ngrids, nvst)           # New Freeman Tukey Discrepancy
 )
+# View the dimensions
+str(sobs_dims)
 
 # Initial Values
 sobs_inits <- list(
@@ -748,9 +744,8 @@ difftime(Sys.time(), start)                             # End time for the sampl
 # Save model output to local drive
 saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                      study_species, "_", model_scale, "_landscape_model_out.rds"))
+# } # End loop through scales
 
-      } # End loop through scales
-  } # End loop over all species
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
