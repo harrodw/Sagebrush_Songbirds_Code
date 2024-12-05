@@ -79,13 +79,14 @@ glimpse(counts_0inf)
 
 # Make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
-  distinct(Full.Point.ID, Grid.ID, Year, Ord.Date, MAS, Observer.ID, Year, Visit) %>% 
+  distinct(Full.Point.ID, Grid.ID, Grid.Type, Year, Ord.Date, MAS, Observer.ID, Year, Visit) %>% 
   # Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
   mutate(Observer.ID = case_when(Observer.ID == "Alex" ~ "Aidan", TRUE ~ Observer.ID),
          # Each visit should be treated separately
-         Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-")) %>% 
+         Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-"),
+         Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1) %>% 
   group_by(Visit.ID) %>% 
-  reframe(Visit.ID, Full.Point.ID, Grid.ID,Year, Observer.ID,  MAS, Ord.Date) %>% 
+  reframe(Visit.ID, Full.Point.ID, Burned, Grid.ID,Year, Observer.ID, MAS, Ord.Date) %>% 
   distinct()
 
 #...and view
@@ -128,7 +129,7 @@ counts <- counts_temp %>%
          Observer.ID.num = as.numeric(Observer.ID)) %>% 
   # Reorder the columns and remove columns that are no longer needed
   dplyr::select(Visit.ID, Visit.ID.num, Year, Year.num, Observer.ID, Observer.ID.num, Count, 
-         MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, UTM.X, UTM.Y) 
+         MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned, UTM.X, UTM.Y) 
 #...and view
 glimpse(counts)
 
@@ -327,6 +328,7 @@ sobs_model_code <- nimbleCode({
       log(sigma[s]) <- alpha0 +                     # Intercept on detecability
                        alpha_obsv[observers[s]]     # Effect of each observer on detectability
       
+      
       # Availability (phi) Log-linear model for availability
       logit(phi[s]) <- gamma0 +                     # Intercept on availability 
                        gamma_date * date[s] +       # Effect of scaled ordinal date 
@@ -360,7 +362,7 @@ sobs_model_code <- nimbleCode({
 
   # Averages across grids and years
   mean_psi <- mean(psi[])                                  # Average occupancy probability
-  mean_p_avail <- mean(p_avail[])                                  # Average availability probability
+  mean_p_avail <- mean(p_avail[])                          # Average availability probability
   mean_p_dct <- mean(p_dct[])                              # Average detection probability
 
   # Add up fit stats across sites and years
@@ -470,19 +472,20 @@ sobs_inits <- list(
 str(sobs_inits)
 
 # Params to save
-sobs_params <- c("mean_beta0",
-                 "beta0_year",
+sobs_params <- c(
+                 "mean_beta0",
+                 # "beta0_year",
                  "beta_shrub",
                  "beta_pfg",
                  "beta_tri",
                  "beta_tree",
                  "gamma0", 
-                 "gamma_date", 
-                 "gamma_date2", 
-                 "gamma_time", 
-                 "gamma_time2", 
+                 # "gamma_date", 
+                 # "gamma_date2", 
+                 # "gamma_time", 
+                 # "gamma_time2", 
                  "alpha0",
-                 "alpha_obsv",
+                 # "alpha_obsv",
                  "mean_psi",
                  "mean_p_dct",
                  "mean_p_avail",
@@ -576,8 +579,8 @@ cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # c
 
 # MCMC settings for the real model. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1           # Quick test to see if the model runs
-# nc <- 3  ;  ni <- 150000  ;  nb <- 50000;  nt <- 10    # longer test where most parameters should
-nc <- 4;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
+# nc <- 3  ;  ni <- 200000  ;  nb <- 175000;  nt <- 25    # longer test where most parameters should
+nc <- 3;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
 
 # Quick check of how many samples we'll keep in the posterior
 message(paste((ni - nb) / nt), " samples will be kept from the posterior")
@@ -630,8 +633,11 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 
 # Perameters for the MCMC plot
 plot_params <- c(
-  "beta0_year",
-  "beta_shrub", "beta_pfg", "beta_tri", "beta_tree")
+  # "beta0_year",
+  "beta_shrub", 
+  "beta_pfg", 
+  "beta_tri", 
+  "beta_tree")
 
 
 # View MCMC plot
@@ -650,9 +656,9 @@ sobs_mcmc_out$summary$all.chains
 # 4.1) Extract coefficient values ###############################################################
 
 # Extract Beta0 values
-beta0_year1 <- sobs_mcmc_out$summary$all.chains[19,1]
-beta0_year2 <- sobs_mcmc_out$summary$all.chains[20,1]
-beta0_year3 <- sobs_mcmc_out$summary$all.chains[21,1]
+beta0_year1 <- sobs_mcmc_out$summary$all.chains[18,1]
+beta0_year2 <- sobs_mcmc_out$summary$all.chains[19,1]
+beta0_year3 <- sobs_mcmc_out$summary$all.chains[20,1]
 # beta0 <- sobs_mcmc_out$summary$all.chains[19,1]
 beta0 <- mean(c(beta0_year1, beta0_year2, beta0_year3))
 # View intercepts
@@ -660,10 +666,10 @@ c(beta0_year1, beta0_year2, beta0_year3)
 beta0
 
 # Extract effect sizes
-beta_shrub <- sobs_mcmc_out$summary$all.chains[24,1]
-beta_pfg <- sobs_mcmc_out$summary$all.chains[23,1]
-beta_tri <- sobs_mcmc_out$summary$all.chains[26,1]
-beta_tree <- sobs_mcmc_out$summary$all.chains[25,1]
+beta_shrub <- sobs_mcmc_out$summary$all.chains[22,1]
+beta_pfg <- sobs_mcmc_out$summary$all.chains[21,1]
+beta_tri <- sobs_mcmc_out$summary$all.chains[24,1]
+beta_tree <- sobs_mcmc_out$summary$all.chains[23,]
 # View Betas
 c(beta_shrub, beta_pfg, beta_tri, beta_tree)
 
@@ -689,6 +695,7 @@ tree_rast <- rast(paste0(ras_path, "tree_patches.tif"))
 
 # Add in SF layers
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
+fires <- st_read(paste0(ras_path, "fire_perimeters_st_rg.shp"))
 treatments <- st_read(paste0(ras_path, "treatments.shp"))
 
 # Project sf layers
@@ -753,7 +760,7 @@ beta_tri_rast <- beta_tri * tri_rast_scl
 beta_tree_rast <- beta_tree * tree_rast_agg
 
 # Combine all predictive layers
-pred_rast_ln <- beta0_rast + beta_shrub_rast + beta_pfg_rast + beta_tri_rast + beta_tree_rast
+pred_rast_ln <- sum(c(beta0_rast, beta_shrub_rast, beta_pfg_rast, beta_tri_rast, beta_tree_rast))
 
 # Exponentiate the predictive raster
 pred_rast_lg <- exp(pred_rast_ln)

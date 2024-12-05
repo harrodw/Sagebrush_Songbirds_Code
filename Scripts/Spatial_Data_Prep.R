@@ -2,6 +2,8 @@
 # Creator: Will Harrod
 # Created: 02/02/2024
 # Start here ---------------------------------------------------------------------------------
+
+# Clear Environments
 rm(list = ls())
 
 # Load packages
@@ -69,7 +71,8 @@ grid_buff_lg <- st_as_sf(grid_centers) %>%
 
 # Add in the fire perimeters
 fire_perms <- st_read(paste0(ras_path, "fire_perimeters.shp")) %>% 
-  dplyr::select(geometry) %>% 
+  mutate(Ig.Year = as.numeric(str_extract(Ig_Date, "\\d{4}"))) %>% 
+  dplyr::select(geometry, Ig.Year) %>% 
   st_transform(target_crs)
 
 # Tmap perameters 
@@ -80,15 +83,15 @@ tmap_options(check.and.fix = TRUE)
 # Plot
 tm_shape(fire_perms) +
   tm_polygons(col = "darkred", alpha = 0.4) +
-  tm_shape(grid_buff_lg) +
-  tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"), 
-              alpha = 0.7, title = "125m radius") +
-  tm_shape(grid_buff_med) +
-  tm_polygons(col = "Grid.Type", palette = c("orange", "turquoise"), 
-              alpha = 0.7, title = "1km radius") +
+  # tm_shape(grid_buff_lg) +
+  # tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"),
+  #             alpha = 0.7, title = "125m radius") +
+  # tm_shape(grid_buff_med) +
+  # tm_polygons(col = "Grid.Type", palette = c("orange", "turquoise"),
+  #             alpha = 0.7, title = "1km radius") +
   tm_shape(grid_buff_sm) +
-  tm_polygons(col = "Grid.Type", palette = c("red", "blue"), 
-              alpha = 0.7, title = "5km radius") 
+  tm_polygons(col = "Grid.Type", palette = c("red", "blue"),
+              alpha = 0.7, title = "5km radius")
   
 # 1.2) Add rasters ############################################################################
 
@@ -553,3 +556,221 @@ write.csv(grid_covs_final, "Data\\Outputs\\grid_covs.csv")
 # And to my box data folder. Feel free to comment this out
 write.csv(grid_covs_final, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\grid_covs.csv")
 
+######################################################################################################
+# 3) Pre fire vegetation conditions ##################################################################
+######################################################################################################
+
+# Clear Environments
+rm(list = ls())
+
+# Load packages
+library(tidyverse)
+library(terra)
+library(sf)
+library(ggcorrplot)
+
+# Set a coordinate reference system (UTM Zone 12N)
+target_crs <- "EPSG:32612"
+
+# Add in the data
+sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
+  dplyr::select(-X) #Remove the column that excel generated
+#View the data
+glimpse(sobs)
+
+# Create a new covariate storage object for the centroid of each survey grid
+# (Can replace this with any set of UTM coordinates)
+pre_fire_covs <- sobs %>% 
+  group_by(Grid.ID) %>% 
+  reframe(Grid.ID,
+          Grid.Type,
+          Grid.X = mean(UTM.X),
+          Grid.Y = mean(UTM.Y)) %>% 
+  distinct(Grid.ID, Grid.Type, Grid.X, Grid.Y) %>%
+  # Add storage covariates (PF = pre fire)
+  mutate(
+         # Temporary covariates
+         Fire.Pixels = NA,
+         Shrub.Cover.tmp = NA,
+         PFG.Cover.tmp = NA,
+         AFG.Cover.tmp = NA,
+         BG.Cover.tmp = NA, 
+         Tree.Cover.tmp = NA,
+         # Perminant covariates
+         Fire.Year = NA,
+         Shrub.Cover.PF = NA,
+         PFG.Cover.PF = NA,
+         AFG.Cover.PF = NA,
+         BG.Cover.PF = NA,
+         Tree.Cover.PF = NA)
+# View covs
+glimpse(pre_fire_covs)
+
+# Create a new buffer object (657m) is the smallest distance that includes all points in a grid)
+pre_fire_buff <- pre_fire_covs %>%
+  select(Grid.ID, Grid.Type, Grid.X, Grid.Y) %>% 
+  st_as_sf(coords = c("Grid.X", "Grid.Y")) %>% 
+  st_set_crs(target_crs) %>% 
+  st_buffer(dist = 657)
+# View buffer
+pre_fire_buff 
+
+# Path to the fire perimeters
+fire_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
+
+# Add in the fire perimeters
+fire_perms <- st_read(paste0(fire_path, "fire_perimeters.shp")) %>% 
+  mutate(Ig.Year = as.numeric(str_extract(Ig_Date, "\\d{4}"))) %>% 
+  dplyr::select(geometry, Ig.Year) %>% 
+  st_transform(target_crs)
+
+# File path for veg cover (all RAP years must be in this folder with no other files)
+# (If you open any raster in Arc GIS you'll need to go in and delete the temporary files that Arc Creates)
+rap_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\RAP\\"
+
+# List of all Rap data years recursively
+rap_files <- list.files(rap_path, recursive = TRUE)
+# View files
+rap_files 
+
+# Create an object holding all years
+rap_years <- sort(as.numeric(str_extract(rap_files, "\\d{4}")))
+# View years
+rap_years
+
+# Define which years for which I have vegetation data
+nyears_rap <- length(rap_years)
+# View how many years
+nyears_rap 
+
+# Loop through each year to extract pre fire vegetation data
+start <- Sys.time()  
+start # Start time
+for(i in 2:(nyears_rap)){ 
+  # run a specific year to test the loop (comment out after testing)
+  i <- which(rap_years == 2017)
+  
+  # define the year for the current iteration
+  year <- rap_years[i]
+  
+  # Select only the fires from that year
+  fires <- fire_perms %>% 
+    filter(Ig.Year == year)
+
+  # End the loop if there are no fires
+  if (nrow(fires) == 0) {
+    message(paste0("No fires in the study region during year:  ", year, 
+                   " (", i-1, " of ", nyears_rap-1, " years)"))
+    next
+  }
+  
+  # Read in veg cover raster for the previous year
+  rap_rast <- rast(paste0(rap_path, "RAP_VegCover_", year - 1, ".tif")) %>% 
+    project(target_crs) # Project to the same CRS as the fires
+  
+  # Clip that raster to the fires from that year
+  rap_rast_clp <- mask(rap_rast, fires)
+  
+  # Create a reference raster so that I can see which grids are truely in the fire
+  ref_rast <- rap_rast_clp$SHR
+  # Only the values inside the fire are coded as 1
+  ref_rast[!is.na(ref_rast)] <- 1 
+
+  # Isolate each layer of the raster
+  shrub_rast <- rap_rast_clp$SHR # Shrub cover
+  pfg_rast <- rap_rast_clp$PFG # Perennial for and grass cover
+  afg_rast <- rap_rast_clp$AFG # Annual grass cover
+  tree_rast <- rap_rast_clp$TRE # Tree cover
+  bg_rast <- rap_rast_clp$BGR # Bare gound cover
+
+  # Reset a temporary summary object for the mean value of each covariate within the buffer
+  pixel_count <- terra::extract(x = ref_rast, y = pre_fire_buff, fun = function(x) sum(x, na.rm = TRUE)) # Summary of how many raster pixels are inside that buffer
+  shrub_cvr <- terra::extract(x = shrub_rast, y = pre_fire_buff, fun = function(x) mean(x, na.rm = TRUE)) # Shrub
+  pfg_cvr <- terra::extract(x = pfg_rast, y = pre_fire_buff, fun = function(x) mean(x, na.rm = TRUE)) # Perennial forbs and grass
+  afg_cvr <- terra::extract(x = afg_rast, y = pre_fire_buff, fun = function(x) mean(x, na.rm = TRUE)) # Annual grasses
+  tree_cvr <- terra::extract(x = tree_rast, y = pre_fire_buff, fun = function(x) mean(x, na.rm = TRUE)) # Trees
+  bg_cvr <- terra::extract(x = bg_rast, y = pre_fire_buff, fun = function(x) mean(x, na.rm = TRUE)) # Bare ground
+  
+  # Assign those covariate summaries to the covariates data frame
+  pre_fire_covs$Fire.Pixels <- pixel_count[,2] # Summary of how many raster pixels are inside that buffer
+  pre_fire_covs$Shrub.Cover.tmp <- shrub_cvr[,2] # Shrub
+  pre_fire_covs$PFG.Cover.tmp <- pfg_cvr[,2] # Perennial forbs and grass
+  pre_fire_covs$AFG.Cover.tmp <- afg_cvr[,2] # Annual grasses
+  pre_fire_covs$Tree.Cover.tmp <- tree_cvr[,2] # Trees
+  pre_fire_covs$BG.Cover.tmp <- bg_cvr[,2] # Bare grund
+  
+  # Assine the non-NA temp covariates to the perminant ones
+  # 1200 cells seems like a good cutoff to define grids that fully burned (about half in the fire)
+  pre_fire_covs <- pre_fire_covs %>% 
+    mutate(
+           Fire.Year = case_when(Fire.Pixels >= 1200 ~ year,
+                                 TRUE ~ Fire.Year), # Year when the most recent fire affected that grid
+           Shrub.Cover.PF = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels >= 1200 ~ Shrub.Cover.tmp,
+                                      TRUE ~ Shrub.Cover.PF), # Shrub
+           PFG.Cover.PF = case_when(!is.na(PFG.Cover.tmp) & Fire.Pixels >= 1200 ~ PFG.Cover.tmp,
+                                      TRUE ~ PFG.Cover.PF), # Perennial forbs and grass
+           AFG.Cover.PF = case_when(!is.na(AFG.Cover.tmp) & Fire.Pixels >= 1200 ~ AFG.Cover.tmp,
+                                      TRUE ~ AFG.Cover.PF), # Annual grass
+           Tree.Cover.PF = case_when(!is.na(Tree.Cover.tmp) & Fire.Pixels >= 1200 ~ Tree.Cover.tmp,
+                                      TRUE ~ Tree.Cover.PF), # Trees
+           BG.Cover.PF = case_when(!is.na(BG.Cover.tmp) & Fire.Pixels >= 1200 ~ BG.Cover.tmp,
+                                      TRUE ~ BG.Cover.PF) # Bare ground
+           )
+  
+  # Finished with one itteration
+  message(paste0("Extracted pre-fire vegitation data for year: ", year, 
+                 " (", i-1, " of ", nyears_rap-1, " years)"))
+  
+} # end the loop through years
+difftime(Sys.time(), start) # End time
+
+# Remove the temporary covariates
+pre_fire_covs_final <- pre_fire_covs %>% 
+  dplyr::select(Grid.ID, Grid.Type, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
+                AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF, Grid.X, Grid.Y) %>% 
+  # Replace NA's
+  mutate(across(everything(), ~ replace_na(., 999)))
+
+# View
+glimpse(pre_fire_covs_final)
+print(pre_fire_covs_final, n = nrow(pre_fire_covs_final))
+
+#Pull out just the covariates on grids with info
+pre_fire_corr <- pre_fire_covs_final %>% 
+  filter(Fire.Year > 0) %>%  
+  select(Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
+# View
+print(pre_fire_corr, n = Inf)
+  
+# Correlations 
+cor_mat <- cor(pre_fire_corr)
+cor_mat
+
+# P-value correlations
+p_mat <- cor_pmat(pre_fire_corr)
+p_mat
+
+# Plot correlations
+ggcorrplot(cor_mat, 
+           title = "Correlation Matrix for Pre-Fire Vegetation Data", 
+           lab = TRUE, 
+           lab_size = 4,    
+           tl.cex = 10,
+           p.mat = p_mat, 
+           type = "lower",
+           method = "square",
+           sig.level = 0.05,
+           colors = c("red", "white", "blue")) + 
+  theme_minimal() +  
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"), 
+    axis.title = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),  
+    axis.text.y = element_text(angle = 0, hjust = 1)  
+  )
+# Looks like all of these are good to put into the model! 
+
+# Export the pre fire summaries to the current workspace
+write.csv(pre_fire_covs_final, "Data\\Outputs\\pre_fire_covs.csv")
+# And to my box data folder. Feel free to comment this out
+write.csv(pre_fire_covs_final, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\pre_fire_covs.csv")
