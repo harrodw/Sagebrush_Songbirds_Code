@@ -10,14 +10,14 @@ library(tidyverse)
 
 # Load data ----
 # Distance Sampling (DS) data from Oregon2020
-head(DS <- read.table("Data//Inputs//Kery_2024//amro_obsdetection.csv",header=T,sep=";",as.is = T))
+head(DS <- read.table("C://Users//willh//Downloads//kenkellner_IDS//data//amro_obsdetection.csv",header=T,sep=";",as.is = T))
 DS$Distance <- DS$Distance/1000 # Convert to km
 
 # Table including covariates and Oregon2020 counts (particularly the zeros) 
-head(sitecovs <- read.table("Data//Inputs//Kery_2024//amro_sitecovs_simplified.csv",header=T,sep=";",as.is = T))
+head(sitecovs <- read.table("C://Users//willh//Downloads//kenkellner_IDS//data//amro_sitecovs_simplified.csv",header=T,sep=";",as.is = T))
 
 # eBird
-head(PC <- read.table("Data//Inputs//Kery_2024//amro_ebird_simplified.csv",header=T,sep=";",as.is = T))
+head(PC <- read.table("C://Users//willh//Downloads//kenkellner_IDS//data//amro_ebird_simplified.csv",header=T,sep=";",as.is = T))
 
 # Prepare data ----
 # Prepare eBird data 

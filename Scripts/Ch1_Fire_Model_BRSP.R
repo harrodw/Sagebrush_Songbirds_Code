@@ -407,7 +407,7 @@ sobs_model_code <- nimbleCode({
   }
 
   # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, 3)       # Mean abundance hyperparameter
+  mean_beta0 ~ dnorm(0, sd = 3)  # Mean abundance hyperparameter
   sd_beta0 ~ dunif(0, 1)         # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
@@ -437,7 +437,7 @@ sobs_model_code <- nimbleCode({
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
         log(g[s, y, b]) <- -(midpt[b]^2) / (2 * sigma[s, y]^2) # Half-normal detection function
-        f[s, y, b] <- (2 * midpt[b] * delta) / trunc_dist^2    # Prob density function out to max truncation distance 
+        f[s, y, b] <- (2 * midpt[b]) / trunc_dist^2  * delta   # Prob density function out to max truncation distance 
         pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]              # Detection cell probability
         pi_pd_c[s, y, b] <- f[s, y, b] / p_dct[s, y]           # Proportion of total probability in each cell probability
       }
@@ -600,7 +600,7 @@ sobs_inits <- list(
 str(sobs_inits)
 
 # Params to save
-sobs_params <- c("beta0_year",
+sobs_params <- c("mean_beta0",
                  "beta_burn",
                  "beta_elv", 
                  "beta_fyear",

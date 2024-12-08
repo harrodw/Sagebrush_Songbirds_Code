@@ -77,6 +77,14 @@ counts_0inf <- sobs %>%
 #...and view
 glimpse(counts_0inf)
 
+# View all observers
+all_obsv <- sort(unique(sobs$Observer.ID))
+all_obsv
+
+# Define the levels of observer experience based on who had conducted previous avain surveys
+int_obsv <- c("Aidan", "Anna", "Austin", "Ben", "Devin", "Eliza", "Eoin", "Emily", "Holden", "Keramie", "Thomas")
+exp_obsv <- c("Andrew", "Alex", "Ruger", "Rory", "Trey", "Thea", "Will")
+
 # Make a table of all possible species visit combinations so we get the zero counts
 visit_count <- sobs %>% 
   distinct(Full.Point.ID, Grid.ID, Grid.Type, Year, Ord.Date, MAS, Observer.ID, Year, Visit) %>% 
@@ -85,8 +93,12 @@ visit_count <- sobs %>%
          # Each visit should be treated separately
          Visit.ID = paste(Full.Point.ID, Year, Visit, sep = "-"),
          Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1) %>% 
+  # Create a column for Observer experience
+  mutate(Observer.Experience = case_when(Observer.ID %in% int_obsv ~ 1,
+                                         Observer.ID %in% exp_obsv ~ 2,
+                                         TRUE ~ NA)) %>% 
   group_by(Visit.ID) %>% 
-  reframe(Visit.ID, Full.Point.ID, Burned, Grid.ID,Year, Observer.ID, MAS, Ord.Date) %>% 
+  reframe(Visit.ID, Full.Point.ID, Burned, Grid.ID,Year, Observer.ID, Observer.Experience, MAS, Ord.Date) %>% 
   distinct()
 
 #...and view
@@ -128,8 +140,8 @@ counts <- counts_temp %>%
          Year.num = as.numeric(Year),
          Observer.ID.num = as.numeric(Observer.ID)) %>% 
   # Reorder the columns and remove columns that are no longer needed
-  dplyr::select(Visit.ID, Visit.ID.num, Year, Year.num, Observer.ID, Observer.ID.num, Count, 
-         MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned, UTM.X, UTM.Y) 
+  dplyr::select(Visit.ID, Visit.ID.num, Year, Year.num, Observer.ID, Observer.ID.num, Observer.Experience,  
+                Count, MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned, UTM.X, UTM.Y) 
 #...and view
 glimpse(counts)
 
@@ -159,7 +171,7 @@ observations_temp <- sobs %>%
   # Only close observations
   filter(Distance <= trunc_dist) %>%          
   # Switch Alex's two surveys to Ben (most similar based on preliminary unmarked analysis
-  mutate(Observer.ID = case_when(Observer.ID == "Alex" ~ "Aidan", TRUE ~ Observer.ID)) %>% 
+  mutate(Observer.ID = case_when(Observer.ID == "Alex" ~ "Ben", TRUE ~ Observer.ID)) %>%
   left_join(covs, by = "Full.Point.ID") %>% 
   # Make year a factor
   mutate(Year = str_remove(Year, "Y")) %>% 
@@ -183,14 +195,22 @@ observations_temp <- sobs %>%
   # Asign each observation to a two minute time interval
   mutate(Time.Interval = case_when(Minute %in% c(1, 2) ~ 1,
                                    Minute %in% c(3, 4) ~ 2,
-                                   Minute %in% c(5, 6) ~ 3)) %>% 
-  dplyr::select(Visit.ID, Full.Point.ID, Grid.ID, Observer.ID, Distance, Dist.Bin, Dist.Bin.Midpoint, Time.Interval, Year)
+                                   Minute %in% c(5, 6) ~ 3,
+                                   TRUE ~ NA)) %>% 
+  # Create a column for Observer experience
+  mutate(Observer.Experience = case_when(Observer.ID %in% int_obsv ~ 1,
+                                         Observer.ID %in% exp_obsv ~ 2,
+                                         TRUE ~ NA)) %>% 
+  # Reorder the columns
+  dplyr::select(Visit.ID, Full.Point.ID, Grid.ID, Observer.ID, Observer.Experience,
+                Distance, Dist.Bin, Dist.Bin.Midpoint, Time.Interval, Year)
 
 # View the whole object
 glimpse(observations_temp)
 sort(unique(observations_temp$Dist.Bin))
 sort(unique(observations_temp$Dist.Bin.Midpoint))
 sort(unique(observations_temp$Time.Interval))
+sort(unique(observations_temp$Observer.Experience))
 
 # Pull out the covariates that need to be shared across counts and observations
 point_ids <- counts %>% 
@@ -211,26 +231,46 @@ glimpse(observations)
 
 # Plot counts against a covaariate
 counts %>%
-  # filter(Burned == 1) %>%
+  # filter(Count > 0) %>%
   ggplot(aes(x = Shrub.Cover, y = Count)) +
   # geom_boxplot(col = "aquamarine4", fill = "aquamarine3") +
   geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
   geom_jitter(col = "aquamarine4", alpha = 0.14) +
   theme_bw()
 
+# Plot detection frequency by distance for each observer to insure that the data is appropriate for distance sampling
+observations %>%
+  # filter(!Observer.ID %in% c("Rory", "Will")) %>% 
+  group_by(Visit.ID, 
+           # Observer.ID,
+           Observer.Experience,
+           Dist.Bin, Dist.Bin.Midpoint) %>%
+  reframe(Visit.ID, 
+          Observer.ID,
+          Observer.Experience,
+          Dist.Bin, Dist.Bin.Midpoint, bin.count = n()) %>%
+  distinct() %>%
+  ggplot(aes(x = Dist.Bin, y = bin.count)) +
+  geom_col(fill = "lightblue") +
+  theme_bw() +
+  # facet_wrap(~ Observer.ID)
+  facet_wrap(~ Observer.Experience)
+
 # 1.4) prepare objects for NIMBLE ################################################################
 
 # Loop sizes 
 npoints <- length(unique(counts$Visit.ID.num))        # Number of points visited
 nind <- nrow(observations)                            # Number of individuals detected 
-nobsv <- length(unique(counts$Observer.ID.num))       # Number of unique observers
+# nobsv <- length(unique(counts$Observer.ID.num))       # Number of unique observers
+nexp <- length(unique(counts$Observer.Experience))    # Number of observer experience levels
 nbins <- length(unique(observations$Dist.Bin))        # Number of distance bins
 nints <- length(unique(observations$Time.Interval))   # Number of time intervals
 nyears <- length(unique(counts$Year.num))             # Number of years we surveyed
 
 # Observation Level data 
 midpt <- sort(unique(observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
-observers <- counts$Observer.ID.num                   # Random effect for observer associated with each survey
+# observers <- counts$Observer.ID.num                 # Random effect for observer associated with each survey
+obsv_exp <- counts$Observer.Experience                # Observer experience  
 obs_point <- observations$Visit.ID.num                # In which grid did each observation take place
 dclass <- observations$Dist.Bin                       # Distance class of each observation
 delta <- bin_size                                     # Bin width
@@ -269,18 +309,18 @@ sobs_model_code <- nimbleCode({
   
   # Parameters in the detection portion of the model
   alpha0 ~ dnorm(0, sd = 3)            # Intercept on detectability
-  for(o in 1:nobsv){
-    alpha_obsv[o] ~ dnorm(0, sd = 2)   # Effect of each observer on detecability 
+  for(o in 1:nexp){
+    alpha_obsv[o] ~ dnorm(0, sd = 2)   # Effect of observer experience on detecability
   }
 
   # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, 3)       # Mean abundance hyperparameter
+  mean_beta0 ~ dnorm(0, sd = 3)  # Mean abundance hyperparameter
   sd_beta0 ~ dunif(0, 1)         # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
     beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
-  # Fixed effects oon abundance 
+  # Fixed effects on abundance 
   beta_shrub ~ dnorm(0, sd = 2)     # Effect of shrub cover
   beta_pfg ~ dnorm(0, sd = 2)       # Effect of Perennial Cover
   beta_tri ~ dnorm(0, sd = 2)       # Effect of ruggedness
@@ -292,9 +332,9 @@ sobs_model_code <- nimbleCode({
   # Iterate over all points
   for(s in 1:npoints){
     
-    # Zero-inflation component on abundance
-    psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
-    present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
+    # # Zero-inflation component on abundance
+    # psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
+    # present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
       
     # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
@@ -322,11 +362,12 @@ sobs_model_code <- nimbleCode({
       n_dct[s] ~ dbin(p_cap[s], N_indv[s])  # Number of individual birds captured (observations)
       
       # Poisson abundance portion of mixture
-      N_indv[s] ~ dpois(lambda[s] * (present[s] + 0.0001)) # ZIP true abundance at site s in year y
+      N_indv[s] ~ dpois(lambda[s])          # True abundance at point s
+      # * (present[s] + 0.0001) # ZIP true abundance at point s
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s]) <- alpha0 +                     # Intercept on detecability
-                       alpha_obsv[observers[s]]     # Effect of each observer on detectability
+      log(sigma[s]) <- alpha0 +                    # Intercept on detecability
+                       alpha_obsv[obsv_exp[s]]     # Effect of each observer on detectability
       
       
       # Availability (phi) Log-linear model for availability
@@ -361,9 +402,9 @@ sobs_model_code <- nimbleCode({
   } # end observation loop
 
   # Averages across grids and years
-  mean_psi <- mean(psi[])                                  # Average occupancy probability
-  mean_p_avail <- mean(p_avail[])                          # Average availability probability
-  mean_p_dct <- mean(p_dct[])                              # Average detection probability
+  # mean_psi <- mean(psi[])                                  # Average occupancy probability
+  # mean_p_avail <- mean(p_avail[])                          # Average availability probability
+  # mean_p_dct <- mean(p_dct[])                              # Average detection probability
 
   # Add up fit stats across sites and years
   fit <- sum(FT[])
@@ -388,16 +429,19 @@ sobs_const <- list (
   # For loop sizes
   npoints = npoints,       # Number of survey grids
   nind = nind,             # Number of individuals detected 
-  nobsv = nobsv,           # Number of unique observers
+  # nobsv = nobsv,           # Number of unique observers
+  nexp = nexp,             # Number of experience levels
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
   nyears = nyears,         # Number of years we surveyed
   
   # Non-stochastic constants
-  midpt = midpt,          # Midpoints of distance bins
+  # observers = observers,   # Effect of observer associated with each survey
+  obsv_exp = obsv_exp,     # Observer experience associated with each point
+  midpt = midpt,           # Midpoints of distance bins
   years = years,           # Year when each survey took place
-  obs_point  = obs_point,  # Point associated with each observation 
-  observers = observers    # Effect of observer associated with each survey
+  obs_point  = obs_point   # Point associated with each observation 
+  
 )
 # View Nimble constants 
 str(sobs_const)
@@ -405,12 +449,12 @@ str(sobs_const)
 # Data to be fed into Nimble 
 sobs_dat <- list(
   # Observation Level data
-  dclass = dclass,        # Distance category for each observation
-  tint = tint,            # Time interval for each observation
+  dclass = dclass,         # Distance category for each observation
+  tint = tint,             # Time interval for each observation
   
   # Availability data
-  time = time,            # Scaled mean time after sunrise 
-  date = date,              # Scaled date
+  time = time,             # Scaled mean time after sunrise 
+  date = date,             # Scaled date
   
   #Point level data
   n_dct = n_dct,           # Number of detected individuals per site
@@ -446,7 +490,7 @@ str(sobs_dims)
 sobs_inits <- list(
   # Detecability 
   alpha0 = rnorm(1, 0, 0.1),
-  alpha_obsv = rnorm(nobsv, 0, 0.1),
+  alpha_obsv = rnorm(nexp, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1), 
@@ -462,8 +506,8 @@ sobs_inits <- list(
   beta_tri = rnorm(1, 0, 0.1),
   beta_tree = rnorm(1, 0, 0.1),
   # Presence 
-  psi = runif(npoints, 0.4, 0.6),
-  present = rbinom(npoints, 1, 0.5),
+  # psi = runif(npoints, 0.4, 0.6),
+  # present = rbinom(npoints, 1, 0.5),
   # Simulated data
   n_dct_new = n_dct,              # Initialize the new capture data at the existing data values
   N_indv = n_dct + 1              # start each grid with an individual present
@@ -474,21 +518,21 @@ str(sobs_inits)
 # Params to save
 sobs_params <- c(
                  "mean_beta0",
-                 # "beta0_year",
+                 "beta0_year",
                  "beta_shrub",
                  "beta_pfg",
                  "beta_tri",
                  "beta_tree",
                  "gamma0", 
-                 # "gamma_date", 
-                 # "gamma_date2", 
-                 # "gamma_time", 
-                 # "gamma_time2", 
+                 "gamma_date",
+                 "gamma_date2",
+                 "gamma_time",
+                 "gamma_time2",
                  "alpha0",
-                 # "alpha_obsv",
-                 "mean_psi",
-                 "mean_p_dct",
-                 "mean_p_avail",
+                 "alpha_obsv",
+                 # "mean_psi",
+                 # "mean_p_dct",
+                 # "mean_p_avail",
                  "fit",
                  "fit_new",
                  "c_hat",
@@ -537,17 +581,23 @@ sobs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma
                          type = 'RW_block')
 
 # Block all detection (alpha) nodes together
-sobs_mcmcConf$removeSamplers("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", "alpha_obsv[3]", "alpha_obsv[4]", 
-                             "alpha_obsv[5]", "alpha_obsv[6]", "alpha_obsv[7]", "alpha_obsv[8]",
-                             "alpha_obsv[9]", "alpha_obsv[10]", "alpha_obsv[11]", "alpha_obsv[12]", 
-                             "alpha_obsv[13]", "alpha_obsv[14]", "alpha_obsv[15]", "alpha_obsv[16]", 
-                             "alpha_obsv[17]")
+# sobs_mcmcConf$removeSamplers("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", "alpha_obsv[3]", "alpha_obsv[4]", 
+#                              "alpha_obsv[5]", "alpha_obsv[6]", "alpha_obsv[7]", "alpha_obsv[8]",
+#                              "alpha_obsv[9]", "alpha_obsv[10]", "alpha_obsv[11]", "alpha_obsv[12]", 
+#                              "alpha_obsv[13]", "alpha_obsv[14]", "alpha_obsv[15]", "alpha_obsv[16]", 
+#                              "alpha_obsv[17]")
+# 
+# sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", "alpha_obsv[3]", "alpha_obsv[4]", 
+#                                     "alpha_obsv[5]", "alpha_obsv[6]", "alpha_obsv[7]", "alpha_obsv[8]",
+#                                     "alpha_obsv[9]", "alpha_obsv[10]", "alpha_obsv[11]", "alpha_obsv[12]", 
+#                                     "alpha_obsv[13]", "alpha_obsv[14]", "alpha_obsv[15]", "alpha_obsv[16]", 
+#                                     "alpha_obsv[17]"),
+#                          type = 'RW_block')
 
-sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", "alpha_obsv[3]", "alpha_obsv[4]", 
-                                    "alpha_obsv[5]", "alpha_obsv[6]", "alpha_obsv[7]", "alpha_obsv[8]",
-                                    "alpha_obsv[9]", "alpha_obsv[10]", "alpha_obsv[11]", "alpha_obsv[12]", 
-                                    "alpha_obsv[13]", "alpha_obsv[14]", "alpha_obsv[15]", "alpha_obsv[16]", 
-                                    "alpha_obsv[17]"),
+# Block all detection (alpha) nodes together
+sobs_mcmcConf$removeSamplers("alpha0", "alpha_obsv[1]", "alpha_obsv[2]")
+
+sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]"),
                          type = 'RW_block')
 
 # Block all abundance (beta) nodes together
@@ -579,8 +629,8 @@ cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # c
 
 # MCMC settings for the real model. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1           # Quick test to see if the model runs
-# nc <- 3  ;  ni <- 200000  ;  nb <- 175000;  nt <- 25    # longer test where most parameters should
-nc <- 3;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
+nc <- 3  ;  ni <- 200000  ;  nb <- 150000;  nt <- 25    # longer test where most parameters should
+# nc <- 3;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
 
 # Quick check of how many samples we'll keep in the posterior
 message(paste((ni - nb) / nt), " samples will be kept from the posterior")
@@ -633,7 +683,7 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 
 # Perameters for the MCMC plot
 plot_params <- c(
-  # "beta0_year",
+  # "beta0",
   "beta_shrub", 
   "beta_pfg", 
   "beta_tri", 

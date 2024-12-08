@@ -12,38 +12,27 @@ library(ggplot2)
 library(Distance)
 library(dsm)
 
-#Add in Data
-sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_count_covs.csv") %>% 
-  select(-X)
+# Add in Data
+sobs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/sobs_data.csv") %>%
+  dplyr::select(-X) %>%
+  tibble()
 #view the data
 glimpse(sobs)                      
 
 #Add in an Effort Column to the count data
 sobs <- sobs %>% 
-mutate(Effort = case_when(Year == 'Y1' & Visit == 'V1' ~ 1,
-                          Year == 'Y1' & Visit == 'V2' ~ 1,
-                          Year == 'Y2' & Visit == 'V1' ~ 1,
-                          Year == 'Y2' & Visit == 'V2' ~ 1,
-                          TRUE ~ NA)) 
+mutate(Effort = 1) 
 #View the data again  
 glimpse(sobs)
 
-#View odd visit numbers
-sobs %>% 
-  filter(is.na(Effort))
-
-#Remove those surveys
-sobs <- sobs %>% 
-  filter(!is.na(Effort))
-
-#Change the orgional tibble so distance likes it
+#Change the original tibble so distance likes it
 sobs <- sobs %>% 
   #rename columns so distance can understand them
   rename(distance = "Distance") %>% 
   #Each point within each year is a "Sample"
   mutate(Sample.Label = paste(Full.Point.ID, Year, sep = "-")) %>% 
   #Each route within each year is a "region"
-  mutate(Region.Label = paste(Route.ID, Year, sep = "-")) %>% 
+  mutate(Region.Label = Grid.Type) %>% 
   #Make Distance Continuous
   mutate(distance = as.numeric(distance))
 #...and view
@@ -70,8 +59,8 @@ count(sobs, Wind.Start)
 
 #Transform the covariates we need to factors
 sobs <- sobs %>%
-  mutate_at(c("Minute", "Year", "Sky.Start", "Wind.Start", "Route.Type", 
-              "Observer.ID", "Visit", "How.Detected", "Sex", 
+  mutate_at(c("Minute", "Year", "Sky.Start", "Wind.Start", "Grid.Type", 
+              "Observer.ID", "Visit", "How.Detected", 
               "Visual.ID"), 
             factor)
 
@@ -95,14 +84,15 @@ sample_table <- sobs %>%
 glimpse(sample_table)
 
 #Add site level covariates
-point_covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/point_summaries.csv") %>% 
-  select(-X)
+point_covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/point_covs.csv") %>%
+  dplyr::select(-X) %>%
+  tibble()
 #...and view
 glimpse(point_covs)
 
 #Join to sample Table
 sample_table <- left_join(sample_table, point_covs, by = "Full.Point.ID") %>% 
-  select(-Route.ID, -Full.Point.ID)
+  select(-Full.Point.ID)
 #View
 glimpse(sample_table)
 
@@ -171,9 +161,10 @@ print(SOI) #Check which species we're looking at
 #Table of which Plots have SOI
 sobs %>%
   filter(Species == SOI) %>% 
-  count(Region.Label, Year, Visit) %>% 
-  select(Region.Label, Visit, n) %>% 
-  pivot_wider(names_from = Visit, values_from = n) %>% 
+  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  count(Region.Label, Visit.ID) %>% 
+  select(Region.Label, Visit.ID, n) %>% 
+  pivot_wider(names_from = Visit.ID, values_from = n) %>% 
   replace(is.na(.), 0) %>% 
   print(n = 60)
 
@@ -185,14 +176,14 @@ sobs %>%
   filter(Species == SOI) %>%
   ggplot(aes(x = distance)) +
   geom_histogram() + 
-  facet_wrap(~ Year + Route.Type) +
+  facet_wrap(~ Year + Grid.Type) +
   labs(title = SOI_count_chart_title, x="Radial Distance (m)", y="Observed Count") +
   theme_bw()
 
 #view na's
 sobs %>% 
   filter(Species == "BRSP") %>% 
-  dplyr::select(distance, Observer.ID, MAS,  How.Detected, Ord.Date) %>% 
+  dplyr::select(distance, Observer.ID, MAS, Ord.Date) %>% 
   filter_all(any_vars(is.na(.)))
 
 #View juvenile observations
@@ -234,10 +225,10 @@ SOI_Density <- tibble(SOI_model_obs$dht$individuals$D) %>%
   mutate(Year = case_when(str_detect(Label, "Y1") ~ "Y1",
                           str_detect(Label, "Y2") ~ "Y2"),
          SOI.Per.km2.Est = Estimate,
-         Route.ID = str_remove(Label, "-Y[12]"),
-         Route.Type = case_when(str_detect(Route.ID, "B") ~ "Burn",
-                                str_detect(Route.ID, "C") ~ "Reference")) %>% 
-  select(Route.ID, Route.Type, Year, SOI.Per.km2.Est, se)
+         Grid.ID = str_remove(Label, "-Y[12]"),
+         Grid.Type = case_when(str_detect(Grid.ID, "B") ~ "Burn",
+                                str_detect(Grid.ID, "C") ~ "Reference")) %>% 
+  select(Grid.ID, Grid.Type, Year, SOI.Per.km2.Est, se)
 #and view
 glimpse(SOI_Density)
 
@@ -253,7 +244,7 @@ SOI_Colors <- c("brown2", "dodgerblue3", "darkorchid4") #The colors we will use 
 
 #Density in burn vs unburned plots -----
 SOI_Density_BoxP <- SOI_Density %>%
-  ggplot(aes(x = Route.Type, y = SOI.Per.km2.Est, fill = Route.Type)) +
+  ggplot(aes(x = Grid.Type, y = SOI.Per.km2.Est, fill = Grid.Type)) +
   geom_boxplot() +
   ggtitle(SOI_density_chart_title) +                   
   ylab(SOI_density_chart_ylab) +
