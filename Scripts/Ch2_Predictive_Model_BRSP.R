@@ -98,7 +98,7 @@ visit_count <- sobs %>%
                                          Observer.ID %in% exp_obsv ~ 2,
                                          TRUE ~ NA)) %>% 
   group_by(Visit.ID) %>% 
-  reframe(Visit.ID, Full.Point.ID, Burned, Grid.ID,Year, Observer.ID, Observer.Experience, MAS, Ord.Date) %>% 
+  reframe(Visit.ID, Full.Point.ID, Burned, Grid.ID, Year, Observer.ID, Observer.Experience, MAS, Ord.Date) %>% 
   distinct()
 
 #...and view
@@ -123,7 +123,8 @@ counts <- counts_temp %>%
   # Other things that should be factors
   mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID"), factor) %>% 
   mutate(Year = str_remove(Year, "Y")) %>% 
-  mutate(Year = factor(Year, levels = c(1, 2, 3))) %>% 
+  mutate(Year = factor(Year, levels = c(1, 2, 3)),
+         Grid.ID = factor(Grid.ID)) %>% 
   # Scale all covariates
   mutate(
     Shrub.Cover = scale(Shrub.Cover)[,1],
@@ -131,17 +132,18 @@ counts <- counts_temp %>%
     TRI = scale(TRI)[,1],
     Trees.Present = Trees.Present, 
     MAS = scale(MAS)[,1],   
-    Ord.Date = scale(Ord.Date)[,1],
-    UTM.X = scale(UTM.X)[,1],
-    UTM.Y = scale(UTM.Y)[,1]
+    Ord.Date = scale(Ord.Date)[,1]
+    # UTM.X = scale(UTM.X)[,1],
+    # UTM.Y = scale(UTM.Y)[,1]
   ) %>% 
   # Create numeric versions of factors
   mutate(Visit.ID.num = as.numeric(Visit.ID),
+         Grid.ID.num = as.numeric(Grid.ID),
          Year.num = as.numeric(Year),
          Observer.ID.num = as.numeric(Observer.ID)) %>% 
   # Reorder the columns and remove columns that are no longer needed
-  dplyr::select(Visit.ID, Visit.ID.num, Year, Year.num, Observer.ID, Observer.ID.num, Observer.Experience,  
-                Count, MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned, UTM.X, UTM.Y) 
+  dplyr::select(Visit.ID, Visit.ID.num, Grid.ID, Grid.ID.num, Year, Year.num, Observer.ID, Observer.ID.num,  
+                Observer.Experience, Count, MAS, Ord.Date, Shrub.Cover, Perennial.Cover, TRI, Trees.Present, Burned) 
 #...and view
 glimpse(counts)
 
@@ -215,7 +217,7 @@ sort(unique(observations_temp$Observer.Experience))
 # Pull out the covariates that need to be shared across counts and observations
 point_ids <- counts %>% 
   mutate_at(c("Visit.ID"), as.character) %>% 
-  dplyr::select(Visit.ID, Visit.ID.num, Observer.ID.num)
+  dplyr::select(Visit.ID, Visit.ID.num, Grid.ID.num, Observer.ID.num)
 #...and view
 glimpse(point_ids)
 
@@ -232,10 +234,12 @@ glimpse(observations)
 # Plot counts against a covaariate
 counts %>%
   # filter(Count > 0) %>%
-  ggplot(aes(x = Shrub.Cover, y = Count)) +
+  ggplot(aes(x = Perennial.Cover, y = Count)) +
   # geom_boxplot(col = "aquamarine4", fill = "aquamarine3") +
-  geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
+  geom_smooth(col = "aquamarine4", fill = "aquamarine3",
+              method = "glm", method.args = list(family = "quasipoisson")) +
   geom_jitter(col = "aquamarine4", alpha = 0.14) +
+  ylim(0, 10) +
   theme_bw()
 
 # Plot detection frequency by distance for each observer to insure that the data is appropriate for distance sampling
@@ -266,6 +270,7 @@ nexp <- length(unique(counts$Observer.Experience))    # Number of observer exper
 nbins <- length(unique(observations$Dist.Bin))        # Number of distance bins
 nints <- length(unique(observations$Time.Interval))   # Number of time intervals
 nyears <- length(unique(counts$Year.num))             # Number of years we surveyed
+ngrids <- length(unique(counts$Grid.ID.num))          # Number of survey grids
 
 # Observation Level data 
 midpt <- sort(unique(observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
@@ -287,6 +292,7 @@ shrub_cvr <- counts$Shrub.Cover                       # Percent shrub cover
 pfg_cvr <- counts$Perennial.Cover                     # Percent perennial forb and grass cover
 tri <- counts$TRI                                     # Topographic ruggedness
 trees <- as.numeric(counts$Trees.Present)             # Whether or not trees are present in the grid 
+grids <- counts$Grid.ID.num                           # On which grid did the count take place
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -317,14 +323,15 @@ sobs_model_code <- nimbleCode({
   mean_beta0 ~ dnorm(0, sd = 3)  # Mean abundance hyperparameter
   sd_beta0 ~ dunif(0, 1)         # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
-  for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
+  for(t in 1:ngrids){
+    beta0_grid[t] ~ dnorm(mean_beta0, sd_beta0)
   }
   # Fixed effects on abundance 
   beta_shrub ~ dnorm(0, sd = 2)     # Effect of shrub cover
   beta_pfg ~ dnorm(0, sd = 2)       # Effect of Perennial Cover
+  beta_pfg2 ~ dnorm(0, sd = 2)      # Effect of Perennial Cover (quadratic)
   beta_tri ~ dnorm(0, sd = 2)       # Effect of ruggedness
-  beta_tree ~ dnorm(0, sd = 2)      # Effect of trees being present
+  beta_tri2 ~ dnorm(0, sd = 2)      # Effect of ruggedness (quadratic)
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -332,9 +339,9 @@ sobs_model_code <- nimbleCode({
   # Iterate over all points
   for(s in 1:npoints){
     
-    # # Zero-inflation component on abundance
-    # psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
-    # present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
+    # Zero-inflation component on abundance
+    psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
+    present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
       
     # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
@@ -378,11 +385,12 @@ sobs_model_code <- nimbleCode({
                        gamma_time2 * time[s]^2      # Effect of scaled time of day squared 
       
       # Abundance (lambda) Log-linear model 
-      log(lambda[s]) <- beta0_year[years[s]] +      # Intercept on abundance
+      log(lambda[s]) <- beta0_grid[grids[s]] +      # Intercept on abundance
                         beta_shrub * shrub_cvr[s] + # Effect of shrub cover
                         beta_pfg * pfg_cvr[s] +     # Effect of Perennial Cove
+                        beta_pfg2 & pfg_cvr[s]^2 +  # Effect off perennial cover squared
                         beta_tri * tri[s] +         # Effect of ruggedness
-                        beta_tree * trees[s]        # Effect of trees being present
+                        beta_tri2 * tri[s]^2        # Effect of ruggedness squared
 
       # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
       # Compute fit statistic for observed data
@@ -401,12 +409,7 @@ sobs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_point[i], ])        # Linking time removal data
   } # end observation loop
 
-  # Averages across grids and years
-  # mean_psi <- mean(psi[])                                  # Average occupancy probability
-  # mean_p_avail <- mean(p_avail[])                          # Average availability probability
-  # mean_p_dct <- mean(p_dct[])                              # Average detection probability
-
-  # Add up fit stats across sites and years
+  # Add up fit stats across sites and visits
   fit <- sum(FT[])
   fit_new <- sum(FT_new[])
 
@@ -433,13 +436,15 @@ sobs_const <- list (
   nexp = nexp,             # Number of experience levels
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
-  nyears = nyears,         # Number of years we surveyed
+  ngrids = ngrids,         # Number of survey grids (transects)
+  # nyears = nyears,         # Number of years we surveyed
   
   # Non-stochastic constants
   # observers = observers,   # Effect of observer associated with each survey
   obsv_exp = obsv_exp,     # Observer experience associated with each point
   midpt = midpt,           # Midpoints of distance bins
-  years = years,           # Year when each survey took place
+  grids = grids,           # Grid where each point count took place  
+  # years = years,           # Year when each survey took place
   obs_point  = obs_point   # Point associated with each observation 
   
 )
@@ -460,8 +465,7 @@ sobs_dat <- list(
   n_dct = n_dct,           # Number of detected individuals per site
   shrub_cvr = shrub_cvr,   # Percent shrub cover
   pfg_cvr = pfg_cvr,       # Percent perennial forb and grass cover
-  tri = tri,               # Topographic ruggedness
-  trees = trees            # Whether or not trees are present in the grid 
+  tri = tri                # Topographic ruggedness
 )
 # View Nimble data 
 str(sobs_dat)
@@ -499,15 +503,17 @@ sobs_inits <- list(
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
   mean_beta0 = runif(1, 0, 1),
-  sd_beta0 = runif(1, 0, 0.1),
-  beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
+  sd_beta0 = runif(1, 0, 0.1), 
+  # beta0_year = runif(nyears, 0, 1)     # Random effects seem to be happier when I start them all at positive values
+  beta0_grid = runif(ngrids, 0, 1),    # Random effects seem to be happier when I start them all at positive values
   beta_shrub = rnorm(1, 0, 0.1),
   beta_pfg = rnorm(1, 0, 0.1),
+  beta_pfg2 = rnorm(1, 0, 0.1),
   beta_tri = rnorm(1, 0, 0.1),
-  beta_tree = rnorm(1, 0, 0.1),
+  beta_tri2 = rnorm(1, 0, 0.1),
   # Presence 
-  # psi = runif(npoints, 0.4, 0.6),
-  # present = rbinom(npoints, 1, 0.5),
+  psi = runif(npoints, 0.4, 0.6),
+  present = rbinom(npoints, 1, 0.5),
   # Simulated data
   n_dct_new = n_dct,              # Initialize the new capture data at the existing data values
   N_indv = n_dct + 1              # start each grid with an individual present
@@ -518,11 +524,12 @@ str(sobs_inits)
 # Params to save
 sobs_params <- c(
                  "mean_beta0",
-                 "beta0_year",
+                 "sd_beta0",
                  "beta_shrub",
                  "beta_pfg",
+                 "beta_pfg2",
                  "beta_tri",
-                 "beta_tree",
+                 "beta_tri2",
                  "gamma0", 
                  "gamma_date",
                  "gamma_date2",
@@ -530,9 +537,6 @@ sobs_params <- c(
                  "gamma_time2",
                  "alpha0",
                  "alpha_obsv",
-                 # "mean_psi",
-                 # "mean_p_dct",
-                 # "mean_p_avail",
                  "fit",
                  "fit_new",
                  "c_hat",
@@ -601,17 +605,37 @@ sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]"),
                          type = 'RW_block')
 
 # Block all abundance (beta) nodes together
-sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
-                             "beta_shrub",
-                             "beta_pfg",
-                             "beta_tri",
-                             "beta_tree")
+sobs_mcmcConf$removeSamplers(# Random effects
+                             "beta0_grid[1]", "beta0_grid[2]", "beta0_grid[3]", "beta0_grid[4]", "beta0_grid[5]", 
+                             "beta0_grid[6]", "beta0_grid[7]", "beta0_grid[8]", "beta0_grid[9]", "beta0_grid[10]", 
+                             "beta0_grid[11]", "beta0_grid[12]", "beta0_grid[13]", "beta0_grid[14]", "beta0_grid[15]", 
+                             "beta0_grid[16]", "beta0_grid[17]", "beta0_grid[18]", "beta0_grid[19]", "beta0_grid[20]", 
+                             "beta0_grid[21]", "beta0_grid[22]", "beta0_grid[23]", "beta0_grid[24]", "beta0_grid[25]", 
+                             "beta0_grid[26]", "beta0_grid[27]", "beta0_grid[28]", "beta0_grid[29]", "beta0_grid[30]", 
+                             "beta0_grid[31]", "beta0_grid[32]", "beta0_grid[33]", "beta0_grid[34]", "beta0_grid[35]", 
+                             "beta0_grid[36]", "beta0_grid[37]", "beta0_grid[38]", "beta0_grid[39]", "beta0_grid[40]", 
+                             "beta0_grid[41]", "beta0_grid[42]", "beta0_grid[43]", "beta0_grid[44]", "beta0_grid[45]", 
+                             "beta0_grid[46]", "beta0_grid[47]", "beta0_grid[48]", "beta0_grid[49]", "beta0_grid[50]", 
+                             "beta0_grid[51]", "beta0_grid[52]", "beta0_grid[53]", "beta0_grid[54]", "beta0_grid[55]", 
+                             "beta0_grid[56]", "beta0_grid[57]", "beta0_grid[58]", "beta0_grid[59]", "beta0_grid[60]",
+                             # Fixed effects
+                             "beta_shrub", "beta_pfg", "beta_pfg2", "beta_tri", "beta_tri2")
 
-sobs_mcmcConf$addSampler(target = c("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
-                                    "beta_shrub", 
-                                    "beta_pfg", 
-                                    "beta_tri", 
-                                    "beta_tree"),
+sobs_mcmcConf$addSampler(target = c(# Random effects
+                                    "beta0_grid[1]", "beta0_grid[2]", "beta0_grid[3]", "beta0_grid[4]", "beta0_grid[5]", 
+                                    "beta0_grid[6]", "beta0_grid[7]", "beta0_grid[8]", "beta0_grid[9]", "beta0_grid[10]", 
+                                    "beta0_grid[11]", "beta0_grid[12]", "beta0_grid[13]", "beta0_grid[14]", "beta0_grid[15]", 
+                                    "beta0_grid[16]", "beta0_grid[17]", "beta0_grid[18]", "beta0_grid[19]", "beta0_grid[20]", 
+                                    "beta0_grid[21]", "beta0_grid[22]", "beta0_grid[23]", "beta0_grid[24]", "beta0_grid[25]", 
+                                    "beta0_grid[26]", "beta0_grid[27]", "beta0_grid[28]", "beta0_grid[29]", "beta0_grid[30]", 
+                                    "beta0_grid[31]", "beta0_grid[32]", "beta0_grid[33]", "beta0_grid[34]", "beta0_grid[35]", 
+                                    "beta0_grid[36]", "beta0_grid[37]", "beta0_grid[38]", "beta0_grid[39]", "beta0_grid[40]", 
+                                    "beta0_grid[41]", "beta0_grid[42]", "beta0_grid[43]", "beta0_grid[44]", "beta0_grid[45]", 
+                                    "beta0_grid[46]", "beta0_grid[47]", "beta0_grid[48]", "beta0_grid[49]", "beta0_grid[50]", 
+                                    "beta0_grid[51]", "beta0_grid[52]", "beta0_grid[53]", "beta0_grid[54]", "beta0_grid[55]", 
+                                    "beta0_grid[56]", "beta0_grid[57]", "beta0_grid[58]", "beta0_grid[59]", "beta0_grid[60]",
+                                    # Fixed effects
+                                    "beta_shrub", "beta_pfg", "beta_pfg2", "beta_tri", "beta_tri2"),
                          type = 'RW_block')
 
 # View the blocks
@@ -629,7 +653,7 @@ cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # c
 
 # MCMC settings for the real model. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1           # Quick test to see if the model runs
-nc <- 3  ;  ni <- 200000  ;  nb <- 150000;  nt <- 25    # longer test where most parameters should
+nc <- 3  ;  ni <- 200000  ;  nb <- 150000;  nt <- 10    # longer test where most parameters should
 # nc <- 3;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
 
 # Quick check of how many samples we'll keep in the posterior
@@ -686,8 +710,10 @@ plot_params <- c(
   # "beta0",
   "beta_shrub", 
   "beta_pfg", 
-  "beta_tri", 
-  "beta_tree")
+  "beta_pfg2",
+  "beta_tri",
+  "beta_tri2"
+  )
 
 
 # View MCMC plot
@@ -706,22 +732,90 @@ sobs_mcmc_out$summary$all.chains
 # 4.1) Extract coefficient values ###############################################################
 
 # Extract Beta0 values
-beta0_year1 <- sobs_mcmc_out$summary$all.chains[18,1]
-beta0_year2 <- sobs_mcmc_out$summary$all.chains[19,1]
-beta0_year3 <- sobs_mcmc_out$summary$all.chains[20,1]
-# beta0 <- sobs_mcmc_out$summary$all.chains[19,1]
-beta0 <- mean(c(beta0_year1, beta0_year2, beta0_year3))
+# beta0_year1 <- sobs_mcmc_out$summary$all.chains[4,1]
+# beta0_year2 <- sobs_mcmc_out$summary$all.chains[5,1]
+# beta0_year3 <- sobs_mcmc_out$summary$all.chains[6,1]
+# beta0 <- mean(c(beta0_year1, beta0_year2, beta0_year3))
+beta0 <- sobs_mcmc_out$summary$all.chains[20,1]
 # View intercepts
-c(beta0_year1, beta0_year2, beta0_year3)
+# c(beta0_year1, beta0_year2, beta0_year3)
 beta0
 
 # Extract effect sizes
-beta_shrub <- sobs_mcmc_out$summary$all.chains[22,1]
-beta_pfg <- sobs_mcmc_out$summary$all.chains[21,1]
-beta_tri <- sobs_mcmc_out$summary$all.chains[24,1]
-beta_tree <- sobs_mcmc_out$summary$all.chains[23,]
+beta_shrub <- sobs_mcmc_out$summary$all.chains[8,1]
+beta_pfg <- sobs_mcmc_out$summary$all.chains[7,1]
+beta_pfg2 <- sobs_mcmc_out$summary$all.chains[,1]
+beta_tri <- sobs_mcmc_out$summary$all.chains[10,1]
+beta_tri2 <- sobs_mcmc_out$summary$all.chains[,1]
 # View Betas
-c(beta_shrub, beta_pfg, beta_tri, beta_tree)
+c(beta_shrub, beta_pfg, beta_pfg2, beta_tri, beta_tri2)
+
+# Combine everything into a dataframe
+beta_dat <- data.frame(bind_rows(beta0,
+                                 beta_shrub, 
+                                 beta_pfg,
+                                 beta_pfg2,
+                                 beta_tri, 
+                                 beta_tri2)) %>% 
+  mutate(Parameter = c("Beta0",
+                       "Beta.Shrub", 
+                       "Beta.PFG", 
+                       "Beta.PFG2",
+                       "Beta.TRI", 
+                       "Beta.TRI2")) %>% 
+  relocate(Parameter, .before = Mean) %>% 
+  rename(CI.lb = X95.CI_low,
+         CI.ub = X95.CI_upp)
+
+# View output dataframe
+glimpse(beta_dat)
+head(beta_dat, n = Inf)
+
+# Pick a number of samples
+n <- 1000
+
+# Rearrange the columns that I need
+beta_dat_long <- beta_dat %>%
+  pivot_longer(cols = c(Mean, CI.lb, CI.ub),
+               names_to = "Statistic",
+               values_to = "Value") %>% 
+  mutate(ColumnName = paste(Parameter, Statistic, sep = ".")) %>%
+  select(ColumnName, Value)
+
+# Then pivot to the desired format
+beta_dat_pred <- beta_dat_long %>%
+  pivot_wider(names_from = ColumnName,
+              values_from = Value) %>%
+  # Repeat each sample n times
+  slice(rep(1:n(), each = n)) %>% 
+  # Add in the predictive values 
+  mutate(Pred = seq(from = -3, to = 3, length.out = n))
+
+# View the new data 
+glimpse(beta_dat_pred)
+
+# Plot a specific predictor
+pred_plot <- beta_dat_pred %>% 
+  mutate(
+    # Calculate the predicted response to shrub cover for all years
+    Shrub.Pred.Trend =  exp(Beta0.Mean + Beta.Shrub.Mean * Pred),
+    Shrub.Pred.lb = exp(Beta0.lb + Beta.Shrub.CI.lb * Pred),
+    Shrub.Pred.ub =  exp(Beta0.ub +  Beta.Shrub.CI.ub * Pred),
+    # Transform shrub cover back to the native scale
+    Pred.Naive = Pred * shrub_cvr_sd + shrub_cvr_mean
+  ) %>% 
+  ggplot() +
+  geom_line(aes(x = Pred.Naive, y = Shrub.Pred.Trend), color = "blue", lwd = 1) + 
+  geom_ribbon(aes(x = Pred.Naive, ymin = Shrub.Pred.lb, ymax = Shrub.Pred.ub), 
+              alpha = 0.2, fill = "blue") +  
+  labs(title = "", x = "Percent Shrub Cover", y = "Predicted Brewer's Sparrow Abundance (birds/km^2)") +
+  ylim(0, 200) +
+  xlim(0, 40) +
+  theme_classic()
+
+# Display the plot
+pred_plot
+
 
 # 4.2) Prepare rasters ##########################################################################
 
@@ -741,7 +835,6 @@ ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geopr
 shrub_rast <- rast(paste0(ras_path, "shrub_cvr.tif"))
 pfg_rast <- rast(paste0(ras_path, "pfg_cvr.tif"))
 tri_rast <- rast(paste0(ras_path, "tri.tif"))
-tree_rast <- rast(paste0(ras_path, "tree_patches.tif"))
 
 # Add in SF layers
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
@@ -806,11 +899,12 @@ values(beta0_rast) <- beta0
 # Create raster for each covariate multiplied by the value of the corresponding scaled raster
 beta_shrub_rast <- beta_shrub * shrub_rast_scl
 beta_pfg_rast <- beta_pfg * pfg_rast_scl
+beta_pfg2_rast <- beta_pfg * pfg_rast_scl^2
 beta_tri_rast <- beta_tri * tri_rast_scl
-beta_tree_rast <- beta_tree * tree_rast_agg
+beta_tri2_rast <- beta_tri2 ** tri_rast_scl^2
 
 # Combine all predictive layers
-pred_rast_ln <- sum(c(beta0_rast, beta_shrub_rast, beta_pfg_rast, beta_tri_rast, beta_tree_rast))
+pred_rast_ln <- sum(c(beta0_rast, beta_shrub_rast, beta_pfg_rast, beta_pfg2_rast, beta_tri_rast, beta_tri2_rast))
 
 # Exponentiate the predictive raster
 pred_rast_lg <- exp(pred_rast_ln)
@@ -819,7 +913,7 @@ pred_rast_lg <- exp(pred_rast_ln)
 pred_rast_hect <- pred_rast_lg / (area * 0.0001)
 
 # Clip to the study region
-pred_rast <- mask(pred_rast_hect , study_region_prj)
+pred_rast <- mask(pred_rast_lg , study_region_prj)
 
 # Make a pallete
 palette <- viridis(5)
@@ -835,20 +929,14 @@ tm_shape(pred_rast) +
     style = "fisher",                       
     palette = palette
   ) +
-  tm_layout(
-    main.title = "",
-    main.title.size = 1.5,
-    legend.outside = TRUE,                
-    frame = FALSE                        
-  ) +
-  tm_compass(
-    type = "arrow",                       
-    position = c("right", "bottom")           
-  ) +
-  tm_scale_bar(
-    breaks = c(0, 10, 20),                
-    position = c("right", "bottom")       
-  )
+  tm_layout(main.title = "",
+            main.title.size = 1.5,
+            legend.outside = TRUE,                
+            frame = FALSE) +
+  tm_compass(type = "arrow",                       
+             position = c("right", "bottom")) +
+  tm_scale_bar(breaks = c(0, 10, 20),                
+               position = c("right", "bottom"))
 
 # Save the raster
 writeRaster(pred_rast,
