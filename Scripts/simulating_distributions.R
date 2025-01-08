@@ -14,7 +14,10 @@ ggplot(sample_dat, aes(x = samples)) +
   geom_density(lwd = 2, col = "blue") +
   theme_classic()
 
+t <- rt(n = 1000, df = 2, ncp = 1)
 
+t_trunc <- t[t >= 0]
+hist(t_trunc)
 
 
 # Distance sampling half normal ##################################
