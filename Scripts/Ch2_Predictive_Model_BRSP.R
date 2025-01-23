@@ -55,7 +55,7 @@ glimpse(covs)
 # 1.2) Prepare the count level data ################################################################
 
 # Define single species ----
-study_species <- "BRSP"
+study_species <- "HOLA"
 
 # Define a truncation distance (km)
 trunc_dist <- 0.125
@@ -309,31 +309,31 @@ sobs_model_code <- nimbleCode({
   # ------------------------------------------------------------------
   
   # Parameters in the availability component of the detection model
-  gamma0 ~ dnorm(0, sd = 3)           # Mean availability
-  gamma_date ~ dnorm(0, sd = 0.5)     # Effect of day of year on singing rate
-  gamma_date2 ~ dnorm(0, sd = 0.5)    # Effect of day of year on singing rate (quadratic)
-  gamma_time ~ dnorm(0, sd = 0.5)     # Effect of time of day on singing rate
-  gamma_time2 ~ dnorm(0, sd = 0.5)    # Effect of time of day on singing rate (quadratic)
+  gamma0 ~ dnorm(0, sd = 2)           # Mean availability
+  gamma_date ~ dnorm(0, sd = 1.2)     # Effect of day of year on singing rate
+  gamma_date2 ~ dnorm(0, sd = 1.2)    # Effect of day of year on singing rate (quadratic)
+  gamma_time ~ dnorm(0, sd = 1.2)     # Effect of time of day on singing rate
+  gamma_time2 ~ dnorm(0, sd = 1.2)    # Effect of time of day on singing rate (quadratic)
   
   # Parameters in the detection portion of the model
   alpha0 ~ dnorm(0, sd = 3)             # Intercept on detectability
-  for(o in 1:nobsv){                     # Loop over experinece levels
-    alpha_obsv[o] ~ dnorm(0, sd = 3)  # Effect of observer experience on detecability
+  for(o in 1:nobsv){                    # Loop over experinece levels
+    alpha_obsv[o] ~ dnorm(0, sd = 3)    # Effect of observer experience on detecability
   }
   
   # Parameters on the abundance component of the model
-  mu_beta0 ~ dnorm(0, sd = 1.5)         # Mean abundance hyperparameter
-  sd_beta0 ~ dunif(0, 1)                # Sd in yearly abundance hyperparameter
+  mu_beta0 ~ dnorm(0, sd = 2)         # Mean abundance hyperparameter
+  sd_beta0 ~ dunif(0, 1.2)              # Sd in yearly abundance hyperparameter
   # Random intercept on abundance
   for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(mu_beta0, sd_beta0)
+    beta0_year[t] ~ dnorm(mu_beta0, sd = sd_beta0)
   }
   # Fixed effects on abundance 
-  beta_shrub ~ dnorm(0, sd = 0.5)     # Effect of shrub cover
-  beta_pfg ~ dnorm(0, sd = 0.5)       # Effect of Perennial Cover
-  # beta_pfg2 ~ dnorm(0, sd = 0.5)      # Effect of Perennial Cover (quadratic)
-  beta_tri ~ dnorm(0, sd = 0.5)       # Effect of ruggedness
-  # beta_tri2 ~ dnorm(0, sd = 0.5)      # Effect of ruggedness (quadratic)
+  beta_shrub ~ dnorm(0, sd = 1.2)     # Effect of shrub cover
+  beta_pfg ~ dnorm(0, sd = 1.2)       # Effect of Perennial Cover
+  # beta_pfg2 ~ dnorm(0, sd = 1.2)      # Effect of Perennial Cover (quadratic)
+  beta_tri ~ dnorm(0, sd = 1.2)       # Effect of ruggedness
+  # beta_tri2 ~ dnorm(0, sd = 1.2)      # Effect of ruggedness (quadratic)
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -389,17 +389,17 @@ sobs_model_code <- nimbleCode({
                         beta_shrub * shrub_cvr[s] + # Effect of shrub cover
                         beta_pfg * pfg_cvr[s] +     # Effect of Perennial Cove
                         # beta_pfg2 & pfg_cvr[s]^2 +  # Effect off perennial cover squared
-                        beta_tri * tri[s]           # Effect of ruggedness
+                        beta_tri * tri[s]          # Effect of ruggedness
                         # beta_tri2 * tri[s]^2        # Effect of ruggedness squared
 
       # Assess model fit: compute Bayesian p-value for Freeman-Tukey discrepancy
       # Compute fit statistic for observed data
-      e_val[s] <- p_cap[s] * N_indv[s]              # Expected value for binomial portion of the model
-      FT[s] <- (sqrt(n_dct[s]) - sqrt(e_val[s]))^2
+      # e_val[s] <- p_cap[s] * N_indv[s]              # Expected value for binomial portion of the model
+      # FT[s] <- (sqrt(n_dct[s]) - sqrt(e_val[s]))^2
 
       # Generate replicate count data and compute same fit stats for them
-      n_dct_new[s] ~ dbin(p_cap[s], N_indv[s])
-      FT_new[s] <- (sqrt(n_dct_new[s]) - sqrt(e_val[s]))^2
+      # n_dct_new[s] ~ dbin(p_cap[s], N_indv[s])
+      # FT_new[s] <- (sqrt(n_dct_new[s]) - sqrt(e_val[s]))^2
     
   } # end loop through survey grids
   
@@ -410,14 +410,14 @@ sobs_model_code <- nimbleCode({
   } # end observation loop
 
   # Add up fit stats across sites and visits
-  fit <- sum(FT[])
-  fit_new <- sum(FT_new[])
+  # fit <- sum(FT[])
+  # fit_new <- sum(FT_new[])
 
   # c-hat value, should converge to ~1
-  c_hat <- fit / fit_new
+  # c_hat <- fit / fit_new
 
   # Compute Bayesian p-value for the model, should converge to ~0.5
-  bpv <- step(fit_new - fit)
+  # bpv <- step(fit_new - fit)
   
 })
 
@@ -433,16 +433,13 @@ sobs_const <- list (
   npoints = npoints,       # Number of survey grids
   nind = nind,             # Number of individuals detected 
   nobsv = nobsv,           # Number of unique observers
-  # nexp = nexp,             # Number of experience levels
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
   # ngrids = ngrids,         # Number of survey grids (transects)
   nyears = nyears,         # Number of years we surveyed
-  # ntrts = ntrts,           # Number of treatment types (burned vs reference)
   
   # Non-stochastic constants
   observers = observers,   # Effect of observer associated with each survey
-  # obsv_exp = obsv_exp,     # Observer experience associated with each point
   midpt = midpt,           # Midpoints of distance bins
   # grids = grids,           # Grid where each point count took place  
   years = years,           # Year when each survey took place
@@ -482,10 +479,10 @@ sobs_dims <- list(
   pi_pa =  c(npoints, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(npoints, nints),  # Proportion of total availability probability in each cell
   p_avail = npoints,            # Availability probability
-  lambda = npoints,             # Poisson random variable
-  e_val = npoints,              # Expected value for binomial portion of the model
-  FT = npoints,                 # Freeman Tukey Discrepancy
-  FT_new = npoints              # New Freeman Tukey Discrepancy
+  lambda = npoints              # Poisson random variable
+  # e_val = npoints,              # Expected value for binomial portion of the model
+  # FT = npoints,                 # Freeman Tukey Discrepancy
+  # FT_new = npoints              # New Freeman Tukey Discrepancy
 )
 # View dimensions
 str(sobs_dims)
@@ -512,12 +509,10 @@ sobs_inits <- list(
   beta_tri = rnorm(1, 0, 0.1),
   # beta_tri2 = rnorm(1, 0, 0.1),
   # Presence
-  # mu_psi = runif(ntrts, 0.4, 0.6),
-  # sd_psi = runif(ntrts, 0.1, 0.2),
   psi = runif(npoints, 0.4, 0.6),
   present = rbinom(npoints, 1, 0.5),
   # Simulated data
-  n_dct_new = n_dct,              # Initialize the new capture data at the existing data values
+  # n_dct_new = n_dct,              # Initialize the new capture data at the existing data values
   N_indv = n_dct + 1              # start each grid with an individual present
 )  
 # View the initial values
@@ -537,11 +532,11 @@ sobs_params <- c(
                  "gamma_date",
                  "gamma_date2",
                  "gamma_time",
-                 "gamma_time2",
-                 "fit",
-                 "fit_new",
-                 "c_hat",
-                 "bpv"
+                 "gamma_time2"
+                 # "fit",
+                 # "fit_new",
+                 # "c_hat",
+                 # "bpv"
                  )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -578,8 +573,8 @@ sobs_model_vect <- nimbleModel(sobs_model_code,
 sobs_mcmcConf <- configureMCMC(sobs_model_vect, 
                                monitors = sobs_params)
 
-# NOTE, these will always have a warning message. Just ignore it
 # Block all availability (gamma) nodes together
+# NOTE, these will always have a warning message. Just ignore it
 sobs_mcmcConf$removeSamplers("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2")
 
 sobs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2"),
@@ -599,12 +594,6 @@ sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]", 
                                     "alpha_obsv[17]"),
                          type = 'RW_block')
 
-# # Block all detection (alpha) nodes together
-# sobs_mcmcConf$removeSamplers("alpha0", "alpha_obsv[1]", "alpha_obsv[2]")
-# 
-# sobs_mcmcConf$addSampler(target = c("alpha0", "alpha_obsv[1]", "alpha_obsv[2]"),
-#                          type = 'RW_block')
-
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers(# Random effects
                              "beta0_year[1]", "beta0_year[2]", "beta0_year[3]", 
@@ -622,8 +611,7 @@ sobs_mcmcConf$addSampler(target = c(# Random effects
   # "beta_pfg2",
   "beta_tri"
   # "beta_tri2"
-  ),
-                         type = 'RW_block')
+  ), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers() # print samplers being used 
@@ -640,8 +628,8 @@ cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # c
 
 # MCMC settings for the real model. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1           # Quick test to see if the model runs
-nc <- 3  ;  ni <- 200000  ;  nb <- 150000;  nt <- 10    # longer test where most parameters should
-# nc <- 3;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
+# nc <- 3  ;  ni <- 200000  ;  nb <- 150000;  nt <- 10    # longer test where most parameters should
+nc <- 3;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
 
 # Quick check of how many samples we'll keep in the posterior
 message(paste((ni - nb) / nt), " samples will be kept from the posterior")
@@ -669,9 +657,6 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 
 # 3.1) View model output #######################################################
 
-# Pick a species and scale
-study_species <- "BRSP"
-
 # Load the output back in
 sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                        study_species, "_predictive_model_out.rds"))
@@ -694,7 +679,7 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 
 # Perameters for the MCMC plot
 plot_params <- c(
-  "beta0",
+  "beta0_year",
   "beta_shrub", 
   "beta_pfg",
   # "beta_pfg2",
@@ -718,38 +703,45 @@ sobs_mcmc_out$summary$all.chains
 # 4.1) Extract coefficient values ###############################################################
 
 # Extract Beta0 values
-# beta0_year1 <- sobs_mcmc_out$summary$all.chains[4,1]
-# beta0_year2 <- sobs_mcmc_out$summary$all.chains[5,1]
-# beta0_year3 <- sobs_mcmc_out$summary$all.chains[6,1]
-# beta0 <- mean(c(beta0_year1, beta0_year2, beta0_year3))
-beta0 <- sobs_mcmc_out$summary$all.chains[20,1]
+beta0_year1 <- sobs_mcmc_out$summary$all.chains[19,]
+beta0_year2 <- sobs_mcmc_out$summary$all.chains[20,]
+beta0_year3 <- sobs_mcmc_out$summary$all.chains[21,]
+beta0 <- sapply(bind_rows(beta0_year1, beta0_year2, beta0_year3), mean)
+# beta0 <- sobs_mcmc_out$summary$all.chains[20,1]
 # View intercepts
 # c(beta0_year1, beta0_year2, beta0_year3)
 beta0
 
 # Extract effect sizes
-beta_shrub <- sobs_mcmc_out$summary$all.chains[8,1]
-beta_pfg <- sobs_mcmc_out$summary$all.chains[7,1]
-beta_pfg2 <- sobs_mcmc_out$summary$all.chains[,1]
-beta_tri <- sobs_mcmc_out$summary$all.chains[10,1]
-beta_tri2 <- sobs_mcmc_out$summary$all.chains[,1]
+beta_shrub <- sobs_mcmc_out$summary$all.chains[23,]
+beta_pfg <- sobs_mcmc_out$summary$all.chains[22,]
+# beta_pfg2 <- sobs_mcmc_out$summary$all.chains[23,]
+beta_tri <- sobs_mcmc_out$summary$all.chains[25,]
+# beta_tri2 <- sobs_mcmc_out$summary$all.chains[26,]
+
 # View Betas
-c(beta_shrub, beta_pfg, beta_pfg2, beta_tri, beta_tri2)
+bind_rows(beta_shrub, 
+  beta_pfg, 
+  beta_pfg2,
+  beta_tri,
+  beta_tri2
+  )
 
 # Combine everything into a dataframe
 beta_dat <- data.frame(bind_rows(beta0,
                                  beta_shrub, 
                                  beta_pfg,
-                                 beta_pfg2,
-                                 beta_tri, 
-                                 beta_tri2)) %>% 
+                                 # beta_pfg2,
+                                 beta_tri
+                                 # beta_tri2
+                                 )) %>% 
   mutate(Parameter = c("Beta0",
                        "Beta.Shrub", 
-                       
                        "Beta.PFG", 
-                       "Beta.PFG2",
-                       "Beta.TRI", 
-                       "Beta.TRI2")) %>% 
+                       # "Beta.PFG2",
+                       "Beta.TRI"
+                       # "Beta.TRI2"
+                       )) %>% 
   relocate(Parameter, .before = Mean) %>% 
   rename(CI.lb = X95.CI_low,
          CI.ub = X95.CI_upp)
@@ -781,13 +773,17 @@ beta_dat_pred <- beta_dat_long %>%
 # View the new data 
 glimpse(beta_dat_pred)
 
-# Plot a specific predictor
+# Find the mean and sd to unscale the data
+shrub_cvr_mean <- mean(covs$Shrub.Cover)
+shrub_cvr_sd <- sd(covs$Shrub.Cover)
+
+# Plot predicted responce to shrub cover
 pred_plot <- beta_dat_pred %>% 
   mutate(
     # Calculate the predicted response to shrub cover for all years
     Shrub.Pred.Trend =  exp(Beta0.Mean + Beta.Shrub.Mean * Pred),
-    Shrub.Pred.lb = exp(Beta0.lb + Beta.Shrub.CI.lb * Pred),
-    Shrub.Pred.ub =  exp(Beta0.ub +  Beta.Shrub.CI.ub * Pred),
+    Shrub.Pred.lb = exp(Beta0.CI.lb + Beta.Shrub.CI.lb * Pred),
+    Shrub.Pred.ub =  exp(Beta0.CI.ub +  Beta.Shrub.CI.ub * Pred),
     # Transform shrub cover back to the native scale
     Pred.Naive = Pred * shrub_cvr_sd + shrub_cvr_mean
   ) %>% 
@@ -796,9 +792,13 @@ pred_plot <- beta_dat_pred %>%
   geom_ribbon(aes(x = Pred.Naive, ymin = Shrub.Pred.lb, ymax = Shrub.Pred.ub), 
               alpha = 0.2, fill = "blue") +  
   labs(title = "", x = "Percent Shrub Cover", y = "Predicted Brewer's Sparrow Abundance (birds/km^2)") +
-  ylim(0, 200) +
-  xlim(0, 40) +
-  theme_classic()
+  ylim(0, 7) +
+  # xlim(0, 50) +
+  theme_classic() +
+  theme(axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        axis.text.x = element_text(size = 18),
+        axis.text.y = element_text(size = 18))
 
 # Display the plot
 pred_plot
@@ -821,6 +821,8 @@ ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geopr
 shrub_rast <- rast(paste0(ras_path, "shrub_cvr.tif"))
 pfg_rast <- rast(paste0(ras_path, "pfg_cvr.tif"))
 tri_rast <- rast(paste0(ras_path, "tri.tif"))
+# tree_rast <- rast(paste0(ras_path, "tree_cvr.tif"))
+# dev_rast <- rast(paste0(ras_path, "developed.tif"))
 
 # Add in SF layers
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
@@ -831,8 +833,10 @@ treatments <- st_read(paste0(ras_path, "treatments.shp"))
 study_region_prj <- st_transform(study_region, target_crs)
 treatments_prj <- st_transform(treatments, target_crs)
 
-# Resample TRI to have the same cell size and extent as the other rasters
+# Resample all rasters to have the same cell size and extent 
 tri_rast_res <- resample(tri_rast, shrub_rast, method = "bilinear")
+# tree_rast_res <- resample(tree_rast, shrub_rast, method = "bilinear") 
+# dev_rast_res <- resample(dev_rast, shrub_rast, method = "bilinear")
 
 # Find the area around each point where birds were counted 
 area <- pi * (trunc_dist * 1000)^2
@@ -850,10 +854,22 @@ agg_fact
 shrub_rast_agg <- aggregate(shrub_rast, fact = agg_fact, fun = "mean")
 pfg_rast_agg <- aggregate(pfg_rast, fact = agg_fact, fun = "mean")
 tri_rast_agg <- aggregate(tri_rast_res, fact = agg_fact, fun = "mean")
-tree_rast_agg <- aggregate(tree_rast, fact = agg_fact, fun = "sum")
+# tree_rast_agg <- aggregate(tree_rast_res, fact = agg_fact, fun = "mean")
+# dev_rast_agg <- aggregate(dev_rast_res, fact = agg_fact, fun = "sum")
+
+# Make development binary again
+dev_rast_agg[dev_rast_agg >= 1] <- 1
 
 # Reclassify the tree raster to be binary
-tree_rast_agg[tree_rast_agg >= 1] <- 1
+# 25% was a good cutoff that included almost all true foorests but very few isolated trees
+# tree_rast_agg[tree_rast_agg < 25] <- 1
+# tree_rast_agg[tree_rast_agg >= 25] <- 0
+
+# Combine tree cover and ag to find the total area excluded from predictions 
+# zero_rast <- tree_rast_agg * dev_rast_agg
+
+# Project the zero raster
+# crs(zero_rast) <- target_crs
 
 # Factors to scale covarates using the original model scales
 shrub_mean <- mean(covs$Shrub.Cover)
@@ -874,23 +890,36 @@ shrub_rast_scl <- scale_rast(rast = shrub_rast_agg, mu = shrub_mean, sigma = shr
 pfg_rast_scl <- scale_rast(rast = pfg_rast_agg, mu = pfg_mean, sigma = pfg_sd)
 tri_rast_scl <- scale_rast(rast = tri_rast_agg, mu = tri_mean, sigma = tri_sd)
 
+# View scaled rasters
+shrub_rast_scl
+pfg_rast_scl
+tri_rast_scl
+
 # Empty raster template for intercept value based on shrub cover raster
 beta0_rast <- rast(extent = ext(shrub_rast_scl), 
                    resolution = res(shrub_rast_scl), 
                    crs = crs(shrub_rast_scl))
 
 # Assign that raster the value of the model intercept
-values(beta0_rast) <- beta0
+values(beta0_rast) <- beta0[1]
+#View
+beta0_rast
 
 # Create raster for each covariate multiplied by the value of the corresponding scaled raster
-beta_shrub_rast <- beta_shrub * shrub_rast_scl
-beta_pfg_rast <- beta_pfg * pfg_rast_scl
-beta_pfg2_rast <- beta_pfg * pfg_rast_scl^2
-beta_tri_rast <- beta_tri * tri_rast_scl
-beta_tri2_rast <- beta_tri2 ** tri_rast_scl^2
+beta_shrub_rast <- beta_shrub[1] * shrub_rast_scl
+beta_pfg_rast <- beta_pfg[1] * pfg_rast_scl
+# beta_pfg2_rast <- beta_pfg[1] * pfg_rast_scl^2
+beta_tri_rast <- beta_tri[1] * tri_rast_scl
+# beta_tri2_rast <- beta_tri2[1] * tri_rast_scl^2
 
 # Combine all predictive layers
-pred_rast_ln <- sum(c(beta0_rast, beta_shrub_rast, beta_pfg_rast, beta_pfg2_rast, beta_tri_rast, beta_tri2_rast))
+pred_rast_ln <- sum(c(beta0_rast, 
+                      beta_shrub_rast, 
+                      beta_pfg_rast, 
+                      # beta_pfg2_rast,
+                      beta_tri_rast
+                      # beta_tri2_rast
+                      ))
 
 # Exponentiate the predictive raster
 pred_rast_lg <- exp(pred_rast_ln)
@@ -898,8 +927,11 @@ pred_rast_lg <- exp(pred_rast_ln)
 # Divide by the number of hectares in a cell
 pred_rast_hect <- pred_rast_lg / (area * 0.0001)
 
+# Remove the forests and developed areas
+# pred_rast_clp <- pred_rast_hect * zero_rast
+
 # Clip to the study region
-pred_rast <- mask(pred_rast_lg , study_region_prj)
+pred_rast <- mask(pred_rast_hect , study_region_prj)
 
 # Make a pallete
 palette <- viridis(5)
@@ -907,7 +939,7 @@ palette <- viridis(5)
 # Pick how to view the raster
 tmap_mode("view")
 # tmap_mode("plot")
-+
+
 # View the predictive raster
 tm_shape(pred_rast) +
   tm_raster(

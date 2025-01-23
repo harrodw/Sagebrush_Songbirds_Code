@@ -275,169 +275,6 @@ grid_covs$Prop.Burned.5km <- 100 * Prop.Burned.5km[,2] / 125663
 # View the new point covariates
 glimpse(grid_covs)
 
-# 2.5) Patch characteristics for tree and shrub at the 125m point buffer scale #####################################
-
-# Sort the grid covariates
-grid_covs <- grid_covs %>% 
-  arrange(Grid.ID) %>% 
-  mutate(Avg.Shrub.Patch.Size.125m = NA,
-         n.Shrub.Patches.125m = NA,
-         Avg.Tree.Patch.Size.125m = NA,
-         n.Tree.Patches.125m = NA)
-
-# List of survey grids
-ngrids <- nrow(grid_buff_sm)
-
-# Summarize tree and shrub patches within each grid 
-for(g in 1:ngrids){
-
-  # Select a single grid
-  grid <- grid_buff_sm[g,] %>% dplyr::select(Grid.Type, geometry)
-  
-  # Shrub patch characteristics
-  # Crop the shrub patch raster extent
-  shrub_patch_crop <- crop(shrub_patches, grid)
-  # Clip the shrub patch raster to that grid buffer
-  shrub_patch_clp <- mask(shrub_patch_crop, grid)
-  # Calculate the average patch area
-  avg_area_shrub <- landscapemetrics::lsm_l_area_mn(shrub_patch_clp)
-  # Assign average shrub patch area to the grid covs 
-  grid_covs$Avg.Shrub.Patch.Size.125m[g] <- avg_area_shrub$value
-  # Calculate the number of shrub patches
-  np_shrub <- landscapemetrics::lsm_l_np(shrub_patch_clp)
-  # Assign the number of shrub patches to the grid covs 
-  grid_covs$n.Shrub.Patches.125m[g] <- np_shrub$value
-  
-  # Tree Patch characteristics
-  # crop the tree patch raster extent 
-  tree_patch_crop <- crop(tree_patches, grid)
-  # Clip the tree patch raster to that grid buffer
-  tree_patch_clp <- mask(tree_patch_crop, grid)
-  # Calculate the average patch area
-  avg_area_tree <- landscapemetrics::lsm_l_area_mn(tree_patch_clp)
-  # Assign average tree patch area to the grid covs 
-  grid_covs$Avg.Tree.Patch.Size.125m[g] <- avg_area_tree$value
-  # Calculate the number of tree patches
-  np_tree <- landscapemetrics::lsm_l_np(tree_patch_clp)
-  # Assign the number of tree patches to the grid covs 
-  grid_covs$n.Tree.Patches.125m[g] <- np_tree$value
-  
-  # Progress message
-  message(paste("Extracted 125m patch characteristics for grid", g, "out of", ngrids))
-}
-
-# And view
-glimpse(grid_covs)
-
-# 2.5) Patch characteristics for tree and shrub at the 1km grid radius scale #####################################
- 
-# Sort the grid covariates
-grid_covs <- grid_covs %>% 
-  arrange(Grid.ID) %>% 
-  mutate(Avg.Shrub.Patch.Size.1km = NA,
-         n.Shrub.Patches.1km = NA,
-         Avg.Tree.Patch.Size.1km = NA,
-         n.Tree.Patches.1km = NA)
-
-# List of survey grids
-ngrids <- nrow(grid_buff_med)
-
-# Summarize tree and shrub patches within each grid
-for(g in 1:ngrids){
-  
-  # Select a single grid
-  grid <- grid_buff_med[g,] %>% dplyr::select(Grid.Type, geometry)
-  
-  # Shrub patch characteristics
-  # Crop the shrub patch raster extent
-  shrub_patch_crop <- crop(shrub_patches, grid)
-  # Clip the shrub patch raster to that grid buffer
-  shrub_patch_clp <- mask(shrub_patch_crop, grid)
-  # Calculate the average patch area
-  avg_area_shrub <- landscapemetrics::lsm_l_area_mn(shrub_patch_clp)
-  # Assign average shrub patch area to the grid covs 
-  grid_covs$Avg.Shrub.Patch.Size.1km[g] <- avg_area_shrub$value
-  # Calculate the number of shrub patches
-  np_shrub <- landscapemetrics::lsm_l_np(shrub_patch_clp)
-  # Assign the number of shrub patches to the grid covs 
-  grid_covs$n.Shrub.Patches.1km[g] <- np_shrub$value
-  
-  # Tree Patch characteristics
-  # crop the tree patch raster extent 
-  tree_patch_crop <- crop(tree_patches, grid)
-  # Clip the tree patch raster to that grid buffer
-  tree_patch_clp <- mask(tree_patch_crop, grid)
-  # Calculate the average patch area
-  avg_area_tree <- landscapemetrics::lsm_l_area_mn(tree_patch_clp)
-  # Assign average tree patch area to the grid covs 
-  grid_covs$Avg.Tree.Patch.Size.1km[g] <- avg_area_tree$value
-  # Calculate the number of tree patches
-  np_tree <- landscapemetrics::lsm_l_np(tree_patch_clp)
-  # Assign the number of tree patches to the grid covs 
-  grid_covs$n.Tree.Patches.1km[g] <- np_tree$value
-  
-  # Progress message
-  message(paste("Extracted 1km patch characteristics for grid", g, "out of", ngrids))
-}
-
-# And view
-glimpse(grid_covs)
-
-# 2.5) Patch characteristics for tree and shrub at the 5km grid scale #####################################
-
-# Sort the grid covariates
-grid_covs <- grid_covs %>% 
-  arrange(Grid.ID) %>% 
-  mutate(Avg.Shrub.Patch.Size.5km = NA,
-         n.Shrub.Patches.5km = NA,
-         Avg.Tree.Patch.Size.5km = NA,
-         n.Tree.Patches.5km = NA)
-
-# List of survey grids
-ngrids <- nrow(grid_buff_sm)
-
-# Summarize tree and shrub patches within each grid 
-for(g in 1:ngrids){
-  
-  # Select a single grid
-  grid <- grid_buff_lg[g,] %>% dplyr::select(Grid.Type, geometry)
-  
-  # Shrub patch characteristics
-  # Crop the shrub patch raster extent
-  shrub_patch_crop <- crop(shrub_patches, grid)
-  # Clip the shrub patch raster to that grid buffer
-  shrub_patch_clp <- mask(shrub_patch_crop, grid)
-  # Calculate the average patch area
-  avg_area_shrub <- landscapemetrics::lsm_l_area_mn(shrub_patch_clp)
-  # Assign average shrub patch area to the grid covs 
-  grid_covs$Avg.Shrub.Patch.Size.5km[g] <- avg_area_shrub$value
-  # Calculate the number of shrub patches
-  np_shrub <- landscapemetrics::lsm_l_np(shrub_patch_clp)
-  # Assign the number of shrub patches to the grid covs 
-  grid_covs$n.Shrub.Patches.5km[g] <- np_shrub$value
-  
-  # Tree Patch characteristics
-  # crop the tree patch raster extent 
-  tree_patch_crop <- crop(tree_patches, grid)
-  # Clip the tree patch raster to that grid buffer
-  tree_patch_clp <- mask(tree_patch_crop, grid)
-  # Calculate the average patch area
-  avg_area_tree <- landscapemetrics::lsm_l_area_mn(tree_patch_clp)
-  # Assign average tree patch area to the grid covs 
-  grid_covs$Avg.Tree.Patch.Size.5km[g] <- avg_area_tree$value
-  # Calculate the number of tree patches
-  np_tree <- landscapemetrics::lsm_l_np(tree_patch_clp)
-  # Assign the number of tree patches to the grid covs 
-  grid_covs$n.Tree.Patches.5km[g] <- np_tree$value
-
-  
-  # Progress message
-  message(paste("Extracted patch 5km characteristics for grid", g, "out of", ngrids))
-}
-
-# And view
-glimpse(grid_covs)
-
 # 2.3) fire covariates ########################################################################
 
 # File path for burn sevarity data
@@ -492,7 +329,7 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
   grid_covs_fire$rdnbr.125m.tmp <- rdnbr.125m.tmp[,2]
   
   # reset a temporary points object for the mean rdnbr at the 1km scale
-  rdnbr.1km.tmp <- terra::extract(x = rdnbr_ras, y = grid_buff_sm, fun = function(x) mean(x, na.rm = TRUE))
+  rdnbr.1km.tmp <- terra::extract(x = rdnbr_ras, y = grid_buff_med, fun = function(x) mean(x, na.rm = TRUE))
   grid_covs_fire$rdnbr.1km.tmp <- rdnbr.1km.tmp[,2]
     
   # Pull out the values where there were fires at the point for that year
@@ -503,7 +340,7 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
                                   TRUE ~ rdnbr.1km),
            Fire.Count = case_when(! is.na(rdnbr.125m.tmp) ~ Fire.Count + 1,
                                   TRUE ~ Fire.Count),
-           Fire.Year = case_when(! is.na(rdnbr.125m.tmp) ~ year,
+           Fire.Year = case_when(!is.na(rdnbr.125m.tmp) ~ year,
                                  TRUE ~ Fire.Year))
   
   # finished with one itteration
@@ -514,34 +351,24 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
 # Remove the temporary attributes
 grid_covs_fire2 <- grid_covs_fire %>% 
   dplyr::select(-rdnbr.125m.tmp, -rdnbr.1km.tmp) %>% 
-  # Need to manually add in data for UT-B02 since the fire is too small foor mtbs
+  # Need to manually add in data for UT-B02 since the fire is too small for mtbs
+  # And ID-C22 picked up a tiny sliver of an unsampled fire that I need to remove 
   mutate(Fire.Year = case_when(Grid.ID == "UT-B02" ~ 2017, 
+                               Grid.ID == "ID-C22" ~ 1800,
                                TRUE ~ Fire.Year),
-         rdnbr.125m = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$rdnbr.125m[which(grid_covs_fire$rdnbr.125m != 0)]), 
-                               TRUE ~ rdnbr.125m),
+         rdnbr.125m = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$rdnbr.125m[which(grid_covs_fire$rdnbr.125m != 0)]),
+                                Grid.ID == "ID-C22" ~ 0,
+                                TRUE ~ rdnbr.125m),
          Fire.Count= case_when(Grid.ID == "UT-B02" ~ 1, 
-                               TRUE ~ Fire.Count))
+                               Grid.ID == "ID-C22" ~ 0,
+                               TRUE ~ Fire.Count)) 
 # View the changes
 grid_covs_fire2 %>% 
   filter(Grid.ID == "UT-B02")
 
 # Join these to the exisitng covariates
 grid_covs_final <- grid_covs %>% 
-  left_join(grid_covs_fire2, by = "Grid.ID") %>% 
-  # Log transform certain covariates
-  mutate(ln.Shrub.Patch.Size.125m = log(Avg.Shrub.Patch.Size.125m),
-         ln.Shrub.Patch.Size.1km = log(Avg.Shrub.Patch.Size.1km),
-         ln.Shrub.Patch.Size.5km = log(Avg.Shrub.Patch.Size.5km),
-         ln.Tree.Patch.Size.125m = log(Avg.Tree.Patch.Size.125m),
-         ln.Tree.Patch.Size.1km = log(Avg.Tree.Patch.Size.1km),
-         ln.Tree.Patch.Size.5km = log(Avg.Tree.Patch.Size.5km)) %>% 
-  # Make a binary variable for whether or not trees are present
-  mutate(Trees.Present.125m = case_when(n.Tree.Patches.125m > 1 ~ 1,
-                                        n.Tree.Patches.125m <= 1 ~ 0),
-         Trees.Present.1km = case_when(n.Tree.Patches.1km > 1 ~ 1,
-                                        n.Tree.Patches.1km <= 1 ~ 0),
-         Trees.Present.5km = case_when(n.Tree.Patches.5km > 1 ~ 1,
-                                        n.Tree.Patches.5km <= 1 ~ 0))
+  left_join(grid_covs_fire2, by = "Grid.ID") 
 
 # View all covariates
 glimpse(grid_covs_final)
@@ -550,7 +377,7 @@ glimpse(grid_covs_final)
 ggplot(grid_covs_final, aes(x = rdnbr.125m, y = Shrub.Cover.125m)) +
   geom_smooth(method = "lm") +
   geom_point()
-
+  
 # Export the grid summaries to the current workspace
 write.csv(grid_covs_final, "Data\\Outputs\\grid_covs.csv")
 # And to my box data folder. Feel free to comment this out
@@ -606,12 +433,12 @@ pre_fire_covs <- sobs %>%
 # View covs
 glimpse(pre_fire_covs)
 
-# Create a new buffer object (657m) is the smallest distance that includes all points in a grid)
+# Create a new buffer object (689m) is the smallest distance that includes all points in a grid)
 pre_fire_buff <- pre_fire_covs %>%
   select(Grid.ID, Grid.Type, Grid.X, Grid.Y) %>% 
   st_as_sf(coords = c("Grid.X", "Grid.Y")) %>% 
   st_set_crs(target_crs) %>% 
-  st_buffer(dist = 657)
+  st_buffer(dist = 689)
 # View buffer
 pre_fire_buff 
 
@@ -648,7 +475,7 @@ start <- Sys.time()
 start # Start time
 for(i in 2:(nyears_rap)){ 
   # run a specific year to test the loop (comment out after testing)
-  i <- which(rap_years == 2017)
+  # i <- which(rap_years == 2017)
   
   # define the year for the current iteration
   year <- rap_years[i]
@@ -681,7 +508,7 @@ for(i in 2:(nyears_rap)){
   pfg_rast <- rap_rast_clp$PFG # Perennial for and grass cover
   afg_rast <- rap_rast_clp$AFG # Annual grass cover
   tree_rast <- rap_rast_clp$TRE # Tree cover
-  bg_rast <- rap_rast_clp$BGR # Bare gound cover
+  bg_rast <- rap_rast_clp$BGR # Bare ground cover
 
   # Reset a temporary summary object for the mean value of each covariate within the buffer
   pixel_count <- terra::extract(x = ref_rast, y = pre_fire_buff, fun = function(x) sum(x, na.rm = TRUE)) # Summary of how many raster pixels are inside that buffer

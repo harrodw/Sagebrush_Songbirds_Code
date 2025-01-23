@@ -1,6 +1,6 @@
-#Will Harrod
-#Created: 02/15/2024
-#Start here ---------------------------------------------------------------------
+# Will Harrod
+# Created: 02/15/2024
+# Start here ---------------------------------------------------------------------
 
 #Add packages
 library(tidyverse)
@@ -464,7 +464,7 @@ tsf_count  %>%
               width = 0.2, height = 0.4, size = 1) +
   geom_smooth(aes(x = Years.Since.Fire, y = Count, color = "Trend"), 
               method = "glm", 
-              fill = "red1",
+              fill = "red",
               method.args = list(family = "quasipoisson"),
               se = TRUE,
               linewidth = 2) +
@@ -493,6 +493,12 @@ tsf_count  %>%
   guides(color = guide_legend(ncol = 1),   
          fill = guide_legend(ncol = 1))
 
+
+tsf_count %>% 
+  filter(Species == "BRSP") %>% 
+  arrange(Years.Since.Fire) %>% 
+  select(Grid.ID, Grid.Type, Year, Visit, Years.Since.Fire) %>% 
+  print(n = Inf)
 #Species counts and fire sevarety #################fill_()#Species counts and fire sevarety #################################################
 fire_sev_cols <- c("yellow1", "darkorange1", "red1", "red4")
 sobs_count %>% 

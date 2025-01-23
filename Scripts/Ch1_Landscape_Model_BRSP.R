@@ -754,7 +754,7 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output #######################################################
 
 # Pick a species and scale
-study_species <- "BRSP"
+study_species <- "SATH"
 model_scale <- "125m"
 
 # Load the output back in
@@ -762,15 +762,15 @@ sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pr
                                        study_species, "_", model_scale, "_landscape_model_out.rds"))
   
 # Traceplots and density graphs 
-# MCMCtrace(object = sobs_mcmc_out$samples,
-#           params = sobs_params,
-#           pdf = TRUE,
-#           open_pdf = TRUE,
-#           ind = TRUE,
-#           n.eff = TRUE,
-#           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-#           filename = paste0(study_species, "_", model_scale, "_landscape_model_traceplot"),
-#           type = 'both')
+MCMCtrace(object = sobs_mcmc_out$samples,
+          params = sobs_params,
+          pdf = TRUE,
+          open_pdf = TRUE,
+          ind = TRUE,
+          n.eff = TRUE,
+          wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
+          filename = paste0(study_species, "_", model_scale, "_landscape_model_traceplot"),
+          type = 'both')
 
 # View MCMC summary
 # MCMCsummary(object = sobs_mcmc_out$samples, 
