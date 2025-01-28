@@ -23,20 +23,17 @@ rm(list = ls())
 
 # 1.1) Read in data ################################################################
 
-# Define the species to model
-study_species <- "BRSP"
-
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
 # Counts/weather were estimated based on the mode for other visits to those grids
-counts_temp <- read.csv(paste0("Data/Outputs/", study_species, "_Grid_Counts.csv")) %>%
+counts_temp <- read.csv(paste0("Data/Outputs/HOLA_Grid_Counts.csv")) %>%
   tibble() %>%
   select(-X)
 #view the counts
 glimpse(counts_temp)
 
 # Add in the observation data from the local drive
-observations_temp <- read.csv(paste0("Data/Outputs/", study_species, "_Observations.csv"))
+observations_temp <- read.csv(paste0("Data/Outputs/HOLA_Observations.csv"))
 
 # Add covariates from the local drive
 # Aspect == -1 means that the area is flat other classes start at 1=NE clockwise
@@ -187,8 +184,7 @@ nrows <- length(unique(counts$Grid.ID.num))  # Number of survey grids
 ncols <- length(unique(counts$Visit.ID.num)) # Times each grid was visited
 
 # Build a storage matrix of observations by visit
-count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of years by visit
+count_mat <- matrix(NA, nrow = nrows, ncol = ncols)# Build a storage matrix of years by visit
 year_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix of survey times by visit
 time_mat <- matrix(NA, nrow = nrows, ncol = ncols)
@@ -305,9 +301,7 @@ sobs_model_code <- nimbleCode({
   # Unique slopes for fire year and burn sevarity
   for(e in 1:nelv){ # nelv = 2
     beta_fyear[e] ~  dnorm(0, sd = 1.5)      # Effect of years since fire on burned grids
-    # beta_fyear2[e] ~  dnorm(0, sd = 1.5)     # Effect of years since fire on burned grids
     beta_burnsev[e] ~ dnorm(0, sd = 1.5)     # Effect of initial burn severity on burned grids
-    # beta_burnsev2[e] ~ dnorm(0, sd = 1.5)    # Effect of initial burn severity on burned grids
   }
 
   # -------------------------------------------------------------------
@@ -365,9 +359,7 @@ sobs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[s, y]) <- beta0_treatment[treatment[s]] +                         # Effect of each treatment
                            beta_fyear[elevation[s]] * fyear[s, y] * burned[s] +    # Effect of time since fire on each treatment
-                           # beta_fyear2[elevation[s]] * fyear[s, y]^2 * burned[s] + # Effect of time since fire on each (quadratic)
                            beta_burnsev[elevation[s]] * burn_sev[s] * burned[s]    # Effect of initial burn severity on burned grids  
-                           # + beta_burnsev2[elevation[s]] * burn_sev[s]^2 * burned[s] # Effect of initial burn severity on burned grids (quadratic)
       
     } # end loop through visits
   } # end loop through survey grids
@@ -471,9 +463,7 @@ sobs_inits <- list(
   # beta0_year = runif(nyears, 0, 1),
   beta0_treatment = rnorm(ntrts, 0, 0.1),
   beta_fyear = rnorm(nelv, 0, 0.1),
-  # beta_fyear2 = rnorm(nelv, 0, 0.1),
   beta_burnsev = rnorm(nelv, 0, 0.1),
-  # beta_burnsev2 = rnorm(nelv, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
@@ -488,9 +478,7 @@ sobs_params <- c(
                  # "beta0_year",
                  "beta0_treatment",
                  "beta_fyear",
-                 # "beta_fyear2",
                  "beta_burnsev",
-                 # "beta_burnsev2",
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
@@ -563,18 +551,14 @@ sobs_mcmcConf$removeSamplers(
                              # "beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
                              "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
                              "beta_fyear[1]", "beta_fyear[2]",
-                             # "beta_fyear2[1]", "beta_fyear2[2]",
                              "beta_burnsev[1]", "beta_burnsev[2]"
-                             # "beta_burnsev2[1]", "beta_burnsev2[2]"
                              )
 
 sobs_mcmcConf$addSampler(target = c(
                                     # "beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
                                     "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
                                     "beta_fyear[1]", "beta_fyear[2]",
-                                    # "beta_fyear2[1]", "beta_fyear2[2]",
                                     "beta_burnsev[1]", "beta_burnsev[2]"
-                                    # "beta_burnsev2[1]", "beta_burnsev2[2]"
                                     ),
                          type = 'RW_block')
 
@@ -612,8 +596,7 @@ sobs_mcmc_out <- runMCMC(cMCMC,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                     study_species, "_fire_model.rds"))
+saveRDS(sobs_mcmc_out, file = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//HOLA_fire_elevation_model.rds")
 
 
 ################################################################################
@@ -626,8 +609,7 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       "BRSP", "_fire_model.rds"))
+sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//HOLA_fire_elevation_model.rds"))
   
 # Traceplots and density graphs 
 MCMCtrace(object = sobs_mcmc_out$samples,
@@ -637,7 +619,7 @@ MCMCtrace(object = sobs_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(study_species, "_fire_model_traceplot"),
+          filename = "HOLA_fire_model_traceplot",
           type = 'both')
 
 # View MCMC summary
@@ -649,9 +631,7 @@ MCMCsummary(object = sobs_mcmc_out$samples,
 sobs_params_plot <- c(
                  "beta0_treatment",
                  "beta_fyear",
-                 # "beta_fyear2",
                  "beta_burnsev"
-                 # "beta_burnsev2"
                  )
 
 # View MCMC plot
@@ -665,8 +645,7 @@ MCMCplot(object = sobs_mcmc_out$samples,
 #####################################################################################
 
 # Load the output back in
-sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       study_species, "_fire_model_linear.rds"))
+sobs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//HOLA_fire_elevation_model.rds"))
 
 # View MCMC summary
 sobs_mcmc_out$summary$all.chains
@@ -681,16 +660,10 @@ beta0_burn_low <- sobs_mcmc_out$summary$all.chains[20,]
 beta0_burn_high <- sobs_mcmc_out$summary$all.chains[21,]
 # Fire Year
 beta_fyear_low <- sobs_mcmc_out$summary$all.chains[24,]
-# 26,
 beta_fyear_high <- sobs_mcmc_out$summary$all.chains[25,]
-# 27,
-# beta_fyear2_low <- sobs_mcmc_out$summary$all.chains[28,]
-# beta_fyear2_high <- sobs_mcmc_out$summary$all.chains[29,]
 # Burn Sevarity
 beta_burnsev_low <- sobs_mcmc_out$summary$all.chains[22,]
 beta_burnsev_high <- sobs_mcmc_out$summary$all.chains[23,]
-# beta_burnsev2_low <- sobs_mcmc_out$summary$all.chains[24,]
-# beta_burnsev2_high <- sobs_mcmc_out$summary$all.chains[25,]
 
 # View Betas
 bind_rows(beta0_ref_low,
@@ -699,12 +672,8 @@ bind_rows(beta0_ref_low,
           beta0_burn_high,
           beta_burnsev_low,
           beta_burnsev_high,
-          # beta_burnsev2_low,
-          # beta_burnsev2_high,
           beta_fyear_low,
           beta_fyear_high
-          # beta_fyear2_low,
-          # beta_fyear2_high
           )
 
 # Combine everything into a dataframe
@@ -714,18 +683,12 @@ beta_dat <- data.frame(bind_rows(beta0_ref_low,
                                  beta0_burn_high,
                                  beta_burnsev_low,
                                  beta_burnsev_high,
-                                 # beta_burnsev2_low,
-                                 # beta_burnsev2_high,
                                  beta_fyear_low,
                                  beta_fyear_high
-                                 # beta_fyear2_low,
-                                 # beta_fyear2_high
                                  )) %>% 
   mutate(Parameter = c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high",
                        "beta.burnsev.low", "beta.burnsev.high",
-                       # "beta.burnsev2.low", "beta.burnsev2.high",
                        "beta.fyear.low", "beta.fyear.high"
-                       # "beta.fyear2.low", "beta.fyear2.high"
                        )) %>% 
   relocate(Parameter, .before = Mean) %>% 
   rename(CI.lb = X95.CI_low,
@@ -763,11 +726,13 @@ glimpse(beta_dat_pred)
 
 # Burn verses Reference at different Elevations  --------------------------------------------------------------------
 
-# Custom color palette
-custom_colors <- c("beta0.ref.low" = "darkslategray3", 
-                   "beta0.ref.high" = "darkslategray4",
-                   "beta0.burn.low" = "orangered2", 
-                   "beta0.burn.high" = "orangered3")
+# Reorder 'Parameter' factor levels to match the desired color order
+beta_dat <- beta_dat %>%
+  mutate(Parameter = factor(Parameter, 
+                            levels = c("beta0.ref.low", 
+                                       "beta0.ref.high", 
+                                       "beta0.burn.low", 
+                                       "beta0.burn.high")))
 
 # Create the plot
 treatment_pred_plot <- beta_dat %>% 
@@ -777,31 +742,32 @@ treatment_pred_plot <- beta_dat %>%
                width = 0.45, size = 0.8) +
   geom_errorbar(aes(x = Parameter, ymin = exp(CI.lb), ymax = exp(CI.ub), color = Parameter), 
                 width = 0.2, size = 1.4) +
-  scale_color_manual(values = custom_colors, 
-                    labels = c("beta0.ref.low" = "Reference Below 1900m", 
-                               "beta0.ref.high" = "Reference Above 1900m",
-                               "beta0.burn.low" = "Burn Below 1900m", 
-                               "beta0.burn.high" = "Burn Above 1900m")) +
-  scale_x_discrete(labels = c("beta0.ref.low" = "Reference Below 1900m",
-                              "beta0.ref.high" = "Reference Above 1900m",
-                              "beta0.burn.low" = "Burn Below 1900m",
-                              "beta0.burn.high" = "Burn Above 1900m")) +
-  labs(title = "", 
-       x = "", 
-       y = "Predicted Brewer's Sparrow Abundance (birds/km^2)") +
+  # Customize scales and labels
+  scale_color_manual(values = c("beta0.ref.low" = "mediumseagreen",
+                                "beta0.ref.high" = "darkslategray4",
+                                "beta0.burn.low" = "red3",
+                                "beta0.burn.high" = "orange2"),
+                     labels = c("High Elevation Burn",
+                                "Low Elevation Burn",
+                                "High Elevation Reference",
+                                "Low Elevation Reference"),
+                     name = "Treatment") +
+  labs(x = "Treatment", 
+       y = "Predicted Horned Lark Abundance (birds/km^2)") +
   ylim(0, 100) +
   theme_classic() +
   theme(
-    axis.text.x = element_text(size = 13, angle = 45, hjust = 1),
-    axis.text.y = element_text(size = 13),
     axis.title.y = element_text(size = 13),
+    axis.text.y = element_text(size = 13),
+    axis.title.x = element_text(size = 13),
+    axis.text.x = element_blank(),
     legend.text = element_text(size = 13),
-    legend.title = element_text(size = 13),
-    legend.position = "none"
+    legend.title = element_text(size = 13)
   )
 
 # Display the plot
 treatment_pred_plot
+
 
 # Burn Sevarity plot -------------------------------------------------------
 # View predictive data
@@ -812,7 +778,7 @@ glimpse(beta_dat_pred)
 # Plot predicted responce to Burn Sevarity
 rdnbr_pred_plot <- beta_dat_pred %>% 
   mutate(Pred.Naive = Pred * sd_rdnbr + mean_rdnbr) %>% 
-  filter(Pred.Naive > 0) %>%
+  filter(Pred.Naive >= 0 & Pred.Naive < max(covs$rdnbr.125m)) %>%
   ggplot() +
   # Low elevation reference
   geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
@@ -862,8 +828,8 @@ rdnbr_pred_plot <- beta_dat_pred %>%
                                "High Elevation Burn" = "orange2"),
                     name = "Treatment") +
   labs(x = "rDNBR Burn Severity", 
-       y = "Predicted Brewer's Sparrow Abundance (birds/km^2)") +
-  ylim(0, 100) +
+       y = "Predicted Horned Lark Abundance (birds/km^2)") +
+  # ylim(0, 125) +
   theme_classic() +
   theme(
     axis.title = element_text(size = 13),
@@ -881,7 +847,7 @@ rdnbr_pred_plot
 fyear_pred_plot <- beta_dat_pred %>% 
   mutate(Pred.Naive = Pred * sd_fyear + mean_fyear) %>% 
   # Only show up to where I have data
-  # filter(Pred.Naive <= 25) %>% 
+  filter(Pred.Naive >= 0 & Pred.Naive <= 25) %>%
   ggplot() +
   # Low elevation reference
   geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
@@ -922,16 +888,16 @@ fyear_pred_plot <- beta_dat_pred %>%
   # Customize scales and labels
   scale_color_manual(values = c("Low Elevation Reference" = "mediumseagreen",
                                 "High Elevation Reference" = "darkslategray4",
-                                "Low Elevation Burn" = "orange2",
-                                "High Elevation Burn" = "red3"),
+                                "Low Elevation Burn" = "red3",
+                                "High Elevation Burn" = "orange2"),
                      name = "Treatment") +
   scale_fill_manual(values = c("Low Elevation Reference" = "mediumseagreen",
                                "High Elevation Reference" = "darkslategray4",
-                               "Low Elevation Burn" = "orange2",
-                               "High Elevation Burn" = "red3"),
+                               "Low Elevation Burn" = "red3",
+                               "High Elevation Burn" = "orange2"),
                     name = "Treatment") +
   labs(x = "Years Since Fire", 
-       y = "Predicted Brewer's Sparrow Abundance (birds/km^2)") +
+       y = "Predicted Horned Lark Abundance (birds/km^2)") +
   theme_classic() +
   ylim(0, 100) +
   theme(
