@@ -19,6 +19,10 @@ t <- rt(n = 1000, df = 2, ncp = 1)
 t_trunc <- t[t >= 0]
 hist(t_trunc)
 
+# Make a beta distribution that is symetrical around 0.5
+beta <- rbeta(n = 10000, shape = 0.5, scale = 0.5)
+
+hist(beta)
 
 # Distance sampling half normal ##################################
 

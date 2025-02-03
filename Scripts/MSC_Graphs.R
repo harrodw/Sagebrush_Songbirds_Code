@@ -28,10 +28,15 @@ glimpse(covs)
 
 #Transform into a table with each species observations by visit ----------------
 #define relevant species
-important_species <- c("BRSP", 
-                       # "SATH",
-                       # "SABS", "GTTO", "WEME", 
-                       "HOLA", "VESP")
+important_species <- c(
+                       "BRSP", 
+                       "SATH",
+                       "SABS",
+                       "GTTO",
+                       "WEME",
+                       "HOLA",
+                       "VESP"
+                       )
 
 #Truncate observations beyond a cirtain distance
 trunc_dist <- 125
@@ -44,7 +49,7 @@ n_target_obs <- sobs %>%
 #count of close target species
 n_close_target_obs <- sobs %>% 
   filter(Species %in% important_species) %>% 
-  filter(Distance <= trunc_dist) %>%
+  # filter(Distance <= trunc_dist) %>%
   nrow()
 
 #How many total observations?
@@ -62,7 +67,7 @@ find_mode <- function(x) {
 
 # Make a table of important species sightings by visit
 counts_0inf <- sobs %>%
-  filter(Distance <= trunc_dist) %>% 
+  # filter(Distance <= trunc_dist) %>% 
   filter(Species %in% important_species) %>% 
   group_by(Grid.ID, Year, Visit, Ord.Date, Species) %>% 
   reframe(Grid.ID, Year, Visit, Ord.Date, Species,
@@ -110,62 +115,83 @@ glimpse(sobs_count)
 
 # 1.2) Summary stats ##########################################################
 
-# #How many total species
-# sobs %>% 
-#   group_by(Species) %>% 
-#   reframe(Species, Observation = n()) %>% 
-#   distinct() %>% 
-#   print(n = Inf)
-# 
-# #How many total observations
-# sobs %>% 
-#   filter(Species != "NOBI") %>% 
-#   nrow()
-# 
-# #Table for Average number of observations between burned and unburned plots
-# #Table for output
-# burn_v_ref <- sobs_count %>% 
-#   distinct(Year, Species) %>% 
-#   mutate(Mean.B = NA,
-#          Mean.R = NA,
-#          t = NA,
-#          p = NA,
-#          CI.lb = NA,
-#          CI.ub = NA)
-# #..and view
-# glimpse(burn_v_ref)
-# 
+#How many total species
+sobs %>%
+  group_by(Species) %>%
+  reframe(Species, Observation = n()) %>%
+  distinct() %>%
+  print(n = Inf)
+
+#How many total observations
+sobs %>%
+  filter(Species != "NOBI") %>%
+  nrow()
+
+#Table for Average number of observations between burned and unburned plots
+#Table for output
+burn_v_ref <- sobs_count %>%
+  filter(Year == "Y3") %>% 
+  mutate(Species = factor(Species, levels = c("BRSP", "SATH", "SABS", "GTTO",
+                                              "VESP", "WEME", "HOLA"))) %>% 
+  distinct(Species) %>%
+  arrange(Species) %>% 
+  mutate(
+         Mean.B = NA,
+         Mean.R = NA,
+         t = NA,
+         p = NA,
+         CI.lb = NA,
+         CI.ub = NA)
+#..and view
+glimpse(burn_v_ref)
+
+# Extract the sum in burn and reference grids
+treatment_sums <- sobs_count %>% 
+  filter(Year == "Y3") %>% 
+  group_by(Species, Burned) %>% 
+  reframe(Species, Burned, Sum = sum(Count), Mean = mean(Count), se = sd(Count)/sqrt(60)) %>% 
+  distinct() %>% 
+  mutate(Treatment = case_when(Burned == 0 ~ "Sum.R",
+                               Burned == 1 ~ "Sum.B")) %>% 
+  select(-Burned) %>% 
+  pivot_wider(names_from = Treatment, values_from = c("Sum", "Mean", "se")) %>%
+  print()
+
 # #For-loop to compare counts observed between B and R within each year
 # for(i in 1:nrow(burn_v_ref)){
-#   #Pull the info I want t=out of the data frame
-#   soi_count <- sobs_count %>% 
-#     group_by(Grid.ID, Burned, Year, Species) %>% 
-#     reframe(Grid.ID, Burned, Year, Species, Total.Count = sum(Count)) %>% 
-#     distinct(Grid.ID, Burned, Year, Species, Total.Count) %>% 
-#     filter(Year == burn_v_ref$Year[i]) %>% 
-#     filter(Species == burn_v_ref$Species[i])
+#   #Pull the info I want out of the data frame for the T-test
+#   soi_count <- sobs_count %>%
+#     group_by(Grid.ID, Burned, Year, Species) %>%
+#     reframe(Grid.ID, Burned, Year, Species, Total.Count = sum(Count)) %>%
+#     distinct(Grid.ID, Burned, Year, Species, Total.Count) %>%
+#     filter(Species == burn_v_ref$Species[i] & Year == "Y3")
 #   #Compare species count within year
 #   t_test <- t.test(Total.Count ~ Burned, data = soi_count)
-#   #Pull what I need out of the 
+#   # Add these to the T-test table
 #   burn_v_ref$Mean.B[i] <- t_test$estimate[1]
 #   burn_v_ref$Mean.R[i] <- t_test$estimate[2]
 #   burn_v_ref$t[i] <- t_test$p.value
 #   burn_v_ref$p[i] <- t_test$p.value
 #   burn_v_ref$CI.lb[i] <- t_test$conf.int[1]
 #   burn_v_ref$CI.ub[i] <- t_test$conf.int[2]
+#   
 # }
 # 
-# #Highlight significan p-values 
-# burn_v_ref <- burn_v_ref %>% 
+# #Highlight significant p-values
+# burn_v_ref <- burn_v_ref %>%
 #   mutate(Signif = case_when(p <= 0.05 ~ T,
 #                             p > 0.05 ~ F))
 # 
-# #View the output
-# burn_v_ref %>% 
-#   print(n = Inf)
+# # Join with the sums 
+# burn_v_ref_full <- burn_v_ref %>% 
+#   left_join(treatment_sums, by = "Species")
 # 
-# #Export the tables
-# write.csv(burn_v_ref, "Data\\Outputs\\burn_v_ref_20240308.csv")
+# #View the output
+# burn_v_ref_full %>%
+#   print(n = Inf)
+
+#Export the tables
+write.csv(treatment_sums, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Point_Count\\Tables\\burn_v_ref_20250128.csv")
 
 
 # 2) Start plotting #######################################################################################
@@ -209,7 +235,8 @@ sobs_count %>%
                              Species == "WEME" ~ "Western Meadowlark",
                              Species == "HOLA" ~ "Horned Lark",
                              Species == "GRFL" ~ "Gray Flycatcher",
-                             Species == "LASP" ~ "Lark Sparrow")) %>% 
+                             Species == "LASP" ~ "Lark Sparrow",
+                             TRUE ~ NA)) %>% 
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
                           Year == "Y2" ~ "Year 2",
                           Year == "Y3" ~ "Year 3")) %>% 

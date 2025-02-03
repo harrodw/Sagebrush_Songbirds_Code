@@ -348,6 +348,8 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
   
 } # end the loop through years
 
+hist(grid_covs_fire$rdnbr.125m)
+
 # Remove the temporary attributes
 grid_covs_fire2 <- grid_covs_fire %>% 
   dplyr::select(-rdnbr.125m.tmp, -rdnbr.1km.tmp) %>% 
@@ -356,15 +358,20 @@ grid_covs_fire2 <- grid_covs_fire %>%
   mutate(Fire.Year = case_when(Grid.ID == "UT-B02" ~ 2017, 
                                Grid.ID == "ID-C22" ~ 1800,
                                TRUE ~ Fire.Year),
-         rdnbr.125m = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$rdnbr.125m[which(grid_covs_fire$rdnbr.125m != 0)]),
+         rdnbr.125m = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$rdnbr.125m[which(grid_covs_fire$rdnbr.125m > 0)]),
                                 Grid.ID == "ID-C22" ~ 0,
                                 TRUE ~ rdnbr.125m),
+         rdnbr.1km = case_when(Grid.ID == "UT-B02" ~ mean(grid_covs_fire$rdnbr.1km[which(grid_covs_fire$rdnbr.1km > 0)]),
+                                Grid.ID == "ID-C22" ~ 0,
+                                TRUE ~ rdnbr.1km),
          Fire.Count= case_when(Grid.ID == "UT-B02" ~ 1, 
                                Grid.ID == "ID-C22" ~ 0,
                                TRUE ~ Fire.Count)) 
 # View the changes
 grid_covs_fire2 %>% 
   filter(Grid.ID == "UT-B02")
+
+hist
 
 # Join these to the exisitng covariates
 grid_covs_final <- grid_covs %>% 
@@ -556,7 +563,7 @@ pre_fire_covs_final <- pre_fire_covs %>%
   dplyr::select(Grid.ID, Grid.Type, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
                 AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF, Grid.X, Grid.Y) %>% 
   # Replace NA's
-  mutate(across(everything(), ~ replace_na(., 999)))
+  mutate(across(everything(), ~ replace_na(., -999)))
 
 # View
 glimpse(pre_fire_covs_final)
@@ -601,3 +608,4 @@ ggcorrplot(cor_mat,
 write.csv(pre_fire_covs_final, "Data\\Outputs\\pre_fire_covs.csv")
 # And to my box data folder. Feel free to comment this out
 write.csv(pre_fire_covs_final, "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Sagebrush_Songbirds_Code\\Data\\Outputs\\pre_fire_covs.csv")
+
