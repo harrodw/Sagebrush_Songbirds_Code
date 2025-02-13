@@ -24,8 +24,15 @@ rm(list = ls())
 
 # 1.1) Read in data ############################################################
 
+# List of Species 
+all_species <- c("BRSP", "SATH", "SABS", "GTTO", "VESP", "WEME", "HOLA")
+
+# Loop over all species 
+for(k in 1:length(all_species)){
+
 # Pick a species to model
-model_species <- "SATH"
+model_species <- all_species[k]
+# model_species <- "SATH"
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -388,7 +395,7 @@ sobs_const <- list (
   nvst = nvst,             # Number of times each grid was surveyed (6)
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
-  nyears = nyears,          # Number of years we surveyd
+  nyears = nyears,          # Number of years we surveyed
   
   # Non-stochastic constants
   years = years,          # Year when each survey took place
@@ -620,7 +627,7 @@ MCMCtrace(object = prefire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = "sobs_fire_model_traceplot",
+          filename = paste0(model_species, "_fire_model_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -632,6 +639,8 @@ MCMCsummary(object = prefire_mcmc_out$samples,
 MCMCplot(object = prefire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
+
+} # End the loop over species 
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
@@ -676,7 +685,8 @@ sobs_params_plot <- c(
 # View MCMC plot
 MCMCplot(object = prefire_mcmc_out$samples,
          guide_lines = TRUE,
-         labels = c("2022 Intercept",
+         labels = c(
+                    "2022 Intercept",
                     "2023 Intercept",
                     "2024 Intercept",
                     "Fire",
@@ -688,8 +698,16 @@ MCMCplot(object = prefire_mcmc_out$samples,
          main = species_name,
          col = "black",
          ref_ovl = TRUE,
-         params = sobs_params_plot)
+         params = sobs_params_plot) 
 
+# Save the plot
+ggsave(plot = treatment_pred_plot,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                         plot_species, "_treatment.png"),
+       width = 700,
+       height = 500,
+       units = "mm",
+       dpi = 1000)
 
 # 4.2) Extract coefficient values ###############################################################
 

@@ -127,9 +127,37 @@ tri <- terrain(elevation_prj, v = "TRI", neighbors = 4)
 plot(tri)
 
 # Calculate Aspect
-aspect <- terrain(elevation_prj, v = "aspect", unit = "degrees", neighbors = 4) 
+aspect_cont <- terrain(elevation_prj, v = "aspect", unit = "degrees", neighbors = 4) 
+# View aspect
+aspect_cont
+plot(aspect_cont)
 
-# Matrix for reclassifying Aspect
+# Make a slope raster
+slope <- terrain(elevation_prj, v = "slope", unit = "degrees", neighbors = 4)
+# View slope
+slope
+plot(slope)
+
+# Make a classifyer for flat and not flat raster (15 degrees is the cutoff)
+flat_mat <- matrix(c(0, 3, NA,
+                      3, 90, 1),
+                   ncol = 3, 
+                   byrow = TRUE)
+
+# Make the flat not flat raster
+flat_rast <- classify(slope, flat_mat, include.lowest = TRUE)
+# View the flat raster
+flat_rast
+plot(flat_rast)
+
+# Only look at aspect where it's hilly
+aspect_hill <- mask(x = aspect_cont,
+                    mask = flat_rast)
+# View the updated aspect
+aspect_hill
+plot(aspect_hill)
+
+# Matrix for reclassifying Aspect into 8 categories
 asp_mat <- matrix(c(0, 22, 1,   
                      22, 67, 2,
                      67, 112, 3,
@@ -139,14 +167,33 @@ asp_mat <- matrix(c(0, 22, 1,
                      147, 292, 7,
                      292, 337, 8,
                      337, 360, 1),
-                  ncol=3, byrow=TRUE) 
+                  ncol = 3, 
+                  byrow = TRUE) 
+
+# Matrix for reclassifying Aspect into 2 categories
+south_mat <- matrix(c(0, 22, NA,   
+                      22, 67, NA,
+                      67, 112, NA,
+                      112, 157, 1,
+                      157, 202, 1,
+                      102, 247, 1,
+                      147, 292, NA,
+                      292, 337, NA,
+                      337, 360, NA),
+                    ncol = 3, 
+                    byrow = TRUE) 
 
 # Reclassify aspect into 8 catagoriees
-aspect_recl <- classify(aspect, asp_mat, include.lowest=TRUE)
-
+aspect_recl <- classify(aspect_hill, asp_mat, include.lowest = TRUE)
 # Plot
 plot(aspect_recl)
 hist(aspect_recl)
+
+# Reclassify aspect into two catagories
+south_rast <- classify(aspect_hill, south_mat, include.lowest = TRUE)
+# View
+south_rast
+plot(south_rast)
 
 # 3.0) Export rasters #####################################################################################
 
@@ -164,3 +211,4 @@ writeRaster(tree_patches, paste0(ras_path, "tree_patches.tif"), overwrite = TRUE
 writeRaster(elevation_prj, paste0(ras_path, "elevation.tif"), overwrite = TRUE)
 writeRaster(tri, paste0(ras_path, "tri.tif"), overwrite = TRUE)
 writeRaster(aspect_recl, paste0(ras_path, "aspect.tif"), overwrite = TRUE)
+writeRaster(south_rast, paste0(ras_path, "south_facing.tif"), overwrite = TRUE)

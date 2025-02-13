@@ -2,7 +2,7 @@
 # Will Harrod
 # Hierarchical distance sampling for sagebrush songbird point count data
 # September 2024
-# 
+#
 # Code based on open source code from: 
 # Amundson et al. 2014
 # Kery et al. 2024, 
@@ -23,8 +23,15 @@ rm(list = ls())
 
 # 1.1) Read in data ############################################################
 
-# Define a species to model
-model_species <- "BRSP"
+# List of Species 
+all_species <- c("BRSP", "SATH", "SABS", "GTTO", "VESP", "WEME", "HOLA")
+
+# Loop over all species 
+# for(k in 1:length(all_species)){ # (Comment this out) ----
+
+# Pick a species to model
+# model_species <- all_species[k]
+model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -83,10 +90,14 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
                                     TRUE ~ NA)) %>% 
   # Make a treatment column (elevation x burned)
   mutate(Treatment = case_when(Burned == 0 & High.Elevation == 1 ~ 1,
-                              Burned == 0 & High.Elevation == 2 ~ 2,
-                              Burned == 1 & High.Elevation == 1 ~ 3,
-                              Burned == 1 & High.Elevation == 2 ~ 4,
-                              TRUE ~ NA))
+                               Burned == 0 & High.Elevation == 2 ~ 2,
+                               Burned == 1 & High.Elevation == 1 ~ 3,
+                               Burned == 1 & High.Elevation == 2 ~ 4,
+                               TRUE ~ NA)) %>% 
+  # Make a unique column for whether or not each grid was in each of the treatments
+  mutate(High.Reference = case_when(Treatment == 2 ~ 1, TRUE ~ 0),
+         Low.Burned = case_when(Treatment == 3 ~ 1, TRUE ~ 0),
+         High.Burned = case_when(Treatment == 4 ~ 1, TRUE ~ 0))
 
 #...and view
 glimpse(sobs_counts_temp2)
@@ -104,6 +115,17 @@ sd_ln_fyear <- sd(fire_stats$ln.Years.Since.Fire)
 mean_rdnbr <- mean(fire_stats$rdnbr.125m)
 sd_rdnbr <- sd(fire_stats$rdnbr.125m)
 
+# Isolate the steep grids
+south_stats <- sobs_counts_temp2 %>% 
+  filter(High.Burned == 1) %>% 
+  select(Grid.ID, Prop.South.125m, ln.Prop.South.125m)
+
+# Preform the same opparation on proportion south
+mean_south <- mean(south_stats$Prop.South.125m)
+sd_south <- sd(south_stats$Prop.South.125m)
+mean_ln_south <- mean(south_stats$ln.Prop.South.125m)
+sd_ln_south <- sd(south_stats$ln.Prop.South.125m)
+
 # Scale the other covariates
 sobs_counts <- sobs_counts_temp2 %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
@@ -112,7 +134,9 @@ sobs_counts <- sobs_counts_temp2 %>%
          Ord.Date.scl = scale(Ord.Date)[,1],
          Years.Since.Fire.scl = (Years.Since.Fire - mean_fyear) / sd_fyear,
          ln.Years.Since.Fire.scl = (ln.Years.Since.Fire - mean_ln_fyear) /sd_ln_fyear,
-         rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr)
+         rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr,
+         Prop.South.scl = (Prop.South.125m - mean_south) / sd_south,
+         ln.Prop.South.scl = (ln.Prop.South.125m - mean_ln_south) / sd_ln_south)
 
 # 1.3) Prepare the observation level data ################################################################
 
@@ -148,57 +172,69 @@ glimpse(sobs_counts)
 glimpse(sobs_observations)
 
 # 1.4) Plot preliminary correlations in the data ##############################################################
-
-# Plot a specific treatment and bird abundance
-sobs_counts %>%
-  ggplot() +
-  geom_boxplot(aes(x = factor(Treatment), y = Count, color = factor(Treatment))) +
-  theme_bw()
-
-# Plot burn sevarity and bird abundance
-sobs_counts %>%
-  filter(Burned == 1) %>%
-  ggplot() +
-  geom_smooth(aes(x = rdnbr.125m, y = Count, 
-                  # color = factor(Treatment)
-                  ), method = "glm", method.args = list(family = "quasipoisson")) +
-  geom_jitter(aes(x = rdnbr.125m, y = Count, 
-                  # color = factor(Treatment)
-              )) +
-  theme_bw()
-
-# Plot time since fire and bird abundance
-sobs_counts %>%
-  filter(Burned == 1) %>%
-  ggplot() +
-  geom_smooth(aes(x = Years.Since.Fire, y = Count, 
-                  color = factor(Treatment)),
-              method = "glm", method.args = list(family = "quasipoisson")) +
-  geom_jitter(aes(x = Years.Since.Fire, y = Count, 
-                  color = factor(Treatment))) +
-  theme_bw()
-
-# What are these low elevation recovered burn grids with high counts?
-sobs_counts %>% 
-  # filter(Burned == 1) %>% 
-  select(Grid.ID, Treatment, Years.Since.Fire, Count, Elevation.125m) %>% 
-  arrange(Years.Since.Fire) %>% 
-  print(n = Inf)
-
-# Plot detection frequency by distance for each observer to insurre that the data is appropriate for distance sampling
-sobs_observations %>%
-  group_by(Grid.ID, Observer.ID, Observer.Experience, Dist.Bin, Dist.Bin.Midpoint) %>%
-  reframe(Grid.ID, Observer.ID, Observer.Experience, Dist.Bin, , Dist.Bin.Midpoint, bin.count = n()) %>%
-  distinct() %>%
-  ggplot(aes(x = Dist.Bin, y = bin.count
-             )) +
-  geom_col(fill = "lightblue") +
-  theme_bw() +
-  facet_wrap(~Observer.ID)
-
-# How many observations did each observer have?
-sobs_observations %>% 
-  count(Observer.ID) 
+# 
+# # Plot a specific treatment and bird abundance
+# sobs_counts %>%
+#   ggplot() +
+#   geom_boxplot(aes(x = factor(Treatment), y = Count, color = factor(Treatment))) +
+#   theme_bw()
+# 
+# # Plot burn sevarity and bird abundance
+# sobs_counts %>%
+#   filter(Burned == 1) %>%
+#   ggplot() +
+#   geom_smooth(aes(x = rdnbr.125m, y = Count, 
+#                   # color = factor(Treatment)
+#                   ), method = "glm", method.args = list(family = "quasipoisson")) +
+#   geom_jitter(aes(x = rdnbr.125m, y = Count, 
+#                   # color = factor(Treatment)
+#               )) +
+#   theme_bw()
+# 
+# # Plot time since fire and bird abundance
+# sobs_counts %>%
+#   filter(Burned == 1) %>%
+#   ggplot() +
+#   geom_smooth(aes(x = Years.Since.Fire, y = Count, 
+#                   color = factor(Treatment)),
+#               method = "glm", method.args = list(family = "quasipoisson")) +
+#   geom_jitter(aes(x = Years.Since.Fire, y = Count, 
+#                   color = factor(Treatment))) +
+#   theme_bw()
+# 
+# # Plot proportion south and bird abundance on high burns
+# sobs_counts %>%
+#   filter(High.Burned == 1) %>%
+#   ggplot() +
+#   geom_smooth(aes(x = ln.Prop.South.scl, y = Count, 
+#                   # color = factor(Treatment)
+#   ), method = "glm", method.args = list(family = "quasipoisson")) +
+#   geom_jitter(aes(x = ln.Prop.South.scl, y = Count, 
+#                   # color = factor(Treatment)
+#   )) +
+#   theme_bw()
+# 
+# # What are these low elevation recovered burn grids with high counts?
+# sobs_counts %>% 
+#   # filter(Burned == 1) %>% 
+#   select(Grid.ID, Treatment, Years.Since.Fire, Count, Elevation.125m) %>% 
+#   arrange(Years.Since.Fire) %>% 
+#   print(n = Inf)
+# 
+# # Plot detection frequency by distance for each observer to insurre that the data is appropriate for distance sampling
+# sobs_observations %>%
+#   group_by(Grid.ID, Observer.ID, Observer.Experience, Dist.Bin, Dist.Bin.Midpoint) %>%
+#   reframe(Grid.ID, Observer.ID, Observer.Experience, Dist.Bin, , Dist.Bin.Midpoint, bin.count = n()) %>%
+#   distinct() %>%
+#   ggplot(aes(x = Dist.Bin, y = bin.count
+#              )) +
+#   geom_col(fill = "lightblue") +
+#   theme_bw() +
+#   facet_wrap(~Observer.ID)
+# 
+# # How many observations did each observer have?
+# sobs_observations %>% 
+#   count(Observer.ID) 
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -283,12 +319,16 @@ day <- date_mat                                       # Matrix of scaled dates
 area <- area_mat                                      # Proportion of points surveyed       
 n_dct <- count_mat                                    # Matrix of the number of detected individuals per grid per survey 
 years <- year_mat                                     # Matrix of year numbers
-grids <- sobs_counts$Grid.ID.num[1:ngrids]            # Ggrid where each survey took place
+grids <- sobs_counts$Grid.ID.num[1:ngrids]            # Grid where each survey took place
 elevation <- sobs_counts$High.Elevation[1:ngrids]     # Whether each grid is high (>= 1900m) or low (< 1900m) elevation
 treatment <- sobs_counts$Treatment[1:ngrids]          # Treatment of each survey grid (1 = low-ref, 2 = high-ref, 3 = low-burn, 4 = high-burn)
 burned <- sobs_counts$Burned[1:ngrids]                # Whether or not each grid burned
 fyear <- fyear_mat                                    # How long since the most recent fire in each grid
 burn_sev <- sobs_counts$rdnbr.scl[1:ngrids]           # Burn severity from the most recent fire
+prop_south <- sobs_counts$ln.Prop.South.scl[1:ngrids] # Proportion of the transect on south-ish facing slopes over 15 degrees
+high_ref <- sobs_counts$High.Reference[1:ngrids]      # Whether or not each grid was high elevation and reference
+low_burn <- sobs_counts$Low.Burned[1:ngrids]          # Whether or not each grid was low elevation and burned
+high_burn <- sobs_counts$High.Burned[1:ngrids]        # Whether or not each grid was high elevation and burned
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -308,26 +348,32 @@ sobs_model_code <- nimbleCode({
   gamma_date2 ~ dnorm(0, sd = 1.5)       # Effect of day of year on singing rate (quadratic)
   gamma_time ~ dnorm(0, sd = 1.5)        # Effect of time of day on singing rate
   gamma_time2 ~ dnorm(0, sd = 1.5)       # Effect of time of day on singing rate (quadratic)
-
+  
   # Parameters in the detection portion of the model
-  # alpha0 ~ dnorm(0, sd = 3)            # Intercept on detectability
   for(o in 1:nobsv){
-    alpha0_obsv[o] ~ dnorm(0, sd = 1.5)   # Effect of observer experience on detecability 
+    alpha0_obsv[o] ~ dnorm(0, sd = 3)  # Effect of observer experience on detecability 
   }
   
-  # Parameters for the abundance component of the model
-  
-  # Intercept offsets for each treatment type
-  # (1 = low-ref, 2 = high-ref, 3 = low-burn, 4 = high-burn)
-  for(d in 1:ntrts){ # ntrts = 4
-    beta0_treatment[d] ~ dnorm(0, sd = 3)
-  }
-  # Effect of years since fire on burned grids varrying with elvation
+  # Parameters on the abundance component of the model
+  # Random effect hyper-parameters
+  mean_beta0 ~ dnorm(0, sd = 5)     # Mean abundance hyperparameter
+  sd_beta0 ~ T(dt(0, 1, 2), 0, )   # Sd in yearly abundance hyperparamete
+    
+  # Random intercept on abundance by year 
+  for(t in 1:nyears){
+    beta0_year[t] ~ dnorm(mean_beta0, sd = sd_beta0)
+  } # End loop through years
+   
+  # Effect of years since fire on burned grids varrying with elevation
   for(e in 1:nelv){ # nelv = 2
-    beta_fyear[e] ~  dnorm(0, sd = 1.5)      
+    beta_fyear[e] ~  dnorm(0, sd = 1.5)
   }
-  # Effect of initial burn severity on burned grids
-  beta_burnsev ~ dnorm(0, sd = 1.5)     
+  # Single fixed effects
+  beta_high_ref ~ dnorm(0, sd = 1.5)  # Effect of being in a high elevation reference
+  beta_low_burn ~ dnorm(0, sd = 1.5)  # Effect of being in a low elevation burn
+  beta_high_burn ~ dnorm(0, sd = 1.5) # Effect of being in a high elevation burn  
+  beta_burnsev ~ dnorm(0, sd = 1.5)   # Effect of initial burn severity on burned grids   
+  beta_south ~ dnorm(0, sd = 1.5)     # Effect of proportion south facing slopes
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -336,13 +382,14 @@ sobs_model_code <- nimbleCode({
   for(s in 1:ngrids){
     
     # Zero-inflation component on abundance
-    psi[s] ~ dunif(0.0001, 0.9999)                              # Occupancy probability
-    present[s] ~ dbern(psi[s])                                  # Number of grids where that individual can be present
+    psi[s] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
+    # psi[s] ~ dunif(0.001, 0.999)                             # Occupancy probability can't be exactly zero 
+    present[s] ~ dbern(psi[s])                             # Number of grids where that individual can be present
 
     # Iterate over all of the visits to each survey grid 
     for(y in 1:nvst){ 
       
-      ### Imperfect detection portion of the model ###
+      ### Imperfect availability portion of the model ###
       
       # Construction of the cell probabilities for the nints time intervals
       for (j in 1:nints){
@@ -352,6 +399,8 @@ sobs_model_code <- nimbleCode({
       
       # Rectangular integral approx. of integral that yields the Pr(available)
       p_a[s, y] <- sum(pi_pa[s, y, ])
+      
+      ### Imperfect detection portion of the model ###
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
@@ -369,28 +418,30 @@ sobs_model_code <- nimbleCode({
       ### Binomial portion of mixture ###
       
       # Poisson abundance portion of mixture
-      N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
-      
-      # Number of birds that are available for detection
-      # n_avail[s, y] ~ dbin(p_d[s, y], N_indv[s,y])
+      N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y])   # ZIP true abundance at site s in year y
       
       # Number of individual birds captured (observations)
       n_dct[s, y] ~ dbin(p_cap[s, y], N_indv[s, y])         
-      
-      # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_treatment[treatment[s]] +                      # Effect of each treatment
-                           beta_fyear[elevation[s]] * fyear[s, y] * burned[s] + # Effect of time since fire on each treatment
-                           beta_burnsev * burn_sev[s] * burned[s]               # Effect of initial burn severity on burned grids  
-      
-      # Availability (p_a) Logit-linear model for availability
-      logit(avail[s, y]) <- gamma0 +                                    # Intercept on availability
-                            gamma_date * day[s, y] +                    # Effect of scaled ordinal date
-                            gamma_time * time[s, y] +                   # Effect of scaled time of day
-                            gamma_date2 * day[s, y]^2 +                 # Effect of scaled ordinal date squared
-                            gamma_time2 * time[s, y]^2                  # Effect of scaled time of day squared
+        
+      # Availability (avail) Logit-linear model for availability
+      logit(avail[s, y]) <- gamma0 +                        # Intercept on availability
+                            gamma_date * day[s, y] +        # Effect of scaled ordinal date
+                            gamma_time * time[s, y] +       # Effect of scaled time of day
+                            gamma_date2 * day[s, y]^2 +     # Effect of scaled ordinal date squared
+                            gamma_time2 * time[s, y]^2      # Effect of scaled time of day squared
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]                 # Effect of observer experience on detectability
+      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]      # Effect of observer experience on detectability
+                          # alpha0 +                          # Intercept on detecability                    
+      
+      # Abundance (lambda) Log-linear model 
+      log(lambda[s, y]) <- beta0_year[years[s, y]] +                            # Random intercept by year
+                           beta_high_ref * high_ref[s] +                        # Effect of being in a high elevation reference
+                           beta_low_burn * low_burn[s] +                        # Effect of being in a low elevation burn
+                           beta_high_burn * high_burn[s] +                      # Effect of being in a high elevation burn  
+                           beta_fyear[elevation[s]] * fyear[s, y] * burned[s] + # Effect of time since fire on each treatment
+                           beta_burnsev * burn_sev[s] * burned[s] +             # Effect of initial burn severity on burned grids  
+                           beta_south * prop_south[s] * high_burn[s]            # Effect of south facing slopes on high elevation burns
                                
     } # end loop through visits
   } # end loop through survey grids
@@ -401,7 +452,7 @@ sobs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])      # likelihood for time removal data
   } # end observation loop
   
-})
+}) # end model statement
 
 # 2.2) Constants, data, Initial values, parameters to save, and dimensions ##################################
 
@@ -419,15 +470,15 @@ sobs_const <- list (
   nvst = nvst,                 # Number of times each grid was surveyed (6)
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
-  ntrts = ntrts,               # Number of treatments (4)
   nelv = nelv,                 # Number of elevations (2)
+  nyears = nyears,             # Number of years we surveyed (3)
   
   # Non-stochastic constants
+  years = years,               # Year when each survey took place
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
   observers = observers,       # Effect of observer associated with each survey
-  elevation = elevation,       # High or low elevation
-  treatment = treatment        # Treatment of each survey grid (1 = low-ref, 2 = high-ref, 3 = low-burn, 4 = high-burn)
+  elevation = elevation        # High or low elevation
 )
 
 # View Nimble constants 
@@ -436,19 +487,23 @@ str(sobs_const)
 # Data to be fed into Nimble 
 sobs_dat <- list(
   # Detection level data
-  dclass = dclass,        # Distance category for each observation
-  midpt = midpt,          # Midpoints of distance bins
+  dclass = dclass,         # Distance category for each observation
+  midpt = midpt,           # Midpoints of distance bins
   
   # Availability level data
-  tint = tint,            # Time interval for each observation
-  time = time,            # Scaled mean time after sunrise
-  day = day,              # Scaled date
+  tint = tint,             # Time interval for each observation
+  time = time,             # Scaled mean time after sunrise
+  day = day,               # Scaled date
   
   # Abundance level
-  n_dct = n_dct,          # Number of detected individuals per site
-  fyear = fyear,          # How long since the most recent fire in each grid
-  burn_sev = burn_sev,    # Burn severity from the most recent fire
-  burned = burned         # Whether or not each grid burned
+  n_dct = n_dct,           # Number of detected individuals per site
+  fyear = fyear,           # How long since the most recent fire in each grid
+  burn_sev = burn_sev,     # Burn severity from the most recent fire
+  prop_south = prop_south, # Proportion of the transect on south-ish facing slopes over 15 degrees
+  high_ref = high_ref,     # Whether or not each grid was a high elevation reference
+  low_burn = low_burn,     # hether or not each grid was a high elevation burn
+  high_burn = high_burn,   # Whether or not each grid was a high elevation burn
+  burned = burned          # Whether or not each grid burned
 )
 # View Nimble data 
 str(sobs_dat)
@@ -463,11 +518,11 @@ sobs_dims <- list(
   sigma = c(ngrids, nvst),           # Linear combination on detectability
   pi_pd = c(ngrids, nvst, nbins),    # Detection probability in each cell
   pi_pd_c = c(ngrids, nvst, nbins),  # Proportion of total detection probability in each cell
-  p_d = c(ngrids, nvst),           # Detection probability 
-  avail = c(ngrids, nvst),             # Linear combination on avalibility  
+  p_d = c(ngrids, nvst),             # Detection probability 
+  avail = c(ngrids, nvst),           # Linear combination on avalibility  
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
-  p_a= c(ngrids, nvst),         # Availability probability
+  p_a= c(ngrids, nvst),              # Availability probability
   p_cap = c(ngrids, nvst),           # Combined probability of detecting an available bird
   lambda = c(ngrids, nvst)           # Poisson random variable
 )
@@ -478,7 +533,8 @@ str(sobs_dims)
 # Initial Values
 sobs_inits <- list(
   # Detectablility
-  alpha0_obsv = rnorm(nobsv, 0, 0.1),
+  # alpha0 = rnorm(1, 0, 0.1),
+  alpha0_obsv = rep(0, nobsv),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -486,23 +542,40 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
-  beta0_treatment = rnorm(ntrts, 0, 0.1),
+  mean_beta0 = runif(1, 0, 1),
+  sd_beta0 = runif(1, 0, 0.1),
+  beta0_year = runif(nyears, 0.1, 1),
+  beta_high_ref = rnorm(1, 0, 0.1),
+  beta_low_burn = rnorm(1, 0, 0.1),
+  beta_high_burn = rnorm(1, 0, 0.1),
   beta_fyear = rnorm(nelv, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
+  beta_south = rnorm(1, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
   # Simulated counts
-  N_indv = count_mat + 1   # Counts helps to start each grid with an individual present       
+  N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
 )  
+
+# Assign intial values to the categorical groups oter than the first one
+# sobs_inits$alpha0_obsv[2:nobsv] <- rnorm(nobsv-1, 0, 0.1)
+# sobs_inits$beta_treatment[2:ntrts] <- rnorm(ntrts-1, 0, 0.1)
+
 # View the initial values
 str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
-                 "beta0_treatment",
+                 "mean_beta0",
+                 "sd_beta0",
+                 "beta0_year",
+                 "beta_high_ref",
+                 "beta_low_burn",
+                 "beta_high_burn",
                  "beta_fyear",
                  "beta_burnsev",
+                 "beta_south",
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
@@ -553,14 +626,14 @@ sobs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma
 
 # Block all detection (alpha) nodes together
 sobs_mcmcConf$removeSamplers(
-                             "alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
-                             "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
-                             "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-                             "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]",
-                             "alpha0_obsv[17]")
+  "alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
+  "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
+  "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]",
+  "alpha0_obsv[17]")
 
 sobs_mcmcConf$addSampler(target = c(
-  "alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
+  "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
   "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]",
@@ -569,19 +642,86 @@ sobs_mcmcConf$addSampler(target = c(
 
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers(
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
-  "beta_fyear[1]", "beta_fyear[2]",
-  "beta_burnsev"
-                             )
+  "beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+  "beta_high_ref", "beta_low_burn", "beta_high_burn",
+  "beta_fyear[1]", "beta_fyear[2]", "beta_burnsev"
+  )
 
 sobs_mcmcConf$addSampler(target = c(
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
-  "beta_fyear[1]", "beta_fyear[2]",
-  "beta_burnsev"), type = 'RW_block')
+  "beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+  "beta_high_ref", "beta_low_burn", "beta_high_burn",
+  "beta_fyear[1]", "beta_fyear[2]", "beta_burnsev"
+  ), type = 'RW_block')
+
+# "beta0_grid_year[1, 1]", "beta0_grid_year[1, 2]", "beta0_grid_year[1, 3]",  
+# "beta0_grid_year[2, 1]", "beta0_grid_year[2, 2]", "beta0_grid_year[2, 3]",  
+# "beta0_grid_year[3, 1]", "beta0_grid_year[3, 2]", "beta0_grid_year[3, 3]",  
+# "beta0_grid_year[4, 1]", "beta0_grid_year[4, 2]", "beta0_grid_year[4, 3]",  
+# "beta0_grid_year[5, 1]", "beta0_grid_year[5, 2]", "beta0_grid_year[5, 3]",  
+# "beta0_grid_year[6, 1]", "beta0_grid_year[6, 2]", "beta0_grid_year[6, 3]",  
+# "beta0_grid_year[7, 1]", "beta0_grid_year[7, 2]", "beta0_grid_year[7, 3]",  
+# "beta0_grid_year[8, 1]", "beta0_grid_year[8, 2]", "beta0_grid_year[8, 3]",  
+# "beta0_grid_year[9, 1]", "beta0_grid_year[9, 2]", "beta0_grid_year[9, 3]",  
+# "beta0_grid_year[10, 1]", "beta0_grid_year[10, 2]", "beta0_grid_year[10, 3]",  
+# "beta0_grid_year[11, 1]", "beta0_grid_year[11, 2]", "beta0_grid_year[11, 3]",  
+# "beta0_grid_year[12, 1]", "beta0_grid_year[12, 2]", "beta0_grid_year[12, 3]",  
+# "beta0_grid_year[13, 1]", "beta0_grid_year[13, 2]", "beta0_grid_year[13, 3]",  
+# "beta0_grid_year[14, 1]", "beta0_grid_year[14, 2]", "beta0_grid_year[14, 3]",  
+# "beta0_grid_year[15, 1]", "beta0_grid_year[15, 2]", "beta0_grid_year[15, 3]",  
+# "beta0_grid_year[16, 1]", "beta0_grid_year[16, 2]", "beta0_grid_year[16, 3]",  
+# "beta0_grid_year[17, 1]", "beta0_grid_year[17, 2]", "beta0_grid_year[17, 3]",  
+# "beta0_grid_year[18, 1]", "beta0_grid_year[18, 2]", "beta0_grid_year[18, 3]",  
+# "beta0_grid_year[19, 1]", "beta0_grid_year[19, 2]", "beta0_grid_year[19, 3]",  
+# "beta0_grid_year[20, 1]", "beta0_grid_year[20, 2]", "beta0_grid_year[20, 3]",  
+# "beta0_grid_year[21, 1]", "beta0_grid_year[21, 2]", "beta0_grid_year[21, 3]",  
+# "beta0_grid_year[22, 1]", "beta0_grid_year[22, 2]", "beta0_grid_year[22, 3]",  
+# "beta0_grid_year[23, 1]", "beta0_grid_year[23, 2]", "beta0_grid_year[23, 3]",  
+# "beta0_grid_year[24, 1]", "beta0_grid_year[24, 2]", "beta0_grid_year[24, 3]",  
+# "beta0_grid_year[25, 1]", "beta0_grid_year[25, 2]", "beta0_grid_year[25, 3]",  
+# "beta0_grid_year[26, 1]", "beta0_grid_year[26, 2]", "beta0_grid_year[26, 3]",  
+# "beta0_grid_year[27, 1]", "beta0_grid_year[27, 2]", "beta0_grid_year[27, 3]",  
+# "beta0_grid_year[28, 1]", "beta0_grid_year[28, 2]", "beta0_grid_year[28, 3]",  
+# "beta0_grid_year[29, 1]", "beta0_grid_year[29, 2]", "beta0_grid_year[29, 3]",  
+# "beta0_grid_year[30, 1]", "beta0_grid_year[30, 2]", "beta0_grid_year[30, 3]",  
+# "beta0_grid_year[31, 1]", "beta0_grid_year[31, 2]", "beta0_grid_year[31, 3]",  
+# "beta0_grid_year[32, 1]", "beta0_grid_year[32, 2]", "beta0_grid_year[32, 3]",  
+# "beta0_grid_year[33, 1]", "beta0_grid_year[33, 2]", "beta0_grid_year[33, 3]",  
+# "beta0_grid_year[34, 1]", "beta0_grid_year[34, 2]", "beta0_grid_year[34, 3]",  
+# "beta0_grid_year[35, 1]", "beta0_grid_year[35, 2]", "beta0_grid_year[35, 3]",  
+# "beta0_grid_year[36, 1]", "beta0_grid_year[36, 2]", "beta0_grid_year[36, 3]",  
+# "beta0_grid_year[37, 1]", "beta0_grid_year[37, 2]", "beta0_grid_year[37, 3]",  
+# "beta0_grid_year[38, 1]", "beta0_grid_year[38, 2]", "beta0_grid_year[38, 3]",  
+# "beta0_grid_year[39, 1]", "beta0_grid_year[39, 2]", "beta0_grid_year[39, 3]",  
+# "beta0_grid_year[40, 1]", "beta0_grid_year[40, 2]", "beta0_grid_year[40, 3]",  
+# "beta0_grid_year[41, 1]", "beta0_grid_year[41, 2]", "beta0_grid_year[41, 3]",  
+# "beta0_grid_year[42, 1]", "beta0_grid_year[42, 2]", "beta0_grid_year[42, 3]",  
+# "beta0_grid_year[43, 1]", "beta0_grid_year[43, 2]", "beta0_grid_year[43, 3]",  
+# "beta0_grid_year[44, 1]", "beta0_grid_year[44, 2]", "beta0_grid_year[44, 3]",  
+# "beta0_grid_year[45, 1]", "beta0_grid_year[45, 2]", "beta0_grid_year[45, 3]",  
+# "beta0_grid_year[46, 1]", "beta0_grid_year[46, 2]", "beta0_grid_year[46, 3]",  
+# "beta0_grid_year[47, 1]", "beta0_grid_year[47, 2]", "beta0_grid_year[47, 3]",  
+# "beta0_grid_year[48, 1]", "beta0_grid_year[48, 2]", "beta0_grid_year[48, 3]",  
+# "beta0_grid_year[49, 1]", "beta0_grid_year[49, 2]", "beta0_grid_year[49, 3]",  
+# "beta0_grid_year[50, 1]", "beta0_grid_year[50, 2]", "beta0_grid_year[50, 3]",  
+# "beta0_grid_year[51, 1]", "beta0_grid_year[51, 2]", "beta0_grid_year[51, 3]",  
+# "beta0_grid_year[52, 1]", "beta0_grid_year[52, 2]", "beta0_grid_year[52, 3]",  
+# "beta0_grid_year[53, 1]", "beta0_grid_year[53, 2]", "beta0_grid_year[53, 3]",  
+# "beta0_grid_year[54, 1]", "beta0_grid_year[54, 2]", "beta0_grid_year[54, 3]",  
+# "beta0_grid_year[55, 1]", "beta0_grid_year[55, 2]", "beta0_grid_year[55, 3]",  
+# "beta0_grid_year[56, 1]", "beta0_grid_year[56, 2]", "beta0_grid_year[56, 3]",  
+# "beta0_grid_year[57, 1]", "beta0_grid_year[57, 2]", "beta0_grid_year[57, 3]",  
+# "beta0_grid_year[58, 1]", "beta0_grid_year[58, 2]", "beta0_grid_year[58, 3]",  
+# "beta0_grid_year[59, 1]", "beta0_grid_year[59, 2]", "beta0_grid_year[59, 3]",  
+# "beta0_grid_year[60, 1]", "beta0_grid_year[60, 2]", "beta0_grid_year[60, 3]",
+# "beta0",
+# "beta_treatment[1]", 
+# "beta_treatment[2]", "beta_treatment[3]", "beta_treatment[4]",
+# "beta_south"
 
 # View the blocks
 sobs_mcmcConf$printSamplers() # print samplers being used 
 sobs_mcmcConf$unsampledNodes  # look at unsampled nodes
+sobs_mcmcConf$getUnsampledNodes() # Names of unsampled nodes
 
 # Build MCMC object: can customize thinning, monitors, etc.
 sobs_modelMCMC <- buildMCMC(sobs_mcmcConf) # Update mcmc configuration based on graph
@@ -594,8 +734,8 @@ cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # c
 
 # MCMC settings for the real model. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1        # Quick test to see if the model runs
-# nc <- 3  ;  ni <- 150000  ;  nb <- 50000;  nt <- 10   # longer test where most parameters should
-nc <- 4;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
+nc <- 3  ;  ni <- 150000  ;  nb <- 50000;  nt <- 10   # longer test where most parameters should
+# nc <- 4;  ni <- 500000;  nb <- 250000;  nt <- 25        # Run the model for real
 
 # Quick check of how many samples we'll keep in the posterior
 message(paste((ni - nb) / nt), " samples will be kept from the posterior")
@@ -613,7 +753,7 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -628,25 +768,27 @@ saveRDS(sobs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
   
 # Traceplots and density graphs 
-MCMCtrace(object = sobs_mcmc_out$samples,
+MCMCtrace(object = fire_mcmc_out$samples,
           params = sobs_params,
           pdf = TRUE,
           open_pdf = TRUE,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = "sobs_fire_model_traceplot",
+          filename = paste0(model_species, "_fire_model_traceplot"),
           type = 'both')
 
 # View MCMC summary
-MCMCsummary(object = sobs_mcmc_out$samples, 
+MCMCsummary(object = fire_mcmc_out$samples, 
             params = sobs_params,
             round = 2)
 
 # View MCMC plot
-MCMCplot(object = sobs_mcmc_out$samples,
+MCMCplot(object = fire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
+
+# } # End modeling loop (Comment this out) ----
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
@@ -654,8 +796,12 @@ MCMCplot(object = sobs_mcmc_out$samples,
 
 # 4.1) Prepare and view model output ################################################
 
+# Loop over all species 
+# for(k in 1:length(all_species)) { # (Comment this out) ----
+
 # Name the species to model again
-plot_species <- "SATH"
+# plot_species <- all_species[k]
+plot_species <- all_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -666,7 +812,7 @@ plot_species_df <- data.frame(Species.Code = plot_species) %>%
                                   Species.Code == "VESP" ~ "Vesper Sparrow",
                                   Species.Code == "WEME" ~ "Western Meadowlark",
                                   Species.Code == "HOLA" ~ "Horned Lark"))
-species_name <- plot_species_df$Species.Name[1]
+species_name <- plot_species_df$Species.Name
 # View
 species_name
 
@@ -675,43 +821,34 @@ fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pro
                                        plot_species, "_fire_elevation_model.rds"))
 
 # View MCMC summary
-sobs_mcmc_out$summary$all.chains
-
-# Params to plot
-sobs_params_plot <- c(
-  "beta0_treatment",
-  "beta_fyear",
-  "beta_burnsev"
-)
-
-# View MCMC plot
-MCMCplot(object = sobs_mcmc_out$samples,
-         guide_lines = TRUE,
-         labels = c("Low Reference", "High Reference", 
-                    "Low Burned", "High Burned",
-                    "Time Since Fire (Low)", "Time Since Fire (High)",
-                    "RdNBR Burn Sevarity"),
-         main = species_name,
-         col = "black",
-         ref_ovl = TRUE,
-         params = sobs_params_plot)
+fire_mcmc_out$summary$all.chains
 
 
+
+
+# # Save the plot
+# ggsave(filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                          plot_species, "_params.png"),
+#        width = 0,
+#        height = 500,
+#        units = "px",
+#        dpi = 300
+# )
 
 
 # 4.2) Extract coefficient values ###############################################################
 
 # Extract effect sizes
 # Treatment intercepts
-beta0_ref_low <- sobs_mcmc_out$summary$all.chains[18,]
-beta0_ref_high <- sobs_mcmc_out$summary$all.chains[19,]
-beta0_burn_low <- sobs_mcmc_out$summary$all.chains[20,]
-beta0_burn_high <- sobs_mcmc_out$summary$all.chains[21,]
+beta0_ref_low <- fire_mcmc_out$summary$all.chains[18,]
+beta0_ref_high <- fire_mcmc_out$summary$all.chains[19,]
+beta0_burn_low <- fire_mcmc_out$summary$all.chains[20,]
+beta0_burn_high <- fire_mcmc_out$summary$all.chains[21,]
 # Fire Year
-beta_fyear_low <- sobs_mcmc_out$summary$all.chains[23,]
-beta_fyear_high <- sobs_mcmc_out$summary$all.chains[24,]
+beta_fyear_low <- fire_mcmc_out$summary$all.chains[23,]
+beta_fyear_high <- fire_mcmc_out$summary$all.chains[24,]
 # Burn Sevarity
-beta_burnsev <- sobs_mcmc_out$summary$all.chains[22,]
+beta_burnsev <- fire_mcmc_out$summary$all.chains[22,]
 
 # View Betas
 bind_rows(beta0_ref_low,
@@ -770,6 +907,62 @@ glimpse(beta_dat_pred)
 
 # 4.3) Plot each predicted value ###########################################
 
+# Parameter estimates -----------------------------------------------------------------------------------------------
+
+# Create the plot
+params_plot <- beta_dat %>% 
+  # Rename Parameters
+  mutate(Parameter = case_when(Parameter == "beta0.ref.low" ~ "Reference Below 1800m",
+                               Parameter == "beta0.ref.high" ~ "Reference Above 1800m",
+                               Parameter == "beta0.burn.low" ~ "Burned Below 1800m",
+                               Parameter == "beta0.burn.high" ~ "Burned Above 1800m",
+                               Parameter == "beta.burnsev" ~ "RdNBR Burn Sevarity",
+                               Parameter == "beta.fyear.low" ~ "Years Since Fire  Below 1800m",
+                               Parameter == "beta.fyear.high" ~ "Years Since Fire Above 1800m"),
+         # Add a New column for whether or not the CI crosses Zero
+         Significant = factor(case_when(CI.lb * CI.ub <= 0 ~ 0,
+                                        CI.lb * CI.ub > 0 ~ 1))) %>% 
+  # Switch to a factor 
+  mutate(Parameter = factor(Parameter, levels = c("Reference Below 1800m", "Reference Above 1800m",
+                                                  "Burned Below 1800m","Burned Above 1800m",
+                                                  "RdNBR Burn Sevarity",
+                                                  "Years Since Fire  Below 1800m", "Years Since Fire Above 1800m"))) %>% 
+  # Open the plot
+  ggplot(aes(y = Parameter)) +
+  # Add points at the mean values for each parameters
+  geom_point(aes(x = Mean, color = Significant), shape = 15, size = 4) +
+  # Add whiskers for 95% Bayesian Credible intervals
+  geom_linerange(aes(xmin = CI.lb, xmax = CI.ub, color = Significant), size = 1.5) +
+  # Add a vertical Line at zero
+  geom_vline(xintercept = 0, linetype = "dashed", size = 1) +
+  # Zoom Out
+  # coord_cartesian(xlim = c(-1.5, 4.5)) +
+  # Change the Labels
+  labs(x = "Parameter Estimate", y = "") +
+  # Simple theme
+  theme_classic() +
+  # Custom colors
+  scale_color_manual(values = c("lightsteelblue4", "navyblue")) +
+  # Edit theme
+  theme(legend.position = "none",
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 16),
+        axis.text.x = element_text(size = 16)) 
+
+
+# View the plot
+params_plot
+
+# Save the plot
+ggsave(plot = params_plot,
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                                       plot_species, "_params.png"),
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+
 # Burn verses Reference at different Elevations  --------------------------------------------------------------------
 
 # Reorder 'Parameter' factor levels to match the desired color order
@@ -793,10 +986,11 @@ treatment_pred_plot <- beta_dat %>%
                                 "beta0.ref.high" = "darkslategray4",
                                 "beta0.burn.low" = "red3",
                                 "beta0.burn.high" = "orange2"),
-                     labels = c("Low Elevation Burn",
-                                "High Elevation Burn",
+                     labels = c(
                                 "Low Elevation Reference",
-                                "High Elevation Reference"
+                                "High Elevation Reference",
+                                "Low Elevation Burn",
+                                "High Elevation Burn"
                                 ),
                      name = "") +
   labs(x = "Grid Type", 
@@ -815,7 +1009,16 @@ treatment_pred_plot <- beta_dat %>%
 # Display the plot
 treatment_pred_plot
 
-# Burn Sevarity plot -------------------------------------------------------
+# Save the plot
+ggsave(plot = treatment_pred_plot,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                         plot_species, "_treatment.png"),
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+# Burn Severity plot -------------------------------------------------------
 
 # View predictive data
 glimpse(beta_dat_pred)
@@ -881,6 +1084,16 @@ rdnbr_pred_plot <- beta_dat_pred %>%
 
 # Display the plot
 rdnbr_pred_plot
+
+# Save the plot
+ggsave(plot = rdnbr_pred_plot,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                         plot_species, "_burnsev.png"),
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300
+)
 
 # Years since fire plot -------------------------------------------------------
 
@@ -954,3 +1167,13 @@ fyear_pred_plot <- beta_dat_pred %>%
 # Display the plot
 fyear_pred_plot
 
+# Save the plot
+ggsave(plot = fyear_pred_plot,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                         plot_species, "_fyear.png"),
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+} # End plotting loop over all species (Comment this out) ----

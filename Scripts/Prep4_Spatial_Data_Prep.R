@@ -81,17 +81,17 @@ tmap_mode("view")
 tmap_options(check.and.fix = TRUE)
 
 # Plot
-tm_shape(fire_perms) +
-  tm_polygons(col = "darkred", alpha = 0.4) +
-  # tm_shape(grid_buff_lg) +
-  # tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"),
-  #             alpha = 0.7, title = "125m radius") +
-  # tm_shape(grid_buff_med) +
-  # tm_polygons(col = "Grid.Type", palette = c("orange", "turquoise"),
-  #             alpha = 0.7, title = "1km radius") +
-  tm_shape(grid_buff_sm) +
-  tm_polygons(col = "Grid.Type", palette = c("red", "blue"),
-              alpha = 0.7, title = "5km radius")
+# tm_shape(fire_perms) +
+#   tm_polygons(col = "darkred", alpha = 0.4) +
+#   # tm_shape(grid_buff_lg) +
+#   # tm_polygons(col = "Grid.Type", palette = c("pink", "lightblue"),
+#   #             alpha = 0.7, title = "125m radius") +
+#   # tm_shape(grid_buff_med) +
+#   # tm_polygons(col = "Grid.Type", palette = c("orange", "turquoise"),
+#   #             alpha = 0.7, title = "1km radius") +
+#   tm_shape(grid_buff_sm) +
+#   tm_polygons(col = "Grid.Type", palette = c("red", "blue"),
+#               alpha = 0.7, title = "5km radius")
   
 # 1.2) Add rasters ############################################################################
 
@@ -105,26 +105,35 @@ tree_patches <- rast(paste0(ras_path, "tree_patches.tif"))
 elevation <- rast(paste0(ras_path, "elevation.tif"))
 tri <- rast(paste0(ras_path, "tri.tif"))
 aspect <- rast(paste0(ras_path, "aspect.tif"))
+south <- rast(paste0(ras_path, "south_facing.tif"))
 
 # Empty raster template for fires
-fire_ras_template <- rast(extent = ext(fire_perms), resolution = c(25, 25), crs = target_crs)
+fire_ras_template <- rast(extent = ext(fire_perms), 
+                          resolution = c(24.78859, 24.78859), 
+                          crs = target_crs)
 
 # Burned vs unburned raster
 fires_ras <- rasterize(fire_perms, fire_ras_template)
+
+# Raster with only value one for calculating proportions
+ref_rast <- south 
+values(ref_rast) <- 1
 
 # The study region
 study_region <- st_read(paste0(ras_path, "Study_Region.shp"))
 
 # Plot the rasters
-terra::plot(shrub_cvr, col = viridis(100))
-terra::plot(pfg_cvr, col = magma(100))
-terra::plot(afg_cvr)
-terra::plot(bg_cvr)
-terra::plot(shrub_patches, col = c("cornsilk", "darkcyan"))
-terra::plot(tree_patches, col = c("cornsilk", "darkgreen"))
-terra::plot(elevation)
-terra::plot(tri, col = turbo(100))
-terra::plot(aspect)
+# terra::plot(shrub_cvr, col = viridis(100))
+# terra::plot(pfg_cvr, col = magma(100))
+# terra::plot(afg_cvr)
+# terra::plot(bg_cvr)
+# terra::plot(shrub_patches, col = c("cornsilk", "darkcyan"))
+# terra::plot(tree_patches, col = c("cornsilk", "darkgreen"))
+# terra::plot(elevation)
+# terra::plot(tri, col = turbo(100))
+# terra::plot(aspect)
+# terra::plot(south)
+# terra::plot(ref_rast)
 
 # 2.1) Extracting values to a 125 radius around each point ##########################################
 
@@ -158,12 +167,23 @@ TRI.125m <- terra::extract(x = tri,
 # Summarize aspect
 Aspect.125m <- terra::extract(x = aspect,
                              y = grid_buff_sm,
+                             # Custom "proportion south" function
                              fun = function(x) modal(x, na.rm = TRUE))
 
+# Summarize the number of south aspect cells
+Count.South.125m <- terra::extract(x = south,
+                            y = grid_buff_med,
+                            fun = function(x) sum(x, na.rm = TRUE))
+
 # Percent of area that burned
-Prop.Burned.125m <- terra::extract(x = fires_ras,
+Count.Burned.125m <- terra::extract(x = fires_ras,
                                    y = grid_buff_sm,
                                    fun = function(x) sum(x, na.rm = TRUE))
+
+# Total number of cells
+Cell.Count.125m <- terra::extract(x = ref_rast,
+                                  y = grid_buff_med,
+                                  fun = function(x) sum(x, na.rm = TRUE))
 
 # Add these to the data frame
 grid_covs$Shrub.Cover.125m <- Shrub.Cover.125m[,2]
@@ -172,7 +192,9 @@ grid_covs$Annual.Cover.125m <- Annual.Cover.125m[,2]
 grid_covs$Bare.Ground.Cover.125m <- Bare.Ground.Cover.125m[,2]
 grid_covs$Elevation.125m <- Elevation.125m[,2]
 grid_covs$TRI.125m <- TRI.125m[,2]
-grid_covs$Prop.Burned.125m <- Prop.Burned.125m[,2] 
+grid_covs$Count.South.125m <- Count.South.125m[,2] 
+grid_covs$Count.Burned.125m <- Count.Burned.125m[,2]
+grid_covs$Cell.Count.125m <- Cell.Count.125m[,2]
 
 # View the new point covariates
 glimpse(grid_covs)
@@ -211,10 +233,21 @@ TRI.1km <- terra::extract(x = tri,
 Aspect.1km <- terra::extract(x = aspect,
                          y = grid_buff_med,
                          fun = function(x) modal(x, na.rm = TRUE))
+
+# Summarize the number of south aspect cells
+Count.South.1km <- terra::extract(x = south,
+                            y = grid_buff_med,
+                            fun = function(x) sum(x, na.rm = TRUE))
+
 # Percent of area that burned
-Prop.Burned.1km <- terra::extract(x = fires_ras,
+Count.Burned.1km <- terra::extract(x = fires_ras,
                                    y = grid_buff_med,
                                    fun = function(x) sum(x, na.rm = TRUE))
+
+# Total number of cells
+Cell.Count.1km <- terra::extract(x = ref_rast,
+                                 y = grid_buff_med,
+                                 fun = function(x) sum(x, na.rm = TRUE))
 
 # Add these to the data frame
 grid_covs$Shrub.Cover.1km <- Shrub.Cover.1km[,2]
@@ -224,53 +257,9 @@ grid_covs$Bare.Ground.Cover.1km <- Bare.Ground.Cover.1km[,2]
 grid_covs$Elevation.1km <- Elevation.1km[,2]
 grid_covs$TRI.1km <- TRI.1km[,2]
 grid_covs$Aspect.1km <- Aspect.1km[,2]
-grid_covs$Prop.Burned.1km <- Prop.Burned.1km[,2]
-
-# View the new point covariates
-glimpse(grid_covs)
-
-# 2.3) Extracting values to a 5km radius around each grid ##########################################
-
-# summarize shrub cover 
-Shrub.Cover.5km <- terra::extract(x = shrub_cvr,
-                                  y = grid_buff_lg,
-                                  fun = function(x) mean(x, na.rm = TRUE))
-
-# Summarize perennial forb and grass cover
-Perennial.Cover.5km <- terra::extract(x = pfg_cvr,
-                                      y = grid_buff_lg,
-                                      fun = function(x) mean(x, na.rm = TRUE))
-# Summarize annual forb and grass cover
-Annual.Cover.5km <- terra::extract(x = afg_cvr,
-                                   y = grid_buff_lg,
-                                   fun = function(x) mean(x, na.rm = TRUE))
-# Summarize bare ground cover
-Bare.Ground.Cover.5km <- terra::extract(x = bg_cvr,
-                                        y = grid_buff_lg,
-                                        fun = function(x) mean(x, na.rm = TRUE))
-
-# Summarize elevation
-Elevation.5km <- terra::extract(x = elevation,
-                                y = grid_buff_lg,
-                                fun = function(x) mean(x, na.rm = TRUE)) 
-
-# Summarize ruggedness
-TRI.5km <- terra::extract(x = tri,
-                          y = grid_buff_lg,
-                          fun = function(x) mean(x, na.rm = TRUE))
-# Percent of area that burned
-Prop.Burned.5km <- terra::extract(x = fires_ras,
-                                   y = grid_buff_lg,
-                                   fun = function(x) sum(x, na.rm = TRUE))
-
-# Add these to the data frame
-grid_covs$Shrub.Cover.5km <- Shrub.Cover.5km[,2]
-grid_covs$Perennial.Cover.5km <- Perennial.Cover.5km[,2]
-grid_covs$Annual.Cover.5km <- Annual.Cover.5km[,2]
-grid_covs$Bare.Ground.Cover.5km <- Bare.Ground.Cover.5km[,2]
-grid_covs$Elevation.5km <- Elevation.5km[,2]
-grid_covs$TRI.5km <- TRI.5km[,2]
-grid_covs$Prop.Burned.5km <- 100 * Prop.Burned.5km[,2] / 125663
+grid_covs$Count.South.1km <- Count.South.1km[,2]
+grid_covs$Cell.Count.1km <- Cell.Count.1km[,2]
+grid_covs$Count.Burned.1km <- Count.Burned.1km[,2]
 
 # View the new point covariates
 glimpse(grid_covs)
@@ -371,11 +360,28 @@ grid_covs_fire2 <- grid_covs_fire %>%
 grid_covs_fire2 %>% 
   filter(Grid.ID == "UT-B02")
 
-hist
-
 # Join these to the exisitng covariates
 grid_covs_final <- grid_covs %>% 
-  left_join(grid_covs_fire2, by = "Grid.ID") 
+  left_join(grid_covs_fire2, by = "Grid.ID") %>% 
+# Turn count columns into proportions 
+  mutate(Prop.South.125m = 100 * Count.South.125m / Cell.Count.125m,
+         Prop.South.1km = 100 * Count.South.1km / Cell.Count.1km,
+         Prob.Burned.125m = 100 * Count.Burned.125m / Cell.Count.125m,
+         Prob.Burned.1km = 100 * Count.Burned.1km / Cell.Count.1km) %>%
+  # Remove the cells with only tiny south aspect slopes
+  mutate(Prop.South.125m = case_when(Prop.South.125m < 1 ~ 0,
+                                     Prop.South.125m > 1 ~ Prop.South.125m),
+         Prop.South.1km = case_when(Prop.South.1km < 1 ~ 0,
+                                     Prop.South.1km > 1 ~ Prop.South.1km)) %>% 
+  # Create a log-scale version of prop burned 
+  mutate(ln.Prop.South.125m = case_when(Prop.South.125m == 0 ~ Prop.South.125m,
+                                        Prop.South.125m > 0 ~ log(Prop.South.125m)),
+         ln.Prop.South.1km = case_when(Prop.South.1km == 0 ~ Prop.South.1km,
+                                        Prop.South.1km > 0 ~ log(Prop.South.1km))) %>% 
+  # Remove the columns that are no longer needed
+  select(-Count.South.125m, -Count.South.1km, 
+         -Cell.Count.125m, -Cell.Count.1km,
+         -Count.Burned.125m, -Count.Burned.1km)
 
 # View all covariates
 glimpse(grid_covs_final)

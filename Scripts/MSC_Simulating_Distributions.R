@@ -1,5 +1,6 @@
 library(ggplot2)
 
+# Various lambdas ##########################################
 mean_lambda <- 4.5
 
 area <- 0.7853982
@@ -14,13 +15,14 @@ ggplot(sample_dat, aes(x = samples)) +
   geom_density(lwd = 2, col = "blue") +
   theme_classic()
 
-t <- rt(n = 1000, df = 2, ncp = 1)
+# T distribution ####################################
+t <- rt(n = 10000, df = 2, ncp = 1)
 
-t_trunc <- t[t >= 0]
+t_trunc <- t[t >= 0 & t <= 10]
 hist(t_trunc)
 
-# Make a beta distribution that is symetrical around 0.5
-beta <- rbeta(n = 10000, shape = 0.5, scale = 0.5)
+# Make a beta distribution that is symetrical around 0.5 #######################
+beta <- rbeta(n = 100000, shape1 = 1.3, shape2 = 1.3)
 
 hist(beta)
 
