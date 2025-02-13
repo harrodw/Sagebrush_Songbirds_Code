@@ -24,7 +24,6 @@ sobs <- tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>%
 glimpse(sobs)
 
 # Primary file path for rasters
-# This is the geoprocessing outputs folder for my arc pro project
 ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
 # Set a coordinate reference system (UTM Zone 12N)
@@ -67,7 +66,6 @@ grid_buff_med  <- st_as_sf(grid_centers) %>%
 # Largest buffer
 grid_buff_lg <- st_as_sf(grid_centers) %>% 
   st_buffer(dist = rad_lg)
-
 
 # Add in the fire perimeters
 fire_perms <- st_read(paste0(ras_path, "fire_perimeters.shp")) %>% 
@@ -446,12 +444,16 @@ pre_fire_covs <- sobs %>%
 # View covs
 glimpse(pre_fire_covs)
 
-# Create a new buffer object (689m) is the smallest distance that includes all points in a grid)
-pre_fire_buff <- pre_fire_covs %>%
-  select(Grid.ID, Grid.Type, Grid.X, Grid.Y) %>% 
-  st_as_sf(coords = c("Grid.X", "Grid.Y")) %>% 
+# Create a new buffer object (my 125m buffer merged around each point)
+pre_fire_buff <- sobs %>%
+  distinct(Full.Point.ID, Grid.ID, Grid.Type, UTM.X, UTM.Y) %>% 
+  st_as_sf(coords = c("UTM.X", "UTM.Y")) %>% 
   st_set_crs(target_crs) %>% 
-  st_buffer(dist = 689)
+  st_buffer(dist = 125) %>% 
+  group_by(Grid.ID, Grid.Type) %>%
+  reframe(geometry = st_union(geometry)) %>% 
+  st_as_sf()
+
 # View buffer
 pre_fire_buff 
 
@@ -518,10 +520,10 @@ for(i in 2:(nyears_rap)){
 
   # Isolate each layer of the raster
   shrub_rast <- rap_rast_clp$SHR # Shrub cover
-  pfg_rast <- rap_rast_clp$PFG # Perennial for and grass cover
-  afg_rast <- rap_rast_clp$AFG # Annual grass cover
-  tree_rast <- rap_rast_clp$TRE # Tree cover
-  bg_rast <- rap_rast_clp$BGR # Bare ground cover
+  pfg_rast <- rap_rast_clp$PFG   # Perennial for and grass cover
+  afg_rast <- rap_rast_clp$AFG   # Annual grass cover
+  tree_rast <- rap_rast_clp$TRE  # Tree cover
+  bg_rast <- rap_rast_clp$BGR    # Bare ground cover
 
   # Reset a temporary summary object for the mean value of each covariate within the buffer
   pixel_count <- terra::extract(x = ref_rast, y = pre_fire_buff, fun = function(x) sum(x, na.rm = TRUE)) # Summary of how many raster pixels are inside that buffer
@@ -564,13 +566,33 @@ for(i in 2:(nyears_rap)){
 } # end the loop through years
 difftime(Sys.time(), start) # End time
 
+# Primary file path for rasters
+ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
+
+# Add in the elevation and current shrub cover rasters
+elevation_rast <- rast(paste0(ras_path, "elevation.tif"))
+shrub_rast <- rast(paste0(ras_path, "shrub_cvr.tif"))
+
+# Summarize elevation
+elevation_mean <- terra::extract(x = elevation_rast,
+                                 y = pre_fire_buff,
+                                 fun = function(x) mean(x, na.rm = TRUE))
+# Summarize current shrub cover
+shrub_mean <- terra::extract(x = shrub_rast,
+                                 y = pre_fire_buff,
+                                 fun = function(x) mean(x, na.rm = TRUE))
+
+# Add elevation and current shrub cover to the covariates
+pre_fire_covs$Elevation <- elevation_mean[,2]
+pre_fire_covs$Current.Shrub <- shrub_mean[,2]
+
 # Remove the temporary covariates
 pre_fire_covs_final <- pre_fire_covs %>% 
-  dplyr::select(Grid.ID, Grid.Type, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
+  dplyr::select(Grid.ID, Grid.Type, Elevation, Current.Shrub, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
                 AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF, Grid.X, Grid.Y) %>% 
   # Replace NA's
-  mutate(across(everything(), ~ replace_na(., -999)))
-
+  mutate(across(everything(), ~ replace_na(., -999))) 
+  
 # View
 glimpse(pre_fire_covs_final)
 print(pre_fire_covs_final, n = nrow(pre_fire_covs_final))
@@ -578,7 +600,7 @@ print(pre_fire_covs_final, n = nrow(pre_fire_covs_final))
 #Pull out just the covariates on grids with info
 pre_fire_corr <- pre_fire_covs_final %>% 
   filter(Fire.Year > 0) %>%  
-  select(Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
+  select(Elevation, Current.Shrub, Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
 # View
 print(pre_fire_corr, n = Inf)
   

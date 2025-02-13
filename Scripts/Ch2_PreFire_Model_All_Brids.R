@@ -49,7 +49,7 @@ sobs_observations_temp <- read.csv(paste0("Data/Outputs/", model_species, "_Obse
 # View the observations
 glimpse(sobs_observations_temp)
 
-# Add covariates from the local drive
+# Add pre fire covariates from the local drive
 # Aspect == -1 means that the area is flat other classes start at 1=NE clockwise
 # Fire Distance == 1000000 mean that the area is outside of a fire
 # Burn sevarity == 0 means that the area did not burn
@@ -59,12 +59,9 @@ covs <- tibble(read.csv("Data/Outputs/pre_fire_covs.csv")) %>%
   dplyr::select(-X) %>%
   tibble()
 # # or from github
-# covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
+# covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/pre_fire_covs.csv) %>%
 #   dplyr::select(-X) %>%
 #   tibble()
-
-# View covariates
-glimpse(covs)
 
 # 1.2) Prepare the count level data ################################################################
 
@@ -174,14 +171,14 @@ glimpse(sobs_counts)
 glimpse(sobs_observations)
 
 # Plot counts against a covaariate
-sobs_counts %>%
-  filter(Burned == 1) %>%
-  ggplot(aes(x = AFG.Cover.PF, y = Count)) +
-  # geom_boxplot()
-  geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
-  geom_jitter(col = "aquamarine4") +
-  # geom_histogram(col = "aquamarine4", fill = "aquamarine3") +
-  theme_bw()
+# sobs_counts %>%
+#   filter(Burned == 1) %>%
+#   ggplot(aes(x = AFG.Cover.PF, y = Count)) +
+#   # geom_boxplot()
+#   geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
+#   geom_jitter(col = "aquamarine4") +
+#   # geom_histogram(col = "aquamarine4", fill = "aquamarine3") +
+#   theme_bw()
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -251,14 +248,14 @@ delta <- trunc_dist / nbins                                # Bin size
 
 # Availability date
 tint <- sobs_observations$Time.Interval                    # Time interval for each observation 
-time <- time_mat                                      # Matrix of scaled time after sunrise
-day <- date_mat                                       # Matrix of scaled dates
+time <- time_mat                                           # Matrix of scaled time after sunrise
+day <- date_mat                                            # Matrix of scaled dates
 
 # Grid level data
-n_dct <- count_mat                                    # Matrix of the number of detected individuals per grid per survey 
-years <- year_mat                                     # Matrix of year numbers
+n_dct <- count_mat                                         # Matrix of the number of detected individuals per grid per survey 
+years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
-fire_year <- fyear_mat                                # How long since the most recent fire in each grid
+fire_year <- fyear_mat                                     # How long since the most recent fire in each grid
 shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]          # Percent shrub cover
 pfg_cvr <- sobs_counts$PFG.Cover.PF[1:ngrids]              # Percent perennial forb and grass cover
 afg_cvr <- sobs_counts$ln.AFG.Cover.PF[1:ngrids]           # Percent annual grass cover
@@ -291,14 +288,17 @@ sobs_model_code <- nimbleCode({
   }
 
   # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, sd = 3)  # Mean abundance hyperparameter
-  sd_beta0 ~ dunif(0, 1)         # Sd in yearly abundance hyperparameter
+  mean_beta0 ~ dnorm(0, sd = 3)     # Mean abundance hyperparameter
+  sd_beta0 ~ T(dt(0, 1, 2), 0, 3)   # Sd in yearly abundance hyperparameter 
+  
   # Random intercept on abundance
   for(t in 1:nyears){
     beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
   }
   # Fixed effects on abundance
+  cur_shrub ~  dnorm(0, sd = 1.5)   # Effect of current shrub cover on reference grids
   beta_burn ~ dnorm(0, sd = 3)      # Effect of fire
+  beta_elv ~  dnorm(0, sd = 1.5)    # Effect of elevation
   beta_fyear ~ dnorm(0, sd = 1.5)   # Effect of years since fire on burned grids
   beta_shrub ~ dnorm(0, sd = 1.5)   # Effect of shrub cover
   beta_pfg ~ dnorm(0, sd = 1.5)     # Effect of Perennial Cover
@@ -358,14 +358,16 @@ sobs_model_code <- nimbleCode({
                           gamma_time2 * time[s, y]^2                  # Effect of scaled time of day squared 
       
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_year[years[s, y]] +                  # Intercept on abundance
-                           beta_burn * burned[s] +                    # Effect of fire 
-                           beta_fyear * fire_year[s, y] * burned[s] + # Effect of years since fire on burned grids
-                           beta_shrub * shrub_cvr[s] * burned[s] +    # Effect of shrub cover
-                           beta_pfg *  pfg_cvr[s] * burned[s] +       # Effect of Perennial Cover
-                           beta_afg * afg_cvr[s] * burned[s] +        # Effect of annual grass
-                           beta_tree * tree_cvr[s] * burned[s] +      # Effect of tree cover
-                           beta_bg * bg_cvr[s] * burned[s]            # Effect of bare ground cover
+      log(lambda[s, y]) <- beta0_year[years[s, y]] +                         # Intercept on abundance
+                           beta_elevation * elevation[s]                     # Effect of elevation
+                           beta_cur_shrub[s] * cur_shrub[s] * reference[s] + # Effect of this years shrub cover on reference grids
+                           beta_burn * burned[s] +                           # Effect of fire 
+                           beta_fyear * fire_year[s, y] * burned[s] +        # Effect of years since fire on burned grids
+                           beta_shrub * shrub_cvr[s] * burned[s] +           # Effect of shrub cover
+                           beta_pfg *  pfg_cvr[s] * burned[s] +              # Effect of Perennial Cover
+                           beta_afg * afg_cvr[s] * burned[s] +               # Effect of annual grass
+                           beta_tree * tree_cvr[s] * burned[s] +             # Effect of tree cover
+                           beta_bg * bg_cvr[s] * burned[s]                   # Effect of bare ground cover
       
     } # end loop through visits
     
@@ -419,6 +421,7 @@ sobs_dat <- list(
   
   #Point level data
   n_dct = n_dct,          # Number of detected individuals per site
+  elevation = elevation,  # Elevation (m)
   fire_year = fire_year,  # How long since the most recent fire in each grid
   burned = burned,        # Whether or not each grid burned
   shrub_cvr = shrub_cvr,  # Percent shrub cover
@@ -461,6 +464,7 @@ sobs_inits <- list(
   mean_beta0 = runif(1, 0, 1),
   sd_beta0 = runif(1, 0, 0.1),
   beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
+  beta_elv = rnorm(1, 0, 0.1),
   beta_burn = rnorm(1, 0, 0.1),
   beta_fyear = rnorm(1, 0, 0.1),
   beta_shrub = rnorm(1, 0, 0.1),
@@ -479,6 +483,7 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c("beta0_year",
+                 "beta_elev",
                  "beta_burn",
                  "beta_fyear",
                  "beta_shrub",
@@ -550,6 +555,7 @@ sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_
 
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+                             "beta_elv",
                              "beta_burn", 
                              "beta_fyear", 
                              "beta_shrub", 
@@ -559,6 +565,7 @@ sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
                              "beta_bg")
 
 sobs_mcmcConf$addSampler(target = c("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+                                    "beta_elv",
                                     "beta_burn", 
                                     "beta_fyear",  
                                     "beta_shrub", 
