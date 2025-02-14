@@ -25,7 +25,9 @@ rm(list = ls())
 # 1.1) Read in data ############################################################
 
 # List of Species 
-all_species <- c("BRSP", "SATH", "SABS", "GTTO", "VESP", "WEME", "HOLA")
+all_species <- c("BRSP", "SATH", "SABS", 
+                 # "GTTO", 
+                 "VESP", "WEME", "HOLA")
 
 # Loop over all species 
 for(k in 1:length(all_species)){
@@ -120,11 +122,27 @@ sd_afg_cvr <- sd(fire_covs$ln.AFG.Cover.PF)
 sd_tree_cvr <- sd(fire_covs$ln.Tree.Cover.PF)
 sd_bg_cvr <- sd(fire_covs$BG.Cover.PF)
 
+# Isolate cover covariates on reference grids 
+ref_stats <- sobs_counts_temp2 %>% 
+  filter(Burned == 0) %>% 
+  distinct(Grid.ID, Shrub.Cover.125m, Perennial.Cover.125m)
+# View
+glimpse(ref_stats)
+
+# Find the reference covariate mean and sd 
+mean_shrub <- mean(ref_stats$Shrub.Cover.125m)
+sd_shrub <- sd(ref_stats$Shrub.Cover.125m)
+mean_pern <- mean(ref_stats$Perennial.Cover.125m)
+sd_pern <- sd(ref_stats$Perennial.Cover.125m)
+
+
 # Scale the other covariates
 sobs_counts <- sobs_counts_temp2 %>%
   mutate(
     # Manually scale pre-fire covariates
     Years.Since.Fire =(Years.Since.Fire - mean_fyear) / sd_fyear,
+    Shrub.Cover.Cur = (Shrub.Cover.Current - mean_shrub) - sd_shrub,
+    Perennial.Cover.Cur = (Perennial.Cover.Current - mean_pern) - sd_pern,
     Shrub.Cover.PF = (Shrub.Cover.PF - mean_shrub_cvr) / sd_shrub_cvr,
     PFG.Cover.PF = (PFG.Cover.PF - mean_pfg_cvr) / sd_pfg_cvr,
     ln.AFG.Cover.PF = (ln.AFG.Cover.PF - mean_afg_cvr) / sd_afg_cvr,
@@ -255,6 +273,8 @@ day <- date_mat                                            # Matrix of scaled da
 n_dct <- count_mat                                         # Matrix of the number of detected individuals per grid per survey 
 years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
+shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover on each grid
+pern_cvr <- sobs_counts$Perennial.Cover.scl[1:ngrids]      # Percent perennial cover on each grid
 fire_year <- fyear_mat                                     # How long since the most recent fire in each grid
 shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]          # Percent shrub cover
 pfg_cvr <- sobs_counts$PFG.Cover.PF[1:ngrids]              # Percent perennial forb and grass cover
@@ -288,86 +308,100 @@ sobs_model_code <- nimbleCode({
   }
 
   # Parameters on the abundance component of the model
-  mean_beta0 ~ dnorm(0, sd = 3)     # Mean abundance hyperparameter
-  sd_beta0 ~ T(dt(0, 1, 2), 0, 3)   # Sd in yearly abundance hyperparameter 
-  
-  # Random intercept on abundance
-  for(t in 1:nyears){
-    beta0_year[t] ~ dnorm(mean_beta0, sd_beta0)
-  }
+
   # Fixed effects on abundance
-  cur_shrub ~  dnorm(0, sd = 1.5)   # Effect of current shrub cover on reference grids
-  beta_burn ~ dnorm(0, sd = 3)      # Effect of fire
-  beta_elv ~  dnorm(0, sd = 1.5)    # Effect of elevation
-  beta_fyear ~ dnorm(0, sd = 1.5)   # Effect of years since fire on burned grids
-  beta_shrub ~ dnorm(0, sd = 1.5)   # Effect of shrub cover
-  beta_pfg ~ dnorm(0, sd = 1.5)     # Effect of Perennial Cover
-  beta_afg ~ dnorm(0, sd = 1.5)     # Effect of annual grass cover
-  beta_tree ~ dnorm(0, sd = 1.5)    # Effect of tree cover
-  beta_bg ~ dnorm(0, sd = 1.5)      # Effect of bare ground cover
+  beta0 ~ dnorm(0, sd = 3)             # Abundance intercept
+  beta_cur_shrub ~  dnorm(0, sd = 1.5) # Effect of current shrub cover on reference grids
+  beta_cur_pern ~  dnorm(0, sd = 1.5)  # Effect of current shrub cover on reference grids
+  beta_burn ~ dnorm(0, sd = 3)         # Effect of fire
+  beta_elv ~  dnorm(0, sd = 1.5)       # Effect of elevation
+  beta_fyear ~ dnorm(0, sd = 1.5)      # Effect of years since fire on burned grids
+  beta_shrub ~ dnorm(0, sd = 1.5)      # Effect of shrub cover
+  beta_pfg ~ dnorm(0, sd = 1.5)        # Effect of Perennial Cover
+  beta_afg ~ dnorm(0, sd = 1.5)        # Effect of annual grass cover
+  beta_tree ~ dnorm(0, sd = 1.5)       # Effect of tree cover
+  beta_bg ~ dnorm(0, sd = 1.5)         # Effect of bare ground cover
+  
+  # Sd in yearly abundance hyperparameter 
+  sd_eps_beta ~ T(dt(0, 1, 2), 0, 3)   
+  
+  # Random effect on abundance
+  for(y in 1:nyears){
+    eps_beta[y] ~ dnorm(0, sd_beta0)
+  }
+  
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
   
   # Iterate over all survey grids
-  for(s in 1:ngrids){
+  for(j in 1:ngrids){
     
     # Zero-inflation component on abundance
-    psi[s] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
-    present[s] ~ dbern(psi[s])                                        # Number of grids where that individual can be present
+    psi[j] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
+    present[j] ~ dbern(psi[j])                                        # Number of grids where that individual can be present
 
     # Iterate over all of the visits to each survey grid 
-    for(y in 1:nvst){ 
+    for(k in 1:nvst){ 
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[s, y, b]) <- -(midpt[b]^2) / (2 * sigma[s, y]^2)        # Half-normal detection function
-        f[s, y, b] <- (2 * midpt[b] * delta) / trunc_dist^2           # Prob density function out to max truncation distance 
-        pi_pd[s, y, b] <- g[s, y, b] * f[s, y, b]                     # Detection cell probability
-        pi_pd_c[s, y, b] <- f[s, y, b] / p_dct[s, y]                  # Proportion of total probability in each cell probability
+        log(g[j, k, b]) <- -(midpt[b]^2) / (2 * sigma[j, k]^2)        # Half-normal detection function
+        f[j, k, b] <- (2 * midpt[b] * delta) / trunc_dist^2           # Prob density function out to max truncation distance 
+        pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]                     # Detection cell probability
+        pi_pd_c[j, k, b] <- f[j, k, b] / p_dct[j, k]                  # Proportion of total probability in each cell probability
       }
       # Rectangular integral approx. of integral that yields the Pr(capture)
-      p_dct[s, y] <- sum(pi_pd[s, y, ])
+      p_dct[j, k] <- sum(pi_pd[j, k, ])
       
       # Construction of the cell probabilities for the nints time intervals
-      for (k in 1:nints){
-        pi_pa[s, y, k] <- p_a[s, y] * (1 - p_a[s, y])^(k - 1)         # Availability cell probability
-        pi_pa_c[s, y, k] <- pi_pa[s, y, k] / phi[s, y]                # Proportion of availability probability in each time interval class
+      for (t in 1:nints){
+        pi_pa[j, k, t] <- p_a[j, k] * (1 - p_a[j, k])^(t - 1)         # Availability cell probability
+        pi_pa_c[j, k, t] <- pi_pa[j, k, t] / phi[j, k]                # Proportion of availability probability in each time interval class
       }   
       
       # Rectangular integral approx. of integral that yields the Pr(available)
-      phi[s, y] <- sum(pi_pa[s, y, ])
+      phi[j, k] <- sum(pi_pa[j, k, ])
       
       # Multiply availability with capture probability to yield total marginal probability
-      p_marg[s, y] <- p_dct[s, y] * phi[s, y]
+      p_marg[j, k] <- p_dct[j, k] * phi[j, k]
       
       ### Binomial portion of mixture 
-      n_dct[s, y] ~ dbin(p_marg[s, y], N_indv[s, y])                  # Number of individual birds captured (observations)
+      n_dct[j, k] ~ dbin(p_marg[j, k], N_indv[j, k])                  # Number of individual birds captured (observations)
       
       # Poisson abundance portion of mixture
-      N_indv[s, y] ~ dpois(lambda[s, y] * (present[s] + 0.0001) * area[s, y]) # ZIP true abundance at site s in year y
+      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k]) # ZIP true abundance at site s in year y
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[s, y]) <- alpha0_obsv[observers[s, y]]                # Effect of each observer on detectability
+      log(sigma[j, k]) <- alpha0_obsv[observers[j, k]]                # Effect of each observer on detectability
       
       # Availability (p_a) Log-linear model for availability
-      logit(p_a[s, y]) <- gamma0 +                                    # Intercept on availability 
-                          gamma_date * day[s, y] +                    # Effect of scaled ordinal date 
-                          gamma_date2 * day[s, y]^2 +                 # Effect of scaled ordinal date squared 
-                          gamma_time * time[s, y] +                   # Effect of scaled time of day 
-                          gamma_time2 * time[s, y]^2                  # Effect of scaled time of day squared 
+      logit(p_a[j, k]) <- gamma0 +                                    # Intercept on availability 
+                          gamma_date * day[j, k] +                    # Effect of scaled ordinal date 
+                          gamma_date2 * day[j, k]^2 +                 # Effect of scaled ordinal date squared 
+                          gamma_time * time[j, k] +                   # Effect of scaled time of day 
+                          gamma_time2 * time[j, k]^2                  # Effect of scaled time of day squared 
       
       # Abundance (lambda) Log-linear model 
-      log(lambda[s, y]) <- beta0_year[years[s, y]] +                         # Intercept on abundance
-                           beta_elevation * elevation[s]                     # Effect of elevation
-                           beta_cur_shrub[s] * cur_shrub[s] * reference[s] + # Effect of this years shrub cover on reference grids
-                           beta_burn * burned[s] +                           # Effect of fire 
-                           beta_fyear * fire_year[s, y] * burned[s] +        # Effect of years since fire on burned grids
-                           beta_shrub * shrub_cvr[s] * burned[s] +           # Effect of shrub cover
-                           beta_pfg *  pfg_cvr[s] * burned[s] +              # Effect of Perennial Cover
-                           beta_afg * afg_cvr[s] * burned[s] +               # Effect of annual grass
-                           beta_tree * tree_cvr[s] * burned[s] +             # Effect of tree cover
-                           beta_bg * bg_cvr[s] * burned[s]                   # Effect of bare ground cover
+      log(lambda[j, k]) <- beta0  +                                   # Intercept on abundance
+                           beta_elevation * elevation[j]              # Effect of elevation
+                           beta_burn * burned[j] +                    # Effect of fire 
+                           beta_fyear * fire_year[j, k] * burned[j] + # Effect of years since fire on burned grids
+                           beta_shrub * shrub_cvr[j] * burned[j] +    # Effect of shrub cover
+                           beta_pfg *  pfg_cvr[j] * burned[j] +       # Effect of Perennial Cover
+                           beta_afg * afg_cvr[j] * burned[j] +        # Effect of annual grass
+                           beta_tree * tree_cvr[j] * burned[j] +      # Effect of tree cover
+                           beta_bg * bg_cvr[j] * burned[j]            # Effect of bare ground cover
+                           
+     # Assess model fit: compute Bayesian p-value for using a test statisitc
+     e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                      # Expected value for binomial portion of the model
+     # FT[j, k] <- (sqrt(n_dct[j, k]) - sqrt(e_val[j, k]))^2        # Compute Freeman-Tukey for observed data
+     Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] +0.5) # Compute chi squared statistic for observed data
+                           
+     # Generate replicate count data and compute same fit stats for them
+     n_dct_new[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])                  # Draw new detections from the same binomial
+     # FT_new[j, k] <- (sqrt(n_dct_new[j, k]) - sqrt(e_val[j, k]))^2        # Compute Freeman-Tukey for simullateddata
+     Chi_new[j, k] <- (n_dct_new[j, k] - e_val[j, k])^2 / (e_val[j, k] + 0.5) # Compute chi squared statistic for simulated data data
       
     } # end loop through visits
     
@@ -378,6 +412,15 @@ sobs_model_code <- nimbleCode({
     dclass[i] ~ dcat(pi_pd_c[obs_grid[i], obs_visit[i], ]) # linking distance class data
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])   # linking time removal data
   } # end observation loop
+  
+  # Add up fit stats across sites and years
+  # fit <- sum(FT[,])
+  # fit_new <- sum(FT_new[,])
+  fit <- sum(Chi[,])
+  fit_new <- sum(Chi_new[,])
+  
+  # c-hat value, should converge to ~1
+  c_hat <- fit / fit_new
   
 })
 
@@ -445,7 +488,11 @@ sobs_dims <- list(
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   phi = c(ngrids, nvst),             # Availability probability
-  lambda = c(ngrids, nvst)           # Poisson random variable
+  lambda = c(ngrids, nvst),          # Poisson random variable
+  # FT = c(ngrids , nvst),             # Observed data Freeman Tukey Discrepancy
+  # FT_new = c(ngrids, nvst)           # Simulated data Freeman Tukey Discrepancy
+  Chi = c(ngrids , nvst),            # Observed Chi square statisitc
+  Chi_new = c(ngrids, nvst)          # Simulated Chi square statisitc
 )
 # View the dimensions
 str(sobs_dims)
@@ -461,9 +508,9 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),  
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
-  mean_beta0 = runif(1, 0, 1),
-  sd_beta0 = runif(1, 0, 0.1),
-  beta0_year = runif(nyears, 0, 1),    # Random effects seem to be happier when I start them all at positive values
+  sd_eps_beta = runif(1, 0, 0.1),
+  eps_beta = runif(nyears, 0, 1),    
+  beta0 = rnorm(1, 0, 0.1),
   beta_elv = rnorm(1, 0, 0.1),
   beta_burn = rnorm(1, 0, 0.1),
   beta_fyear = rnorm(1, 0, 0.1),
@@ -476,13 +523,13 @@ sobs_inits <- list(
   psi = runif(ngrids, 0.4, 0.6),
   present = rbinom(ngrids, 1, 0.5),
   # Simulated data
-  N_indv = count_mat + 1              # start each grid with an individual present
+  N_indv = count_mat + 1      # start each grid with an individual present
 )  
 # View the initial values
 str(sobs_inits)
 
 # Params to save
-sobs_params <- c("beta0_year",
+sobs_params <- c("beta0",
                  "beta_elev",
                  "beta_burn",
                  "beta_fyear",
@@ -491,12 +538,16 @@ sobs_params <- c("beta0_year",
                  "beta_afg",
                  "beta_tree",
                  "beta_bg",
+                 "eps_beta",
                  "gamma0", 
                  "gamma_date", 
                  "gamma_date2", 
                  "gamma_time", 
                  "gamma_time2", 
-                 "alpha0_obsv")
+                 "alpha0_obsv",
+                 "fit",
+                 "fit_new",
+                 "c_hat")
 
 
 # 2.3) Configure and Run the model ###########################################################
@@ -554,7 +605,7 @@ sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_
                          type = 'RW_block')
 
 # Block all abundance (beta) nodes together
-sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+sobs_mcmcConf$removeSamplers("beta0",
                              "beta_elv",
                              "beta_burn", 
                              "beta_fyear", 
@@ -562,17 +613,19 @@ sobs_mcmcConf$removeSamplers("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
                              "beta_pfg", 
                              "beta_afg", 
                              "beta_tree", 
-                             "beta_bg")
+                             "beta_bg",
+                             "eps_beta[1]", "eps_beta[2]", "eps_beta[3]")
 
-sobs_mcmcConf$addSampler(target = c("beta0_year[1]", "beta0_year[2]", "beta0_year[3]",
+sobs_mcmcConf$addSampler(target = c("beta0",
                                     "beta_elv",
                                     "beta_burn", 
-                                    "beta_fyear",  
+                                    "beta_fyear", 
                                     "beta_shrub", 
                                     "beta_pfg", 
                                     "beta_afg", 
                                     "beta_tree", 
-                                    "beta_bg"),
+                                    "beta_bg",
+                                    "eps_beta[1]", "eps_beta[2]", "eps_beta[3]"),
                          type = 'RW_block')
 
 # View the blocks
