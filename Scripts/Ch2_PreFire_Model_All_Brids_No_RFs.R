@@ -335,10 +335,10 @@ sobs_model_code <- nimbleCode({
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[j, k, b]) <- -(midpt[b]^2) / (2 * sigma[j, k]^2)        # Half-normal detection function
-        f[j, k, b] <- (2 * midpt[b] * delta) / trunc_dist^2           # Prob density function out to max truncation distance 
+        log(g[j, k, b]) <- -midpt[b] * midpt[b] / (2 * sigma[j, k]^2) # Half-normal detection function
+        f[j, k, b] <- ((2 * midpt[b]) / trunc_dist^2) * delta         # Prob density function out to max truncation distance 
         pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]                     # Detection cell probability
-        pi_pd_c[j, k, b] <- f[j, k, b] / p_dct[j, k]                  # Proportion of total probability in each cell probability
+        pi_pd_c[j, k, b] <- pi_pd[j, k, b] / p_d[j, k]                # Proportion of total probability in each cell probability
       }
       # Rectangular integral approx. of integral that yields the Pr(capture)
       p_dct[j, k] <- sum(pi_pd[j, k, ])

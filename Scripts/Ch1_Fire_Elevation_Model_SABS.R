@@ -288,10 +288,10 @@ sabs_model_code <- nimbleCode({
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[j, k, b]) <- -(midpt[b]^2) / (2 * sigma[j, k]^2) # Half-normal detection function
-        f[j, k, b] <- (2 * midpt[b]) / trunc_dist^2  * delta   # Prob density function out to max truncation distance 
-        pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]              # Detection cell probability
-        pi_pd_c[j, k, b] <- f[j, k, b] / p_d[j, k]             # Proportion of total probability in each cell probability
+        log(g[j, k, b]) <- -midpt[b] * midpt[b] / (2 * sigma[j, k]^2) # Half-normal detection function
+        f[j, k, b] <- ((2 * midpt[b]) / trunc_dist^2) * delta         # Prob density function out to max truncation distance 
+        pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]                     # Detection cell probability
+        pi_pd_c[j, k, b] <- pi_pd[j, k, b] / p_d[j, k]                # Proportion of total probability in each cell probability
       }
       
       # Rectangular integral approx. of integral that yields the Pr(capture)
@@ -516,7 +516,7 @@ sabs_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -528,7 +528,7 @@ saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
   
 # Traceplots and density graphs 
 MCMCtrace(object = sabs_mcmc_out$samples,
@@ -538,7 +538,7 @@ MCMCtrace(object = sabs_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_model_no_rf_traceplot"),
+          filename = paste0("SABS_fire_model_no_rf_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -673,8 +673,7 @@ params_plot
 
 # Save the plot
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                       plot_species, "_params.png"),
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_params.png"),
        width = 200,
        height = 120,
        units = "mm",
@@ -725,8 +724,7 @@ treatment_pred_plot
 
 # Save the plot
 ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                         plot_species, "_treatment.png"),
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.png"),
        width = 200,
        height = 120,
        units = "mm",
