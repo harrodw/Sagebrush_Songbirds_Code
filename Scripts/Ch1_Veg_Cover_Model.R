@@ -271,7 +271,7 @@ ggcorrplot(cor_mat,
 # Square and scale covariates
 burn_dat_model <- burn_dat %>% 
   mutate(Years.Since.Fire = 2023 - Fire.Year) %>% 
-  select(Shrub.Cover, Years.Since.Fire, Elevation, rdnbr, X, Y) %>% 
+  select(Shrub.Cover, PFG.Cover, AFG.Cover, Years.Since.Fire, Elevation, rdnbr, X, Y) %>% 
   mutate(Years.Since.Fire2 = Years.Since.Fire^2,
          Elevation2 = Elevation^2) %>% 
   mutate(Elevation = scale(Elevation)[,1],
@@ -287,7 +287,7 @@ burn_dat_model <- burn_dat %>%
 # View
 glimpse(burn_dat_model)
   
-# 2.2) Candidate models #############################################################
+# 2.2) Candidate models for shrub cover #############################################################
 
 # View the data again
 glimpse(burn_dat_model)
@@ -351,11 +351,11 @@ shrub_model_out6 <- glmmTMB(data = burn_dat_model,
 # Same as m6 but ad the coords back in
 shrub_model_out7 <- glmmTMB(data = burn_dat_model,
                             formula = Shrub.Cover ~ Years.Since.Fire + # Effect of time since fire
-                              Elevation +                      # Effect of elevation
-                              Elevation2 +                     # Effect of elevation (Quadratic)
-                              Elevation * Years.Since.Fire +    # Effect of interaction between elevation and time
-                              X +                                # Explain extra variation with X coord
-                              Y)                                 # Explain extra variation with X coords
+                              Elevation +                              # Effect of elevation
+                              Elevation2 +                             # Effect of elevation (Quadratic)
+                              Elevation * Years.Since.Fire +           # Effect of interaction between elevation and time
+                              X +                                      # Explain extra variation with X coord
+                              Y)                                       # Explain extra variation with X coords
 
 
 # View model summarys
@@ -445,4 +445,162 @@ ggsave(plot = params_plot,
        height = 120,
        units = "mm",
        dpi = 300)
+
+# 3) Plots ###########################################################################
+
+# Treatment and shrub cover -----------------------------------------
+
+# Make the plot
+shrub_treatment_plot <- sobs_counts %>% 
+  filter(Year == "Y1") %>% 
+  select(Treatment, Shrub.Cover.125m) %>%
+  mutate(Treatment = factor(case_when(Treatment == 1 ~ "Low Elevation Reference",
+                                      Treatment == 2 ~ "High Elevation Reference",
+                                      Treatment == 3 ~ "Low Elevation Burn",
+                                      Treatment == 4 ~ "High Elevation Burn",
+                                      TRUE ~ NA), levels = c("Low Elevation Reference",
+                                                             "High Elevation Reference",
+                                                             "Low Elevation Burn",
+                                                             "High Elevation Burn"))) %>% 
+  distinct() %>% 
+  ggplot() +
+  geom_boxplot(aes(x = factor(Treatment), y = Shrub.Cover.125m/100, 
+                   color = Treatment, fill = Treatment)) +
+  labs(x = "Treatment", 
+       y = "Shrub Cover") +
+  theme_classic() +
+  # Customize scales and labels
+  scale_color_manual(values = c("Low Elevation Reference" = "mediumseagreen",
+                                "High Elevation Reference" = "darkslategray4",
+                                "Low Elevation Burn" = "red3",
+                                "High Elevation Burn" = "orange2"), name = "") +
+  scale_fill_manual(values = c("Low Elevation Reference" = "mediumseagreen",
+                               "High Elevation Reference" = "darkslategray4",
+                               "Low Elevation Burn" = "red3",
+                               "High Elevation Burn" = "orange2"), name = "") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(
+    axis.title.y = element_text(size = 16),
+    axis.text.y = element_text(size = 16),
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 16)
+  )
+
+# View the plot
+shrub_treatment_plot
+
+# Save the plot
+ggsave(plot = shrub_treatment_plot,
+       filename = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\treatment_shrub_cvr.png",
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+# Plot Time since fire and shrub cover -----------------------------------------
+
+# Make the plot
+shrub_time_plot <- sobs_counts %>% 
+  # Only the burned grids
+  filter(Treatment %in% c(3, 4) & Year == "Y1") %>% 
+  # Only need a few columns
+  select(Years.Since.Fire, Shrub.Cover.125m, Treatment) %>%
+  # Switch to a named factor
+  mutate(Treatment = factor(case_when(Treatment == 3 ~ "Low Elevation Burn",
+                                      Treatment == 4 ~ "High Elevation Burn",
+                                      TRUE ~ NA), levels = c("Low Elevation Burn",
+                                                             "High Elevation Burn"))) %>% 
+  # Unique rows only
+  distinct() %>% 
+  # Start plotting
+  ggplot() +
+  # Trendline
+  geom_smooth(aes(x = Years.Since.Fire, y = Shrub.Cover.125m/100, 
+                  color = Treatment, fill = Treatment), method = "lm") +
+  # Points
+  geom_point(aes(x = Years.Since.Fire, y = Shrub.Cover.125m/100, 
+                 color = Treatment, fill = Treatment)) +
+  # Labels
+  labs(x = "Years Since Fire", 
+       y = "Shrub Cover") +
+  theme_classic() +
+  # Customize scales and labels
+  scale_color_manual(values = c("Low Elevation Burn" = "red3",
+                                "High Elevation Burn" = "orange2"), name = "") +
+  scale_fill_manual(values = c("Low Elevation Burn" = "red3",
+                               "High Elevation Burn" = "orange2"), name = "") +
+  scale_y_continuous(labels = scales::percent) +
+  # Custimize axes
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 16))
+
+
+# View the plot
+shrub_time_plot
+
+# Save the plot
+ggsave(plot = shrub_time_plot,
+       filename = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\years_since_fire_shrub_cvr.png",
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+# Burn Sevarity and shrub cover -----------------------------------------
+
+# Make the plot
+shrub_rdnbr_plot <- sobs_counts %>% 
+  # Only the burned grids
+  filter(Treatment %in% c(3, 4) & Year == "Y1") %>% 
+  # Only need a few columns
+  select(rdnbr.125m, Shrub.Cover.125m, Treatment) %>%
+  # Switch to a named factor
+  mutate(Treatment = factor(case_when(Treatment == 3 ~ "Low Elevation Burn",
+                                      Treatment == 4 ~ "High Elevation Burn",
+                                      TRUE ~ NA), levels = c("Low Elevation Burn",
+                                                             "High Elevation Burn"))) %>% 
+  # Remove duplicates
+  distinct() %>% 
+  # Add the plot
+  ggplot() +
+  # Trendline
+  geom_smooth(aes(x = rdnbr.125m, y = Shrub.Cover.125m/100, 
+                  color = Treatment, fill = Treatment), method = "lm") +
+  # Points
+  geom_point(aes(x = rdnbr.125m, y = Shrub.Cover.125m/100, 
+                 color = Treatment, fill = Treatment)) +
+  labs(x = "RdNBR Burn Sevarity", 
+       y = "Shrub Cover") +
+  theme_classic() +
+  # Customize scales and labels
+  scale_color_manual(values = c("Low Elevation Burn" = "red3",
+                                "High Elevation Burn" = "orange2"), name = "") +
+  scale_fill_manual(values = c("Low Elevation Burn" = "red3",
+                               "High Elevation Burn" = "orange2"), name = "") +
+  scale_y_continuous(labels = scales::percent) +
+  # Custimize axes
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 16))
+
+
+# View the plot
+shrub_rdnbr_plot 
+
+# Save the plot
+ggsave(plot = shrub_rdnbr_plot,
+       filename = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\rdnbr_shrub_cvr.png",
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+
 

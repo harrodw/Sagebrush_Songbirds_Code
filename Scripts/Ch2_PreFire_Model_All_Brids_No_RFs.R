@@ -254,7 +254,6 @@ nobsv <- length(unique(sobs_counts$Observer.ID.num))       # Number of unique ob
 nbins <- length(unique(sobs_observations$Dist.Bin))        # Number of distance bins
 nints <- length(unique(sobs_observations$Time.Interval))   # Number of time intervals
 nvst <- length(unique(sobs_counts$Visit.ID))               # Number of visits in each year
-nyears <- length(unique(sobs_counts$Year.num))             # Number of years we surveyed
 
 # Observation Level data 
 midpt <- sort(unique(sobs_observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
@@ -271,7 +270,6 @@ day <- date_mat                                            # Matrix of scaled da
 
 # Grid level data
 n_dct <- count_mat                                         # Matrix of the number of detected individuals per grid per survey 
-years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover on each grid
 pern_cvr <- sobs_counts$Perennial.Cover.scl[1:ngrids]      # Percent perennial cover on each grid
@@ -321,14 +319,6 @@ sobs_model_code <- nimbleCode({
   beta_afg ~ dnorm(0, sd = 1.5)        # Effect of annual grass cover
   beta_tree ~ dnorm(0, sd = 1.5)       # Effect of tree cover
   beta_bg ~ dnorm(0, sd = 1.5)         # Effect of bare ground cover
-  
-  # Sd in yearly abundance hyperparameter 
-  sd_eps_year ~  T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
-  
-  # Random effect on abundance
-  for(y in 1:nyears){
-    eps_year[y] ~ dnorm(0, sd_beta0)
-  }
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -390,8 +380,7 @@ sobs_model_code <- nimbleCode({
                            beta_pfg *  pfg_cvr[j] * burned[j] +       # Effect of Perennial Cover
                            beta_afg * afg_cvr[j] * burned[j] +        # Effect of annual grass
                            beta_tree * tree_cvr[j] * burned[j] +      # Effect of tree cover
-                           beta_bg * bg_cvr[j] * burned[j] +          # Effect of bare ground cover
-                           eps_year[years[j, k]]
+                           beta_bg * bg_cvr[j] * burned[j]            # Effect of bare ground cover
                            
      # Assess model fit: compute Bayesian p-value for using a test statisitc
      e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                        # Expected value for binomial portion of the model
@@ -501,8 +490,6 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),  
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
-  sd_eps_year = runif(1, 0, 0.5),
-  eps_year = runif(nyears, 0, 1),    
   beta0 = rnorm(1, 0, 0.1),
   beta_elv = rnorm(1, 0, 0.1),
   beta_burn = rnorm(1, 0, 0.1),
@@ -531,7 +518,6 @@ sobs_params <- c("beta0",
                  "beta_afg",
                  "beta_tree",
                  "beta_bg",
-                 "sd_eps_year",
                  "gamma0", 
                  "gamma_date", 
                  "gamma_date2", 
@@ -606,8 +592,7 @@ sobs_mcmcConf$removeSamplers("beta0",
                              "beta_pfg", 
                              "beta_afg", 
                              "beta_tree", 
-                             "beta_bg",
-                             "eps_year[1]", "eps_year[2]", "eps_year[3]")
+                             "beta_bg")
 
 sobs_mcmcConf$addSampler(target = c("beta0",
                                     "beta_elv",
@@ -617,8 +602,7 @@ sobs_mcmcConf$addSampler(target = c("beta0",
                                     "beta_pfg", 
                                     "beta_afg", 
                                     "beta_tree", 
-                                    "beta_bg",
-                                    "eps_year[1]", "eps_year[2]", "eps_year[3]"),
+                                    "beta_bg"),
                          type = 'RW_block')
 
 # View the blocks
@@ -656,7 +640,7 @@ difftime(Sys.time(), start)                             # End time for the sampl
 
 # Save model output to local drive
 saveRDS(prefire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                     study_species, "_PreFire_model.rds"))
+                                     study_species, "_PreFire_model_no_rf.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -670,7 +654,7 @@ saveRDS(prefire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_P
 
 # Load the output back in
 prefire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                          plot_species, "_PreFire_model_out.rds"))
+                                          plot_species, "_PreFire_model_no_rf_out.rds"))
 
 # Traceplots and density graphs 
 MCMCtrace(object = prefire_mcmc_out$samples,
@@ -680,7 +664,7 @@ MCMCtrace(object = prefire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_PreFire_model_traceplot"),
+          filename = paste0(model_species, "_PreFire_model_no_rf_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -719,7 +703,7 @@ species_name
 
 # Load the output back in
 prefire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       plot_species, "_PreFire_model_out.rds"))
+                                       plot_species, "_PreFire_model_no_rf_out.rds"))
 
 # View MCMC summary
 prefire_mcmc_out$summary$all.chains

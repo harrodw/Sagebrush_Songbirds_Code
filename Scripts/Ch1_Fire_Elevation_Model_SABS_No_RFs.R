@@ -252,14 +252,6 @@ sabs_model_code <- nimbleCode({
     beta0_treatment[l] ~ dnorm(0, sd = 3)
   } # End loop over treatments
 
-  # Random effect hyper-parameters
-  sd_eps_year ~ T(dgamma(shape = 0.5, scale = 0.5), 0 ,1)
-
-  # Random effect for each year
-  for(y in 1:nyears){ # nyears = 3
-    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
-  } # end loop over years
-
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
@@ -319,8 +311,7 @@ sabs_model_code <- nimbleCode({
       log(sigma[j, k]) <- alpha0                          # Single intercept on detectability
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[j, k]) <- beta0_treatment[trts[j]]  +    # Intercept for each grid type
-                           eps_year[years[j, k]]          # Unexplained noise on abundance by year
+      log(lambda[j, k]) <- beta0_treatment[trts[j]]       # Intercept for each grid type
       
       # Assess model fit: compute Bayesian p-value for using a test statisitc
       e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
@@ -343,6 +334,9 @@ sabs_model_code <- nimbleCode({
   fit <- sum(Chi[,]) 
   fit_new <- sum(Chi_new[,]) 
   
+  # c-hat value, should converge to ~1
+  c_hat <- fit / fit_new
+  
 }) # end model statement
 
 # 2.2) Constants, data, Initial values, parameters to save, and dimensions ##################################
@@ -360,11 +354,9 @@ sabs_const <- list (
   nvst = nvst,                 # Number of times each grid was surveyed (6)
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
-  nyears = nyears,             # Number of years we surveyed (3)
   ntrts = ntrts,               # Number of treatments
   
   # Non-stochastic constants
-  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid         # Grid of each observation 
@@ -421,8 +413,6 @@ sabs_inits <- list(
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
-  sd_eps_year = runif(1, 0, 1),
-  eps_year = rnorm(ngrids, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),
   present = rbinom(ngrids, 1, 0.5),
@@ -439,7 +429,6 @@ sabs_params <- c(
                  "fit",            # Fit statistic for observed data
                  "fit_new",        # Fit statisitc for simulated data
                  "beta0_treatment",
-                 "sd_eps_year",
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
@@ -470,13 +459,11 @@ sabs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma
 
 # Block all abundance (beta) nodes together
 sabs_mcmcConf$removeSamplers(
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
   )
 
 sabs_mcmcConf$addSampler(target = c(
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
   ), type = 'RW_block')
 
 
@@ -516,7 +503,7 @@ sabs_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model_no_rf.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -528,7 +515,7 @@ saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model_no_rf.rds"))
   
 # Traceplots and density graphs 
 MCMCtrace(object = sabs_mcmc_out$samples,
@@ -561,7 +548,7 @@ MCMCplot(object = sabs_mcmc_out$samples,
 species_name <- "Sagebrush Sparrow"
 
 # Load the output back in
-sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
+sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model_no_rf.rds"))
 
 # View MCMC summary
 sabs_mcmc_out$summary$all.chains
@@ -673,8 +660,7 @@ params_plot
 
 # Save the plot
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                       plot_species, "_params.png"),
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_no_rf_SABS_params.png"),
        width = 200,
        height = 120,
        units = "mm",
@@ -725,8 +711,7 @@ treatment_pred_plot
 
 # Save the plot
 ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                         plot_species, "_treatment.png"),
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_no_rf_SABS_treatment.png"),
        width = 200,
        height = 120,
        units = "mm",

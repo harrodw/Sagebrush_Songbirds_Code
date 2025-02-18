@@ -25,13 +25,13 @@ rm(list = ls())
 
 # List of Species 
 all_species <- c(
-  # "BRSP",
-  # "SATH",
+  "BRSP",
+  "SATH",
   # "SABS",
-  "GTTO")
-  # "VESP",
-  # "WEME",
-  # "HOLA")
+  # "GTTO")
+  "VESP",
+  "WEME",
+  "HOLA")
 
 # Loop over all species
 for(k in 1:length(all_species)){ # (Comment this out) ----
@@ -371,15 +371,6 @@ sobs_model_code <- nimbleCode({
   # Single fixed effects
   beta_burnsev ~ dnorm(0, sd = 1.5)   # Effect of initial burn severity on burned grids
   
-  # Random effects on abundance ----
-  # Random effect hyper-parameters
-  sd_eps_year ~ T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
-
-  # Random effect for each year
-  for(y in 1:nyears){ # nyears = 3
-    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
-  } # end loop over years
-  
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
@@ -440,8 +431,8 @@ sobs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
-                           beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
-                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
+                           beta_burnsev * burn_sev[j] * burned[j]               # Effect of initial burn severity on burned grids
+                           
 
       # Assess model fit: compute Bayesian p-value for using a test statisitc
       e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
@@ -484,10 +475,8 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nelv = nelv,                 # Number of elevations (2)
-  nyears = nyears,             # Number of years we surveyed (3)
   
   # Non-stochastic constants
-  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -551,8 +540,6 @@ sobs_inits <- list(
   beta0_treatment = rnorm(ntrts, 0, 0.1),
   beta_fyear = rnorm(nelv, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
-  sd_eps_year = runif(1, 0, 1),
-  eps_year = rnorm(ngrids, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
@@ -571,7 +558,6 @@ sobs_params <- c(
                  "beta0_treatment",# Unique intercept by treatment
                  "beta_fyear",     # Effect of each year after a fire
                  "beta_burnsev",   # Effect of RdNBR burn sevarity
-                 "sd_eps_year",    # Random noise on abundance
                  "gamma0",         # Intercept on availability
                  "gamma_date",     # Effect of date on singing rate
                  "gamma_date2",    # Quadratic effect of date on singing rate
@@ -626,9 +612,7 @@ sobs_mcmcConf$removeSamplers(
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
   # Effect of burn severity
-  "beta_burnsev",
-  # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "beta_burnsev"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -636,9 +620,7 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
   # Effect of burn severity
-  "beta_burnsev",
-  # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "beta_burnsev"
   ), type = 'RW_block')
 
 # View the blocks
@@ -675,7 +657,7 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
-saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model_no_rf.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -684,7 +666,7 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model_no_rf.rds"))
   
  # Traceplots and density graphs 
 MCMCtrace(object = fire_mcmc_out$samples,
@@ -694,7 +676,7 @@ MCMCtrace(object = fire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_elevation_model_traceplot"),
+          filename = paste0(model_species, "_fire_elevation_model_no_rf_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -716,11 +698,11 @@ MCMCplot(object = fire_mcmc_out$samples,
 # 4.1) Prepare and view model output ################################################
 
 # Loop over all species 
-# for(k in 1:length(all_species)) { # (Comment this out) ----
+for(k in 1:length(all_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_species[k]
-plot_species <- all_species[5]
+plot_species <- all_species[k]
+# plot_species <- all_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -737,7 +719,7 @@ species_name
 
 # Load the output back in
 fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
-                                       plot_species, "_fire_elevation_model.rds"))
+                                       plot_species, "_fire_elevation_model_no_rf.rds"))
 
 # View MCMC summary
 fire_mcmc_out$summary$all.chains
@@ -847,7 +829,7 @@ params_plot <- beta_dat %>%
   # Simple theme
   theme_classic() +
   # Custom colors
-  scale_color_manual(values = c("navyblue", "lightsteelblue4")) +
+  scale_color_manual(values = c("lightsteelblue4", "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
         axis.text.y = element_text(size = 16),
@@ -860,7 +842,7 @@ params_plot
 
 # Save the plot
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_no_rf_no_rf_pred_",
                                        plot_species, "_params.png"),
        width = 200,
        height = 120,
@@ -912,7 +894,7 @@ treatment_pred_plot
 
 # Save the plot
 ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_no_rf_no_rf_pred_",
                          plot_species, "_treatment.png"),
        width = 200,
        height = 120,
@@ -993,7 +975,7 @@ fyear_pred_plot
 
 # Save the plot
 ggsave(plot = fyear_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_no_rf_no_rf_pred_",
                          plot_species, "_fyear.png"),
        width = 200,
        height = 120,
@@ -1067,7 +1049,7 @@ rdnbr_pred_plot
 
 # Save the plot
 ggsave(plot = rdnbr_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_no_rf_pred_",
                          plot_species, "_burnsev.png"),
        width = 200,
        height = 120,
