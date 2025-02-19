@@ -137,7 +137,7 @@ sobs_counts <- sobs_counts_temp2 %>%
   mutate(Elevation.scl = scale(Elevation.125m)[,1],
          Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1],
-         Total.Indv.scl = scale(Total.Indv)[,1],
+         Mean.Birds.scl = scale(Mean.Birds)[,1],
          Years.Since.Fire.scl = (Years.Since.Fire - mean_fyear) / sd_fyear,
          ln.Years.Since.Fire.scl = (ln.Years.Since.Fire - mean_ln_fyear) /sd_ln_fyear,
          rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr)
@@ -203,7 +203,7 @@ exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for years since fire during each survey
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for how many individual birds were seen on each visit
-indv_count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+mean_birds_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -220,7 +220,7 @@ for(y in 1:nrow(count_mat)){
   obsv_mat[y,] <- count_visit$Observer.ID.num
   exp_mat[y,] <- count_visit$Observer.Experience 
   fyear_mat[y,] <- count_visit$Years.Since.Fire.scl
-  indv_count_mat[y,] <- count_visit$Total.Indv.scl
+  mean_birds_mat[y,] <- count_visit$Mean.Birds.scl
 }
 
 # Size Objects  
@@ -243,7 +243,7 @@ obs_visit <- sobs_observations$Visit.ID.num                # During which visit 
 obs_grid <- sobs_observations$Grid.ID.num                  # In which grid did each observation take place
 dclass <- sobs_observations$Dist.Bin                       # Distance class of each observation
 delta <- trunc_dist / nbins                                # Size of distance bins
-num_birds <- indv_count_mat                                # Number of individual birds seen per surevey
+mean_birds <- mean_birds_mat                                # Number of individual birds seen per surevey
 
 # Availability date
 tint <- sobs_observations$Time.Interval                    # Time interval for each observation 
@@ -256,8 +256,6 @@ n_dct <- count_mat                                         # Matrix of the numbe
 years <- year_mat                                          # Matrix of year numbers
 grids <- sobs_counts$Grid.ID.num[1:ngrids]                 # Grid where each survey took place
 elevation <- sobs_counts$High.Elevation[1:ngrids]          # Whether each grid is high (>= 1900m) or low (< 1900m) elevation
-shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover on each grid
-pern_cvr <- sobs_counts$Perennial.Cover.scl[1:ngrids]      # Percent perennial cover on each grid
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 fyear <- fyear_mat                                         # How long since the most recent fire in each grid
 burn_sev <- sobs_counts$rdnbr.scl[1:ngrids]                # Burn severity from the most recent fire
@@ -367,7 +365,7 @@ sobs_model_code <- nimbleCode({
       
       # Detectability (sigma) Log-Linear model 
       log(sigma[j, k]) <- alpha0_obsv[observers[j, k]] + # Intercept for of observer experience on detectability
-                          alpha_nbirds * num_birds[j, k] # Effect of how many total birds were seen on that grid
+                          alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
         
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
@@ -437,7 +435,7 @@ sobs_dat <- list(
   # Detection level data
   dclass = dclass,             # Distance category for each observation
   midpt = midpt,               # Midpoints of distance bins
-  num_birds = num_birds,       # Tootal number of birds seen during each survey
+  mean_birds = mean_birds,     # Total number of birds seen during each survey
   # Availability level data
   tint = tint,                 # Time interval for each observation
   time = time,                 # Scaled mean time after sunrise

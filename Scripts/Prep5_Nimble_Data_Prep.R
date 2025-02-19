@@ -29,6 +29,9 @@ sobs %>%
   distinct(Observer.ID) %>% 
   arrange(Observer.ID)
 
+# Define a truncation distance (km)
+trunc_dist <- 0.125
+
 # Define the observers who have conducted a previous point count season
 prev_season <- c("Rory", "Ruger", "Thea", "Trey", "Will")
 no_prev_season <- c("Aidan", "Alex", "Andrew", "Anna", "Austin", "Ben", "Devin",
@@ -52,35 +55,34 @@ for(s in 1:length(all_species)){
 # study_species <- all_species[1]
 study_species <- all_species[s]
 
-# Define a truncation distance (km)
-trunc_dist <- 0.125
-
 # Find out how many total observations there were for the grid plus visit
 #I only need a few columns
-indv_counts_tmp <- sobs %>%
+mean_birds_tmp <- sobs %>%
   # Remove very far observations
   filter(Distance <= 200) %>% 
   # Remove NOBI's
   filter(Species != "NOBI" & Species != study_species) %>% 
   # Column for each distinct visit
   mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  #Reframe the data to total observations per grid
+  #Reframe the data to total observations per point
+  group_by(Full.Point.ID, Grid.ID, Visit.ID) %>% 
+  reframe(Grid.ID, Visit.ID, Total.Birds = n()) %>%
+  distinct() %>% 
+  # Reframe by average birds per point on each grid
   group_by(Grid.ID, Visit.ID) %>% 
-  reframe(Grid.ID, Visit.ID, Total.Indv = n()) %>% 
+  reframe(Grid.ID, Visit.ID, Mean.Birds = mean(Total.Birds)) %>%
   distinct()
 
 # Impute the missing surveys
-missing_indv_counts <- indv_counts_tmp %>% 
+missing_mean_birds <- mean_birds_tmp %>% 
   filter(Grid.ID %in% c("ID-C11", "ID-C22") & Visit.ID == "Y1-V2") %>% 
   mutate(Visit.ID = "Y1-V1")
 
 # Add these to the data
-indv_counts <- indv_counts_tmp %>% 
-  bind_rows(missing_indv_counts)
+mean_birds <- mean_birds_tmp %>% 
+  bind_rows(missing_mean_birds)
 # View
-# glimpse(indv_counts)
-
-
+# glimpse(mean_birds)
 
 # Make a table of important species sightings by visit
 counts_0inf <- sobs %>%
@@ -167,7 +169,7 @@ counts_temp2 <- counts_temp %>%
   bind_rows(new_counts) %>% 
   arrange(Grid.ID, Year, Visit.ID) %>% 
   # Add the total observations per grid
-  left_join(indv_counts, by = c("Grid.ID", "Visit.ID"))
+  left_join(mean_birds, by = c("Grid.ID", "Visit.ID"))
 #...and view
 # glimpse(counts_temp2)
 # new_dat%>% 
