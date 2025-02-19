@@ -407,6 +407,9 @@ sobs_model_code <- nimbleCode({
   fit <- sum(Chi[,])
   fit_new <- sum(Chi_new[,])
   
+  # Compute over dispersion parameter (c_hat)
+  c_hat <- fit / fit_new
+  
 }) # end model statement
 
 # 2.2) Constants, data, Initial values, parameters to save, and dimensions ##################################
@@ -511,20 +514,20 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
-                 "fit",            # Fit statistic for observed data
-                 "fit_new",        # Fit statisitc for simulated data
-                 "beta0_treatment",# Unique intercept by treatment
-                 "beta_fyear",     # Effect of each year after a fire
-                 "beta_burnsev",   # Effect of RdNBR burn sevarity
-                 "sd_eps_year",    # Random noise on abundance
-                 "gamma0",         # Intercept on availability
-                 "gamma_date",     # Effect of date on singing rate
-                 "gamma_date2",    # Quadratic effect of date on singing rate
-                 "gamma_time",     # Effect of time of day on singing rate
-                 "gamma_time2",    # Quadratic e of time of day on singning rate
-                 "alpha0_obsv",    # Intercept for each observer on detection rate
-                 "alpha_nbirds"    # Effect of how many total birds were seen on detection probability
-                 )
+  "fit",             # Fit statistic for observed data
+  "fit_new",         # Fit statisitc for simulated data
+  "c_hat",           # Overdispersion parameter
+  "beta0_treatment", # Unique intercept by treatment
+  "beta_fyear",      # Effect of each year after a fire
+  "beta_burnsev",    # Effect of RdNBR burn sevarity
+  "gamma0",          # Intercept on availability
+  "gamma_date",      # Effect of date on singing rate
+  "gamma_date2",     # Quadratic effect of date on singing rate
+  "gamma_time",      # Effect of time of day on singing rate
+  "gamma_time2",     # Quadratic e of time of day on singning rate
+  "alpha0_obsv",     # Intercept for each observer on detection rate
+  "alpha_nbirds"     # Effect of how many total birds were seen on detection probability
+)
 
 # 2.3) Configure and Run the model ###########################################################
 
