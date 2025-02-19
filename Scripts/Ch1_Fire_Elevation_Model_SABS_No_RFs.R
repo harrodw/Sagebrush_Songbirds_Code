@@ -97,6 +97,7 @@ glimpse(sabs_counts_temp2)
 sabs_counts <- sabs_counts_temp2 %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
   mutate(Elevation.scl = scale(Elevation.125m)[,1],
+         Mean.Birds.scl = scale(Mean.Birds)[,1],
          Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1])
 
@@ -175,6 +176,8 @@ area_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for observer experience 
 exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+# Build a storage matrix for how many individual birds were seen on each visit
+mean_birds_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -190,6 +193,7 @@ for(y in 1:nrow(count_mat)){
   area_mat[y,] <- pi * count_visit$n.Points * trunc_dist^2  # Area surveyed in km^2
   obsv_mat[y,] <- count_visit$Observer.ID.num
   exp_mat[y,] <- count_visit$Observer.Experience 
+  mean_birds_mat[y,] <- count_visit$Mean.Birds.scl
 }
 
 # Size Objects  
@@ -208,6 +212,7 @@ obs_visit <- sabs_observations$Visit.ID.num                # During which visit 
 obs_grid <- sabs_observations$Grid.ID.num                  # In which grid did each observation take place
 dclass <- sabs_observations$Dist.Bin                       # Distance class of each observation
 delta <- trunc_dist / nbins                                # Size of distance bins
+mean_birds <- mean_birds_mat                                # Number of individual birds seen per survey
 
 # Availability date
 tint <- sabs_observations$Time.Interval               # Time interval for each observation 
@@ -243,6 +248,7 @@ sabs_model_code <- nimbleCode({
   
   # Parameters in the detection portion of the model
   alpha0 ~ T(dnorm(log(0.125), sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
+  alpha_nbirds ~ dnorm(0, sd = 1.5)            # Effect of how many total birds were seen at the site
   
   # Parameters on the abundance component of the model
   
@@ -308,7 +314,8 @@ sabs_model_code <- nimbleCode({
                           gamma_time2 * time[j, k]^2      # Effect of scaled time of day squared
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[j, k]) <- alpha0                          # Single intercept on detectability
+      log(sigma[j, k]) <- alpha0 +                        # Single intercept on detectability
+                          alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
 
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]]       # Intercept for each grid type
@@ -370,6 +377,7 @@ sabs_dat <- list(
   # Detection level data
   dclass = dclass,         # Distance category for each observation
   midpt = midpt,           # Midpoints of distance bins
+  mean_birds = mean_birds, # Total number of birds seen during each survey
   # Availability level data
   tint = tint,             # Time interval for each observation
   time = time,             # Scaled mean time after sunrise
@@ -405,6 +413,7 @@ str(sabs_dims)
 sabs_inits <- list(
   # Detectablility
   alpha0 = runif(1, -3, -1),
+  alpha_nbirds = rnorm(1, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -428,13 +437,15 @@ str(sabs_inits)
 sabs_params <- c(
                  "fit",            # Fit statistic for observed data
                  "fit_new",        # Fit statisitc for simulated data
+                 "c_hat",
                  "beta0_treatment",
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
                  "gamma_time",
                  "gamma_time2",
-                 "alpha0"
+                 "alpha0",
+                 "alpha_nbirds"     # Effect of how many total birds were seen on detection probability
                  )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -455,6 +466,20 @@ sabs_mcmcConf$removeSamplers("gamma0", "gamma_date", "gamma_time", "gamma_date2"
 
 sabs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2"),
                          type = 'RW_block')
+
+# Block all detection (alpha) nodes together
+sobs_mcmcConf$removeSamplers(
+  # Intercept
+  "alpha0",
+  # Effect of seeing more birds on a survey
+  "alpha_nbirds"
+)
+sobs_mcmcConf$addSampler(target = c(
+  # Intercept
+  "alpha0",
+  # Effect of seeing more birds on a survey
+  "alpha_nbirds"
+), type = 'RW_block')
 
 
 # Block all abundance (beta) nodes together
@@ -523,7 +548,7 @@ MCMCtrace(object = sabs_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_model_no_rf_traceplot"),
+          filename = "SABS_fire_model_no_rf_traceplot",
           type = 'both')
 
 # View MCMC summary

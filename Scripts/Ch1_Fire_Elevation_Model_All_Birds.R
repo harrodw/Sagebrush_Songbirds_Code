@@ -206,7 +206,7 @@ exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for years since fire during each survey
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for how many individual birds were seen on each visit
-indv_count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+mean_birds_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -223,7 +223,7 @@ for(y in 1:nrow(count_mat)){
   obsv_mat[y,] <- count_visit$Observer.ID.num
   exp_mat[y,] <- count_visit$Observer.Experience 
   fyear_mat[y,] <- count_visit$Years.Since.Fire.scl
-  indv_count_mat[y,] <- count_visit$Mean.Birds.scl
+  mean_birds_mat[y,] <- count_visit$Mean.Birds.scl
 }
 
 # Size Objects  
@@ -246,7 +246,7 @@ obs_visit <- sobs_observations$Visit.ID.num                # During which visit 
 obs_grid <- sobs_observations$Grid.ID.num                  # In which grid did each observation take place
 dclass <- sobs_observations$Dist.Bin                       # Distance class of each observation
 delta <- trunc_dist / nbins                                # Size of distance bins
-mean_birds <- indv_count_mat                                # Number of individual birds seen per surevey
+mean_birds <- mean_birds_mat                                # Number of individual birds seen per survey
 
 # Availability date
 tint <- sobs_observations$Time.Interval                    # Time interval for each observation 
@@ -290,11 +290,11 @@ sobs_model_code <- nimbleCode({
   
   # Effect of observer experience (Can't be greater than 0)
   for(o in 1:nobsv){ # (nobsv = 17)
-    alpha0_obsv[o] ~ T(dnorm(log(0.125), sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
+    alpha0_obsv[o] ~ T(dnorm(-2, sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
   } # End loop through observers
   
   # Single fixed effects on detection prob
-  alpha_nbirds ~ dnorm(0, sd = 1.5)  # Effect of how many total birds were seen at the site
+  # alpha_nbirds ~ dnorm(0, sd = 1.5)  # Effect of how many total birds were seen at the site
   
   # Parameters on the abundance component of the model ----
   
@@ -340,7 +340,6 @@ sobs_model_code <- nimbleCode({
         pi_pa[j, k, t] <- phi[j, k] * (1 - phi[j, k])^(t - 1)  # Availability cell probability
         pi_pa_c[j, k, t] <- pi_pa[j, k, t] / p_a[j, k]         # Proportion of availability probability in each time interval class
       }
-      
       # Rectangular integral approx. of integral that yields the Pr(available)
       p_a[j, k] <- sum(pi_pa[j, k, ])
       
@@ -356,17 +355,20 @@ sobs_model_code <- nimbleCode({
       # Rectangular integral approx. of integral that yields the detection probability
       p_d[j, k] <- sum(pi_pd[j, k, ])
       
-      # Multiply availability with detection probability to yield total probability of capturing a bird
-      p_cap[j, k] <- p_d[j, k] * p_a[j, k]
+      # # Multiply availability with detection probability to yield total probability of capturing a bird
+      # p_cap[j, k] <- p_d[j, k] * p_a[j, k]
       
       ### Binomial portion of mixture ###
+      
+      # Number of individual birds detected (observations)
+      n_dct[j, k] ~ dbin(p_d[j, k], n_avail[j, k]) 
+      
+      # Number of birds avaiable
+      n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
       N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j
       
-      # Number of individual birds captured (observations)
-      n_dct[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])         
-        
       # Availability (phi) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                       # Intercept on availability
                           gamma_date * day[j, k] +       # Effect of scaled ordinal date
@@ -375,8 +377,8 @@ sobs_model_code <- nimbleCode({
                           gamma_time2 * time[j, k]^2     # Effect of scaled time of day squared
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[j, k]) <- alpha0_obsv[observers[j, k]] + # Intercept for of observer experience on detectability
-                          alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
+      log(sigma[j, k]) <- alpha0_obsv[observers[j, k]]   # Intercept for of observer experience on detectability
+                          # alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
         
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
@@ -385,8 +387,8 @@ sobs_model_code <- nimbleCode({
                            eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
       # Assess model fit: compute Bayesian p-value for using a test statisitc
-      e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
-      Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] +0.5) # Compute chi squared statistic for observed data
+      e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                        # Expected value for binomial portion of the model
+      Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] + 0.5) # Compute chi squared statistic for observed data
       
       # Generate replicate count data and compute same fit stats for them
       n_dct_new[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])                        # Draw new detentions from the same binomial
@@ -447,7 +449,7 @@ sobs_dat <- list(
   # Detection level data
   dclass = dclass,             # Distance category for each observation
   midpt = midpt,               # Midpoints of distance bins
-  mean_birds = mean_birds,       # Tootal number of birds seen during each survey
+  mean_birds = mean_birds,     # Total number of birds seen during each survey
   # Availability level data
   tint = tint,                 # Time interval for each observation
   time = time,                 # Scaled mean time after sunrise
@@ -486,7 +488,7 @@ str(sobs_dims)
 sobs_inits <- list(
   # Detectablility
   alpha0_obsv = runif(nobsv, -2, -0.1),
-  alpha_nbirds = rnorm(1, 0, 0.1),
+  # alpha_nbirds = rnorm(1, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -500,9 +502,10 @@ sobs_inits <- list(
   sd_eps_year = runif(1, 0, 1),
   eps_year = rnorm(years, 0, 0.1),
   # Presence 
-  psi = runif(ngrids, 0, 1),
+  psi = runif(ngrids, 0.4, 0.6),
   present = rbinom(ngrids, 1, 0.5),
   # Simulated counts
+  n_avail = count_mat + 1,
   n_dct_new = count_mat,
   N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
 )  
@@ -523,8 +526,8 @@ sobs_params <- c(
   "gamma_date2",     # Quadratic effect of date on singing rate
   "gamma_time",      # Effect of time of day on singing rate
   "gamma_time2",     # Quadratic e of time of day on singning rate
-  "alpha0_obsv",     # Intercept for each observer on detection rate
-  "alpha_nbirds"     # Effect of how many total birds were seen on detection probability
+  "alpha0_obsv"      # Intercept for each observer on detection rate
+  # "alpha_nbirds"     # Effect of how many total birds were seen on detection probability
 )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -555,18 +558,18 @@ sobs_mcmcConf$removeSamplers(
   "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]",
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
   # Effect of seeing more birds on a survey
-  "alpha_nbirds"
+  # "alpha_nbirds"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Effect of each observer
   "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]",
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
   # Effect of seeing more birds on a survey
-  "alpha_nbirds"
+  # "alpha_nbirds"
   ), type = 'RW_block')
 
 # Block all abundance (beta) nodes together
@@ -897,6 +900,134 @@ sobs_mcmcConf$addSampler(target = c(
 ),
   type = 'RW_block')
 
+# Block all available birds nodes (n_avail) Nodes together
+sobs_mcmcConf$removeSamplers(
+  "n_avail[1, 1]", "n_avail[1, 2]", "n_avail[1, 3]", "n_avail[1, 4]", "n_avail[1, 5]", "n_avail[1, 6]",
+  "n_avail[2, 1]", "n_avail[2, 2]", "n_avail[2, 3]", "n_avail[2, 4]", "n_avail[2, 5]", "n_avail[2, 6]",
+  "n_avail[3, 1]", "n_avail[3, 2]", "n_avail[3, 3]", "n_avail[3, 4]", "n_avail[3, 5]", "n_avail[3, 6]",
+  "n_avail[4, 1]", "n_avail[4, 2]", "n_avail[4, 3]", "n_avail[4, 4]", "n_avail[4, 5]", "n_avail[4, 6]",
+  "n_avail[5, 1]", "n_avail[5, 2]", "n_avail[5, 3]", "n_avail[5, 4]", "n_avail[5, 5]", "n_avail[5, 6]",
+  "n_avail[6, 1]", "n_avail[6, 2]", "n_avail[6, 3]", "n_avail[6, 4]", "n_avail[6, 5]", "n_avail[6, 6]",
+  "n_avail[7, 1]", "n_avail[7, 2]", "n_avail[7, 3]", "n_avail[7, 4]", "n_avail[7, 5]", "n_avail[7, 6]",
+  "n_avail[8, 1]", "n_avail[8, 2]", "n_avail[8, 3]", "n_avail[8, 4]", "n_avail[8, 5]", "n_avail[8, 6]",
+  "n_avail[9, 1]", "n_avail[9, 2]", "n_avail[9, 3]", "n_avail[9, 4]", "n_avail[9, 5]", "n_avail[9, 6]",
+  "n_avail[10, 1]", "n_avail[10, 2]", "n_avail[10, 3]", "n_avail[10, 4]", "n_avail[10, 5]", "n_avail[10, 6]",
+  "n_avail[11, 1]", "n_avail[11, 2]", "n_avail[11, 3]", "n_avail[11, 4]", "n_avail[11, 5]", "n_avail[11, 6]",
+  "n_avail[12, 1]", "n_avail[12, 2]", "n_avail[12, 3]", "n_avail[12, 4]", "n_avail[12, 5]", "n_avail[12, 6]",
+  "n_avail[13, 1]", "n_avail[13, 2]", "n_avail[13, 3]", "n_avail[13, 4]", "n_avail[13, 5]", "n_avail[13, 6]",
+  "n_avail[14, 1]", "n_avail[14, 2]", "n_avail[14, 3]", "n_avail[14, 4]", "n_avail[14, 5]", "n_avail[14, 6]",
+  "n_avail[15, 1]", "n_avail[15, 2]", "n_avail[15, 3]", "n_avail[15, 4]", "n_avail[15, 5]", "n_avail[15, 6]",
+  "n_avail[16, 1]", "n_avail[16, 2]", "n_avail[16, 3]", "n_avail[16, 4]", "n_avail[16, 5]", "n_avail[16, 6]",
+  "n_avail[17, 1]", "n_avail[17, 2]", "n_avail[17, 3]", "n_avail[17, 4]", "n_avail[17, 5]", "n_avail[17, 6]",
+  "n_avail[18, 1]", "n_avail[18, 2]", "n_avail[18, 3]", "n_avail[18, 4]", "n_avail[18, 5]", "n_avail[18, 6]",
+  "n_avail[19, 1]", "n_avail[19, 2]", "n_avail[19, 3]", "n_avail[19, 4]", "n_avail[19, 5]", "n_avail[19, 6]",
+  "n_avail[20, 1]", "n_avail[20, 2]", "n_avail[20, 3]", "n_avail[20, 4]", "n_avail[20, 5]", "n_avail[20, 6]",
+  "n_avail[21, 1]", "n_avail[21, 2]", "n_avail[21, 3]", "n_avail[21, 4]", "n_avail[21, 5]", "n_avail[21, 6]",
+  "n_avail[22, 1]", "n_avail[22, 2]", "n_avail[22, 3]", "n_avail[22, 4]", "n_avail[22, 5]", "n_avail[22, 6]",
+  "n_avail[23, 1]", "n_avail[23, 2]", "n_avail[23, 3]", "n_avail[23, 4]", "n_avail[23, 5]", "n_avail[23, 6]",
+  "n_avail[24, 1]", "n_avail[24, 2]", "n_avail[24, 3]", "n_avail[24, 4]", "n_avail[24, 5]", "n_avail[24, 6]",
+  "n_avail[25, 1]", "n_avail[25, 2]", "n_avail[25, 3]", "n_avail[25, 4]", "n_avail[25, 5]", "n_avail[25, 6]",
+  "n_avail[26, 1]", "n_avail[26, 2]", "n_avail[26, 3]", "n_avail[26, 4]", "n_avail[26, 5]", "n_avail[26, 6]",
+  "n_avail[27, 1]", "n_avail[27, 2]", "n_avail[27, 3]", "n_avail[27, 4]", "n_avail[27, 5]", "n_avail[27, 6]",
+  "n_avail[28, 1]", "n_avail[28, 2]", "n_avail[28, 3]", "n_avail[28, 4]", "n_avail[28, 5]", "n_avail[28, 6]",
+  "n_avail[29, 1]", "n_avail[29, 2]", "n_avail[29, 3]", "n_avail[29, 4]", "n_avail[29, 5]", "n_avail[29, 6]",
+  "n_avail[30, 1]", "n_avail[30, 2]", "n_avail[30, 3]", "n_avail[30, 4]", "n_avail[30, 5]", "n_avail[30, 6]",
+  "n_avail[31, 1]", "n_avail[31, 2]", "n_avail[31, 3]", "n_avail[31, 4]", "n_avail[31, 5]", "n_avail[31, 6]",
+  "n_avail[32, 1]", "n_avail[32, 2]", "n_avail[32, 3]", "n_avail[32, 4]", "n_avail[32, 5]", "n_avail[32, 6]",
+  "n_avail[33, 1]", "n_avail[33, 2]", "n_avail[33, 3]", "n_avail[33, 4]", "n_avail[33, 5]", "n_avail[33, 6]",
+  "n_avail[34, 1]", "n_avail[34, 2]", "n_avail[34, 3]", "n_avail[34, 4]", "n_avail[34, 5]", "n_avail[34, 6]",
+  "n_avail[35, 1]", "n_avail[35, 2]", "n_avail[35, 3]", "n_avail[35, 4]", "n_avail[35, 5]", "n_avail[35, 6]",
+  "n_avail[36, 1]", "n_avail[36, 2]", "n_avail[36, 3]", "n_avail[36, 4]", "n_avail[36, 5]", "n_avail[36, 6]",
+  "n_avail[37, 1]", "n_avail[37, 2]", "n_avail[37, 3]", "n_avail[37, 4]", "n_avail[37, 5]", "n_avail[37, 6]",
+  "n_avail[38, 1]", "n_avail[38, 2]", "n_avail[38, 3]", "n_avail[38, 4]", "n_avail[38, 5]", "n_avail[38, 6]",
+  "n_avail[39, 1]", "n_avail[39, 2]", "n_avail[39, 3]", "n_avail[39, 4]", "n_avail[39, 5]", "n_avail[39, 6]",
+  "n_avail[40, 1]", "n_avail[40, 2]", "n_avail[40, 3]", "n_avail[40, 4]", "n_avail[40, 5]", "n_avail[40, 6]",
+  "n_avail[41, 1]", "n_avail[41, 2]", "n_avail[41, 3]", "n_avail[41, 4]", "n_avail[41, 5]", "n_avail[41, 6]",
+  "n_avail[42, 1]", "n_avail[42, 2]", "n_avail[42, 3]", "n_avail[42, 4]", "n_avail[42, 5]", "n_avail[42, 6]",
+  "n_avail[43, 1]", "n_avail[43, 2]", "n_avail[43, 3]", "n_avail[43, 4]", "n_avail[43, 5]", "n_avail[43, 6]",
+  "n_avail[44, 1]", "n_avail[44, 2]", "n_avail[44, 3]", "n_avail[44, 4]", "n_avail[44, 5]", "n_avail[44, 6]",
+  "n_avail[45, 1]", "n_avail[45, 2]", "n_avail[45, 3]", "n_avail[45, 4]", "n_avail[45, 5]", "n_avail[45, 6]",
+  "n_avail[46, 1]", "n_avail[46, 2]", "n_avail[46, 3]", "n_avail[46, 4]", "n_avail[46, 5]", "n_avail[46, 6]",
+  "n_avail[47, 1]", "n_avail[47, 2]", "n_avail[47, 3]", "n_avail[47, 4]", "n_avail[47, 5]", "n_avail[47, 6]",
+  "n_avail[48, 1]", "n_avail[48, 2]", "n_avail[48, 3]", "n_avail[48, 4]", "n_avail[48, 5]", "n_avail[48, 6]",
+  "n_avail[49, 1]", "n_avail[49, 2]", "n_avail[49, 3]", "n_avail[49, 4]", "n_avail[49, 5]", "n_avail[49, 6]",
+  "n_avail[50, 1]", "n_avail[50, 2]", "n_avail[50, 3]", "n_avail[50, 4]", "n_avail[50, 5]", "n_avail[50, 6]",
+  "n_avail[51, 1]", "n_avail[51, 2]", "n_avail[51, 3]", "n_avail[51, 4]", "n_avail[51, 5]", "n_avail[51, 6]",
+  "n_avail[52, 1]", "n_avail[52, 2]", "n_avail[52, 3]", "n_avail[52, 4]", "n_avail[52, 5]", "n_avail[52, 6]",
+  "n_avail[53, 1]", "n_avail[53, 2]", "n_avail[53, 3]", "n_avail[53, 4]", "n_avail[53, 5]", "n_avail[53, 6]",
+  "n_avail[54, 1]", "n_avail[54, 2]", "n_avail[54, 3]", "n_avail[54, 4]", "n_avail[54, 5]", "n_avail[54, 6]",
+  "n_avail[55, 1]", "n_avail[55, 2]", "n_avail[55, 3]", "n_avail[55, 4]", "n_avail[55, 5]", "n_avail[55, 6]",
+  "n_avail[56, 1]", "n_avail[56, 2]", "n_avail[56, 3]", "n_avail[56, 4]", "n_avail[56, 5]", "n_avail[56, 6]",
+  "n_avail[57, 1]", "n_avail[57, 2]", "n_avail[57, 3]", "n_avail[57, 4]", "n_avail[57, 5]", "n_avail[57, 6]",
+  "n_avail[58, 1]", "n_avail[58, 2]", "n_avail[58, 3]", "n_avail[58, 4]", "n_avail[58, 5]", "n_avail[58, 6]",
+  "n_avail[59, 1]", "n_avail[59, 2]", "n_avail[59, 3]", "n_avail[59, 4]", "n_avail[59, 5]", "n_avail[59, 6]",
+  "n_avail[60, 1]", "n_avail[60, 2]", "n_avail[60, 3]", "n_avail[60, 4]", "n_avail[60, 5]", "n_avail[60, 6]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  "n_avail[1, 1]", "n_avail[1, 2]", "n_avail[1, 3]", "n_avail[1, 4]", "n_avail[1, 5]", "n_avail[1, 6]",
+  "n_avail[2, 1]", "n_avail[2, 2]", "n_avail[2, 3]", "n_avail[2, 4]", "n_avail[2, 5]", "n_avail[2, 6]",
+  "n_avail[3, 1]", "n_avail[3, 2]", "n_avail[3, 3]", "n_avail[3, 4]", "n_avail[3, 5]", "n_avail[3, 6]",
+  "n_avail[4, 1]", "n_avail[4, 2]", "n_avail[4, 3]", "n_avail[4, 4]", "n_avail[4, 5]", "n_avail[4, 6]",
+  "n_avail[5, 1]", "n_avail[5, 2]", "n_avail[5, 3]", "n_avail[5, 4]", "n_avail[5, 5]", "n_avail[5, 6]",
+  "n_avail[6, 1]", "n_avail[6, 2]", "n_avail[6, 3]", "n_avail[6, 4]", "n_avail[6, 5]", "n_avail[6, 6]",
+  "n_avail[7, 1]", "n_avail[7, 2]", "n_avail[7, 3]", "n_avail[7, 4]", "n_avail[7, 5]", "n_avail[7, 6]",
+  "n_avail[8, 1]", "n_avail[8, 2]", "n_avail[8, 3]", "n_avail[8, 4]", "n_avail[8, 5]", "n_avail[8, 6]",
+  "n_avail[9, 1]", "n_avail[9, 2]", "n_avail[9, 3]", "n_avail[9, 4]", "n_avail[9, 5]", "n_avail[9, 6]",
+  "n_avail[10, 1]", "n_avail[10, 2]", "n_avail[10, 3]", "n_avail[10, 4]", "n_avail[10, 5]", "n_avail[10, 6]",
+  "n_avail[11, 1]", "n_avail[11, 2]", "n_avail[11, 3]", "n_avail[11, 4]", "n_avail[11, 5]", "n_avail[11, 6]",
+  "n_avail[12, 1]", "n_avail[12, 2]", "n_avail[12, 3]", "n_avail[12, 4]", "n_avail[12, 5]", "n_avail[12, 6]",
+  "n_avail[13, 1]", "n_avail[13, 2]", "n_avail[13, 3]", "n_avail[13, 4]", "n_avail[13, 5]", "n_avail[13, 6]",
+  "n_avail[14, 1]", "n_avail[14, 2]", "n_avail[14, 3]", "n_avail[14, 4]", "n_avail[14, 5]", "n_avail[14, 6]",
+  "n_avail[15, 1]", "n_avail[15, 2]", "n_avail[15, 3]", "n_avail[15, 4]", "n_avail[15, 5]", "n_avail[15, 6]",
+  "n_avail[16, 1]", "n_avail[16, 2]", "n_avail[16, 3]", "n_avail[16, 4]", "n_avail[16, 5]", "n_avail[16, 6]",
+  "n_avail[17, 1]", "n_avail[17, 2]", "n_avail[17, 3]", "n_avail[17, 4]", "n_avail[17, 5]", "n_avail[17, 6]",
+  "n_avail[18, 1]", "n_avail[18, 2]", "n_avail[18, 3]", "n_avail[18, 4]", "n_avail[18, 5]", "n_avail[18, 6]",
+  "n_avail[19, 1]", "n_avail[19, 2]", "n_avail[19, 3]", "n_avail[19, 4]", "n_avail[19, 5]", "n_avail[19, 6]",
+  "n_avail[20, 1]", "n_avail[20, 2]", "n_avail[20, 3]", "n_avail[20, 4]", "n_avail[20, 5]", "n_avail[20, 6]",
+  "n_avail[21, 1]", "n_avail[21, 2]", "n_avail[21, 3]", "n_avail[21, 4]", "n_avail[21, 5]", "n_avail[21, 6]",
+  "n_avail[22, 1]", "n_avail[22, 2]", "n_avail[22, 3]", "n_avail[22, 4]", "n_avail[22, 5]", "n_avail[22, 6]",
+  "n_avail[23, 1]", "n_avail[23, 2]", "n_avail[23, 3]", "n_avail[23, 4]", "n_avail[23, 5]", "n_avail[23, 6]",
+  "n_avail[24, 1]", "n_avail[24, 2]", "n_avail[24, 3]", "n_avail[24, 4]", "n_avail[24, 5]", "n_avail[24, 6]",
+  "n_avail[25, 1]", "n_avail[25, 2]", "n_avail[25, 3]", "n_avail[25, 4]", "n_avail[25, 5]", "n_avail[25, 6]",
+  "n_avail[26, 1]", "n_avail[26, 2]", "n_avail[26, 3]", "n_avail[26, 4]", "n_avail[26, 5]", "n_avail[26, 6]",
+  "n_avail[27, 1]", "n_avail[27, 2]", "n_avail[27, 3]", "n_avail[27, 4]", "n_avail[27, 5]", "n_avail[27, 6]",
+  "n_avail[28, 1]", "n_avail[28, 2]", "n_avail[28, 3]", "n_avail[28, 4]", "n_avail[28, 5]", "n_avail[28, 6]",
+  "n_avail[29, 1]", "n_avail[29, 2]", "n_avail[29, 3]", "n_avail[29, 4]", "n_avail[29, 5]", "n_avail[29, 6]",
+  "n_avail[30, 1]", "n_avail[30, 2]", "n_avail[30, 3]", "n_avail[30, 4]", "n_avail[30, 5]", "n_avail[30, 6]",
+  "n_avail[31, 1]", "n_avail[31, 2]", "n_avail[31, 3]", "n_avail[31, 4]", "n_avail[31, 5]", "n_avail[31, 6]",
+  "n_avail[32, 1]", "n_avail[32, 2]", "n_avail[32, 3]", "n_avail[32, 4]", "n_avail[32, 5]", "n_avail[32, 6]",
+  "n_avail[33, 1]", "n_avail[33, 2]", "n_avail[33, 3]", "n_avail[33, 4]", "n_avail[33, 5]", "n_avail[33, 6]",
+  "n_avail[34, 1]", "n_avail[34, 2]", "n_avail[34, 3]", "n_avail[34, 4]", "n_avail[34, 5]", "n_avail[34, 6]",
+  "n_avail[35, 1]", "n_avail[35, 2]", "n_avail[35, 3]", "n_avail[35, 4]", "n_avail[35, 5]", "n_avail[35, 6]",
+  "n_avail[36, 1]", "n_avail[36, 2]", "n_avail[36, 3]", "n_avail[36, 4]", "n_avail[36, 5]", "n_avail[36, 6]",
+  "n_avail[37, 1]", "n_avail[37, 2]", "n_avail[37, 3]", "n_avail[37, 4]", "n_avail[37, 5]", "n_avail[37, 6]",
+  "n_avail[38, 1]", "n_avail[38, 2]", "n_avail[38, 3]", "n_avail[38, 4]", "n_avail[38, 5]", "n_avail[38, 6]",
+  "n_avail[39, 1]", "n_avail[39, 2]", "n_avail[39, 3]", "n_avail[39, 4]", "n_avail[39, 5]", "n_avail[39, 6]",
+  "n_avail[40, 1]", "n_avail[40, 2]", "n_avail[40, 3]", "n_avail[40, 4]", "n_avail[40, 5]", "n_avail[40, 6]",
+  "n_avail[41, 1]", "n_avail[41, 2]", "n_avail[41, 3]", "n_avail[41, 4]", "n_avail[41, 5]", "n_avail[41, 6]",
+  "n_avail[42, 1]", "n_avail[42, 2]", "n_avail[42, 3]", "n_avail[42, 4]", "n_avail[42, 5]", "n_avail[42, 6]",
+  "n_avail[43, 1]", "n_avail[43, 2]", "n_avail[43, 3]", "n_avail[43, 4]", "n_avail[43, 5]", "n_avail[43, 6]",
+  "n_avail[44, 1]", "n_avail[44, 2]", "n_avail[44, 3]", "n_avail[44, 4]", "n_avail[44, 5]", "n_avail[44, 6]",
+  "n_avail[45, 1]", "n_avail[45, 2]", "n_avail[45, 3]", "n_avail[45, 4]", "n_avail[45, 5]", "n_avail[45, 6]",
+  "n_avail[46, 1]", "n_avail[46, 2]", "n_avail[46, 3]", "n_avail[46, 4]", "n_avail[46, 5]", "n_avail[46, 6]",
+  "n_avail[47, 1]", "n_avail[47, 2]", "n_avail[47, 3]", "n_avail[47, 4]", "n_avail[47, 5]", "n_avail[47, 6]",
+  "n_avail[48, 1]", "n_avail[48, 2]", "n_avail[48, 3]", "n_avail[48, 4]", "n_avail[48, 5]", "n_avail[48, 6]",
+  "n_avail[49, 1]", "n_avail[49, 2]", "n_avail[49, 3]", "n_avail[49, 4]", "n_avail[49, 5]", "n_avail[49, 6]",
+  "n_avail[50, 1]", "n_avail[50, 2]", "n_avail[50, 3]", "n_avail[50, 4]", "n_avail[50, 5]", "n_avail[50, 6]",
+  "n_avail[51, 1]", "n_avail[51, 2]", "n_avail[51, 3]", "n_avail[51, 4]", "n_avail[51, 5]", "n_avail[51, 6]",
+  "n_avail[52, 1]", "n_avail[52, 2]", "n_avail[52, 3]", "n_avail[52, 4]", "n_avail[52, 5]", "n_avail[52, 6]",
+  "n_avail[53, 1]", "n_avail[53, 2]", "n_avail[53, 3]", "n_avail[53, 4]", "n_avail[53, 5]", "n_avail[53, 6]",
+  "n_avail[54, 1]", "n_avail[54, 2]", "n_avail[54, 3]", "n_avail[54, 4]", "n_avail[54, 5]", "n_avail[54, 6]",
+  "n_avail[55, 1]", "n_avail[55, 2]", "n_avail[55, 3]", "n_avail[55, 4]", "n_avail[55, 5]", "n_avail[55, 6]",
+  "n_avail[56, 1]", "n_avail[56, 2]", "n_avail[56, 3]", "n_avail[56, 4]", "n_avail[56, 5]", "n_avail[56, 6]",
+  "n_avail[57, 1]", "n_avail[57, 2]", "n_avail[57, 3]", "n_avail[57, 4]", "n_avail[57, 5]", "n_avail[57, 6]",
+  "n_avail[58, 1]", "n_avail[58, 2]", "n_avail[58, 3]", "n_avail[58, 4]", "n_avail[58, 5]", "n_avail[58, 6]",
+  "n_avail[59, 1]", "n_avail[59, 2]", "n_avail[59, 3]", "n_avail[59, 4]", "n_avail[59, 5]", "n_avail[59, 6]",
+  "n_avail[60, 1]", "n_avail[60, 2]", "n_avail[60, 3]", "n_avail[60, 4]", "n_avail[60, 5]", "n_avail[60, 6]"
+),
+type = 'RW_block')
+
+
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
 sobs_mcmcConf$unsampledNodes      # Look at unsampled nodes
@@ -931,7 +1062,7 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
-saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_all_rf_model.rds"))
+saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -940,7 +1071,7 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_all_rf_model.rds"))
+fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
   
  # Traceplots and density graphs 
 MCMCtrace(object = fire_mcmc_out$samples,
@@ -950,7 +1081,7 @@ MCMCtrace(object = fire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_elevation_all_rf_model_traceplot"),
+          filename = paste0(model_species, "_fire_elevation_model_traceplot"),
           type = 'both')
 
 # View MCMC summary

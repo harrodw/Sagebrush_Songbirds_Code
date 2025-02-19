@@ -416,10 +416,8 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nelv = nelv,                 # Number of elevations (2)
-  nyears = nyears,             # Number of years we surveyed (3)
   
   # Non-stochastic constants
-  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -486,7 +484,7 @@ sobs_inits <- list(
   beta_fyear = rnorm(nelv, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
   # Presence 
-  psi = runif(ngrids, 0, 1),
+  psi = runif(ngrids, 0.4, 0.6),
   present = rbinom(ngrids, 1, 0.5),
   # Simulated counts
   n_dct_new = count_mat,

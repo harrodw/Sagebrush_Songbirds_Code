@@ -100,6 +100,7 @@ glimpse(sabs_counts_temp2)
 sabs_counts <- sabs_counts_temp2 %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
   mutate(Elevation.scl = scale(Elevation.125m)[,1],
+         Mean.Birds.scl = scale(Mean.Birds)[,1],
          Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1])
 
@@ -136,25 +137,6 @@ glimpse(sabs_counts)
 # View observations
 glimpse(sabs_observations)
 
-# 1.4) Plot preliminary correlations in the data ##############################################################
-
-# Plot a specific treatment and bird abundance
-# sabs_counts %>%
-#   ggplot() +
-#   geom_boxplot(aes(x = factor(Treatment), y = Count, color = factor(Treatment))) +
-#   theme_bw()
-
-# # What are these low elevation recovered burn grids with high counts?
-# sabs_counts %>% 
-#   # filter(Burned == 1) %>% 
-#   select(Grid.ID, Treatment, Years.Since.Fire, Count, Elevation.125m) %>% 
-#   arrange(Years.Since.Fire) %>% 
-#   print(n = Inf)
-
-# How many observations did each observer have?
-sabs_observations %>%
-  count(Observer.ID)
-
 # 1.4) prepare objects for NIMBLE ################################################################
 
 # Define a truncation distance (km)
@@ -178,6 +160,8 @@ area_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for observer experience 
 exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+# Build a storage matrix for how many individual birds were seen on each visit
+mean_birds_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -193,6 +177,7 @@ for(y in 1:nrow(count_mat)){
   area_mat[y,] <- pi * count_visit$n.Points * trunc_dist^2  # Area surveyed in km^2
   obsv_mat[y,] <- count_visit$Observer.ID.num
   exp_mat[y,] <- count_visit$Observer.Experience 
+  mean_birds_mat[y,] <- count_visit$Mean.Birds.scl
 }
 
 # Size Objects  
@@ -213,6 +198,7 @@ obs_visit <- sabs_observations$Visit.ID.num                # During which visit 
 obs_grid <- sabs_observations$Grid.ID.num                  # In which grid did each observation take place
 dclass <- sabs_observations$Dist.Bin                       # Distance class of each observation
 delta <- trunc_dist / nbins                                # Size of distance bins
+mean_birds <- mean_birds_mat                                # Number of individual birds seen per survey
 
 # Availability date
 tint <- sabs_observations$Time.Interval               # Time interval for each observation 
@@ -247,7 +233,8 @@ sabs_model_code <- nimbleCode({
   gamma_time2 ~ dnorm(0, sd = 1.5)       # Effect of time of day on singing rate (quadratic)
   
   # Parameters in the detection portion of the model
-  alpha0 ~ T(dnorm(log(0.125), sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
+  alpha0 ~ T(dnorm(mean = log(0.125), sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
+  alpha_nbirds ~ dnorm(0, sd = 1.5)            # Effect of how many total birds were seen at the site
   
   # Parameters on the abundance component of the model
   
@@ -258,12 +245,12 @@ sabs_model_code <- nimbleCode({
   } # End loop over treatments
 
   # Random effect hyper-parameters
-  # sd_eps_year ~ T(dgamma(shape = 0.5, scale = 0.5), 0 ,1) 
-  
+  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5)
+
   # Random effect for each year
-  # for(y in 1:nyears){ # nyears = 3
-  #   eps_year[y] ~ dnorm(0, sd = sd_eps_year)
-  # } # end loop over years
+  for(y in 1:nyears){ # nyears = 3
+    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
+  } # end loop over years
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -321,11 +308,12 @@ sabs_model_code <- nimbleCode({
                           gamma_time2 * time[j, k]^2      # Effect of scaled time of day squared
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[j, k]) <- alpha0                          # Single intercept on detectability
+      log(sigma[j, k]) <- alpha0  +                       # Single intercept on detectability
+                          alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[j, k]) <- beta0_treatment[trts[j]]       # Intercept for each grid type
-                           # eps_year[years[j, k]]            # Unexplained noise on abundance by year 
+      log(lambda[j, k]) <- beta0_treatment[trts[j]] +       # Intercept for each grid type
+                           eps_year[years[j, k]]            # Unexplained noise on abundance by year
       
       # Assess model fit: compute Bayesian p-value for using a test statisitc
       e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
@@ -368,11 +356,11 @@ sabs_const <- list (
   nvst = nvst,                 # Number of times each grid was surveyed (6)
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
-  # nyears = nyears,             # Number of years we surveyed (3)
+  nyears = nyears,             # Number of years we surveyed (3)
   ntrts = ntrts,               # Number of treatments
   
   # Non-stochastic constants
-  # years = years,               # Year when each survey took place
+  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid         # Grid of each observation 
@@ -386,6 +374,7 @@ sabs_dat <- list(
   # Detection level data
   dclass = dclass,         # Distance category for each observation
   midpt = midpt,           # Midpoints of distance bins
+  mean_birds = mean_birds, # Total number of birds seen during each survey
   # Availability level data
   tint = tint,             # Time interval for each observation
   time = time,             # Scaled mean time after sunrise
@@ -421,6 +410,7 @@ str(sabs_dims)
 sabs_inits <- list(
   # Detectablility
   alpha0 = runif(1, -3, -1),
+  alpha_nbirds = rnorm(1, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -429,8 +419,8 @@ sabs_inits <- list(
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
-  # sd_eps_year = runif(1, 0, 1),
-  # eps_year = rnorm(ngrids, 0, 0.1),
+  sd_eps_year = runif(1, 0, 1),
+  eps_year = rnorm(ngrids, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),
   present = rbinom(ngrids, 1, 0.5),
@@ -447,13 +437,14 @@ sabs_params <- c(
                  "fit",            # Fit statistic for observed data
                  "fit_new",        # Fit statisitc for simulated data
                  "beta0_treatment",
-                 # "sd_eps_year",
+                 "sd_eps_year",
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
                  "gamma_time",
                  "gamma_time2",
-                 "alpha0"
+                 "alpha0",
+                 "alpha_nbirds"   # Effect of how many total birds were seen on detection probability
                  )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -470,24 +461,105 @@ sabs_mcmcConf <- configureMCMC(sabs_model_vect,
                                monitors = sabs_params)
 
 # Block all availability (gamma) nodes together
-sabs_mcmcConf$removeSamplers("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2")
+sabs_mcmcConf$removeSamplers(
+  # Intercept
+  "gamma0", 
+  # effect of date of year
+  "gamma_date", "gamma_time", 
+  # Effect of time of day
+  "gamma_date2", "gamma_time2"
+  )
 
-sabs_mcmcConf$addSampler(target = c("gamma0", "gamma_date", "gamma_time", "gamma_date2", "gamma_time2"),
-                         type = 'RW_block')
+sabs_mcmcConf$addSampler(target = c(  
+  # Intercept
+  "gamma0", 
+  # effect of date of year
+  "gamma_date", "gamma_time", 
+  # Effect of time of day
+  "gamma_date2", "gamma_time2"
+  ), type = 'RW_block')
+
+# Block all detection (alpha) nodes together
+sabs_mcmcConf$removeSamplers(
+  # Intercept
+  "alpha0",
+  # Effect of seeing more birds on a survey
+  "alpha_nbirds"
+)
+sabs_mcmcConf$addSampler(target = c(
+  # Intercept
+  "alpha0",
+  # Effect of seeing more birds on a survey
+  "alpha_nbirds"
+), type = 'RW_block')
 
 
 # Block all abundance (beta) nodes together
 sabs_mcmcConf$removeSamplers(
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
-  # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  # Intercept by Treatment
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
+  # Random noise by year
+  "eps_year[1]", "eps_year[2]", "eps_year[3]"
   )
 
 sabs_mcmcConf$addSampler(target = c(
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
-  # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  # Intercept by Treatment
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
+  # Random noise by year
+  "eps_year[1]", "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
+# Block all occupancy (psi) nodes together
+sabs_mcmcConf$removeSamplers(
+  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+)
+sabs_mcmcConf$addSampler(target = c(
+  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+), type = 'RW_block')
 
+# Block all presence (present) nodes together
+sabs_mcmcConf$removeSamplers(
+  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
+  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
+  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
+  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
+  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
+  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
+  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
+  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
+  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
+  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
+)
+sabs_mcmcConf$addSampler(target = c(
+  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
+  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
+  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
+  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
+  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
+  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
+  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
+  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
+  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
+  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
+), type = 'RW_block')
 
 # View the blocks
 sabs_mcmcConf$printSamplers() # print samplers being used 
@@ -524,7 +596,7 @@ sabs_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -536,7 +608,7 @@ saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
   
 # Traceplots and density graphs 
 MCMCtrace(object = sabs_mcmc_out$samples,
@@ -546,7 +618,7 @@ MCMCtrace(object = sabs_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_model_no_rf_traceplot"),
+          filename = "SABS_fire_model_traceplot",
           type = 'both')
 
 # View MCMC summary
@@ -571,8 +643,7 @@ plot_species <- "SABS"
 species_name <- "Sagebrush Sparrow"
 
 # Load the output back in
-sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
-                                       plot_species, "_fire_elevation_model.rds"))
+sabs_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
 
 # View MCMC summary
 sabs_mcmc_out$summary$all.chains
@@ -683,8 +754,7 @@ params_plot
 
 # Save the plot
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                       plot_species, "_params.png"),
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_params.png"),
        width = 200,
        height = 120,
        units = "mm",
@@ -735,8 +805,7 @@ treatment_pred_plot
 
 # Save the plot
 ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                         plot_species, "_treatment.png"),
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.png"),
        width = 200,
        height = 120,
        units = "mm",
