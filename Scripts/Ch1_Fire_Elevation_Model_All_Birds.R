@@ -25,20 +25,21 @@ rm(list = ls())
 
 # List of Species 
 all_species <- c(
-  # "BRSP",
-  # "SATH",
+  "BRSP",
+  "SATH",
   # "SABS",
-  "GTTO")
-  # "VESP",
-  # "WEME",
-  # "HOLA")
+  "GTTO",
+  "VESP",
+  "WEME",
+  "HOLA"
+  )
 
 # Loop over all species
 for(k in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
 model_species <- all_species[k]
-# model_species <- all_species[3]
+# model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -80,7 +81,39 @@ covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
 # View covariates
 # glimpse(covs)
 
+# Add in the full dataset
+full_dat <- read.csv("Data/Outputs/sobs_data.csv") 
+  
 # 1.2) Prepare the count level data ################################################################
+
+# Find out how many total observations there were for the grid plus visit
+#I only need a few columns
+indv_counts_tmp <- full_dat %>%
+  # Remove very far observations
+  filter(Distance <= 250) %>% 
+  # Remove NOBI's
+  filter(Species != "NOBI") %>% 
+  # Column for each distinct visit
+  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  # Only need a few columns
+  select(Grid.ID, Visit.ID, Species) %>% 
+  #Reframe the data to total observations per grid
+  group_by(Grid.ID, Visit.ID) %>% 
+  reframe(Grid.ID, Visit.ID, Total.Indv = n()) %>% 
+  distinct()
+
+# Impute the missing surveys
+missing_indv_counts <- indv_counts_tmp %>% 
+  filter(Grid.ID %in% c("ID-C11", "ID-C22") & Visit.ID == "Y1-V2") %>% 
+  mutate(Visit.ID = "Y1-V1")
+
+# Add these to the data
+indv_counts <- indv_counts_tmp %>% 
+  bind_rows(missing_indv_counts)
+
+# View
+glimpse(indv_counts)
+
 
 # Change necessary variables to scales and factors
 sobs_counts_temp2 <- sobs_counts_temp %>%
@@ -94,6 +127,8 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
          Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>%
+  # Add the total observations per grid
+  left_join(indv_counts, by = c("Grid.ID", "Visit.ID")) %>% 
   # Other things that should be factors
   mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Observer.ID", "Year"), factor) %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
@@ -112,10 +147,11 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
   # Make a unique column for whether or not each grid was in each of the treatments
   mutate(High.Reference = case_when(Treatment == 2 ~ 1, TRUE ~ 0),
          Low.Burned = case_when(Treatment == 3 ~ 1, TRUE ~ 0),
-         High.Burned = case_when(Treatment == 4 ~ 1, TRUE ~ 0))
+         High.Burned = case_when(Treatment == 4 ~ 1, TRUE ~ 0)) 
+  
 
 #...and view
-# glimpse(sobs_counts_temp2)
+glimpse(sobs_counts_temp2)
 
 # Isolate the burned Grids as their own object so I can accurately scale them
 fire_stats <- sobs_counts_temp2 %>% 
@@ -153,9 +189,12 @@ sobs_counts <- sobs_counts_temp2 %>%
          Perennial.Cover.scl = (Perennial.Cover.125m - mean_pern) - sd_pern,
          Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1],
+         Total.Indv.scl = scale(Total.Indv)[,1],
          Years.Since.Fire.scl = (Years.Since.Fire - mean_fyear) / sd_fyear,
          ln.Years.Since.Fire.scl = (ln.Years.Since.Fire - mean_ln_fyear) /sd_ln_fyear,
          rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr)
+# View
+glimpse(sobs_counts)
 
 # 1.3) Prepare the observation level data ################################################################
 
@@ -189,6 +228,7 @@ sobs_observations <- sobs_observations_temp %>%
 
 # View observations
 # glimpse(sobs_observations)
+
 
 # 1.4) Plot preliminary correlations in the data ##############################################################
 # 
@@ -268,6 +308,8 @@ obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 # Build a storage matrix for years since fire during each survey
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+# Build a storage matrix for how many individual birds were seen on each visit
+indv_count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -284,6 +326,7 @@ for(y in 1:nrow(count_mat)){
   obsv_mat[y,] <- count_visit$Observer.ID.num
   exp_mat[y,] <- count_visit$Observer.Experience 
   fyear_mat[y,] <- count_visit$Years.Since.Fire.scl
+  indv_count_mat[y,] <- count_visit$Total.Indv.scl
 }
 
 # Size Objects  
@@ -306,6 +349,7 @@ obs_visit <- sobs_observations$Visit.ID.num                # During which visit 
 obs_grid <- sobs_observations$Grid.ID.num                  # In which grid did each observation take place
 dclass <- sobs_observations$Dist.Bin                       # Distance class of each observation
 delta <- trunc_dist / nbins                                # Size of distance bins
+num_birds <- indv_count_mat                                # Number of individual birds seen per surevey
 
 # Availability date
 tint <- sobs_observations$Time.Interval                    # Time interval for each observation 
@@ -351,11 +395,13 @@ sobs_model_code <- nimbleCode({
   
   # Effect of observer experience (Can't be greater than 0)
   for(o in 1:nobsv){ # (nobsv = 17)
-    alpha0_obsv[o] ~ T(dnorm(-2, sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
+    alpha0_obsv[o] ~ T(dnorm(log(0.125), sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
   } # End loop through observers
   
+  # Single fixed effects on detection prob
+  alpha_nbirds ~ dnorm(0, sd = 1.5)  # Effect of how many total birds were seen at the site
+  
   # Parameters on the abundance component of the model ----
-  # Fixed effects on abundance ----
   
   # Intercept by treatment
   for(l in 1:ntrts){ # ntrts = 4
@@ -371,14 +417,19 @@ sobs_model_code <- nimbleCode({
   # Single fixed effects
   beta_burnsev ~ dnorm(0, sd = 1.5)   # Effect of initial burn severity on burned grids
   
-  # Random effects on abundance ----
-  # Random effect hyper-parameters
-  sd_eps_year ~ T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
+  # Abundance random effect hyper-parameters
+  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year 
+  sd_eps_grid ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each grid
 
   # Random effect for each year
   for(y in 1:nyears){ # nyears = 3
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
+  
+  # Random effect for each grid
+  for(j in 1: ngrids) { # Loop over all grids
+    eps_grid[j] ~ dnorm(0, sd = sd_eps_grid)
+  } # End RF loop over grids
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -428,20 +479,22 @@ sobs_model_code <- nimbleCode({
       n_dct[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])         
         
       # Availability (phi) Logit-linear model for availability
-      logit(phi[j, k]) <- gamma0 +                    # Intercept on availability
-                          gamma_date * day[j, k] +     # Effect of scaled ordinal date
-                          gamma_time * time[j, k] +    # Effect of scaled time of day
-                          gamma_date2 * day[j, k]^2 +  # Effect of scaled ordinal date squared
-                          gamma_time2 * time[j, k]^2   # Effect of scaled time of day squared
+      logit(phi[j, k]) <- gamma0 +                       # Intercept on availability
+                          gamma_date * day[j, k] +       # Effect of scaled ordinal date
+                          gamma_time * time[j, k] +      # Effect of scaled time of day
+                          gamma_date2 * day[j, k]^2 +    # Effect of scaled ordinal date squared
+                          gamma_time2 * time[j, k]^2     # Effect of scaled time of day squared
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[j, k]) <- alpha0_obsv[observers[j, k]] # Intercept for of observer experience on detectability
-
+      log(sigma[j, k]) <- alpha0_obsv[observers[j, k]] + # Intercept for of observer experience on detectability
+                          alpha_nbirds * num_birds[j, k] # Effect of how many total birds were seen on that grid
+        
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
                            beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
-                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
+                           eps_year[years[j, k]] +                              # Unexplained noise on abundance by year
+                           eps_grid[j]
 
       # Assess model fit: compute Bayesian p-value for using a test statisitc
       e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
@@ -503,6 +556,7 @@ sobs_dat <- list(
   # Detection level data
   dclass = dclass,             # Distance category for each observation
   midpt = midpt,               # Midpoints of distance bins
+  num_birds = num_birds,       # Tootal number of birds seen during each survey
   # Availability level data
   tint = tint,                 # Time interval for each observation
   time = time,                 # Scaled mean time after sunrise
@@ -541,6 +595,7 @@ str(sobs_dims)
 sobs_inits <- list(
   # Detectablility
   alpha0_obsv = runif(nobsv, -2, -0.1),
+  alpha_nbirds = rnorm(1, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -552,7 +607,9 @@ sobs_inits <- list(
   beta_fyear = rnorm(nelv, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
   sd_eps_year = runif(1, 0, 1),
-  eps_year = rnorm(ngrids, 0, 0.1),
+  sd_eps_year = runif(1, 0, 1),
+  eps_year = rnorm(years, 0, 0.1),
+  eps_grid = rnorm(ngrids, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
@@ -577,7 +634,8 @@ sobs_params <- c(
                  "gamma_date2",    # Quadratic effect of date on singing rate
                  "gamma_time",     # Effect of time of day on singing rate
                  "gamma_time2",    # Quadratic e of time of day on singning rate
-                 "alpha0_obsv"     # Intercept for each observer on detection rate
+                 "alpha0_obsv",    # Intercept for each observer on detection rate
+                 "alpha_nbirds"    # Effect of how many total birds were seen on detection probability
                  )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -608,15 +666,14 @@ sobs_mcmcConf$removeSamplers(
   "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]",
-  "alpha0_obsv[17]")
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
+  )
 sobs_mcmcConf$addSampler(target = c(
   # Effect of each observer
   "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]",
-  "alpha0_obsv[17]"
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
   ), type = 'RW_block')
 
 # Block all abundance (beta) nodes together
@@ -628,7 +685,18 @@ sobs_mcmcConf$removeSamplers(
   # Effect of burn severity
   "beta_burnsev",
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "eps_year[1]", "eps_year[2]", "eps_year[3]",
+  # Random noise by grid
+  "eps_grid[1]", "eps_grid[2]", "eps_grid[3]", "eps_grid[4]", "eps_grid[5]", "eps_grid[6]",
+  "eps_grid[7]", "eps_grid[8]", "eps_grid[9]", "eps_grid[10]", "eps_grid[11]", "eps_grid[12]",
+  "eps_grid[13]", "eps_grid[14]", "eps_grid[15]", "eps_grid[16]", "eps_grid[17]", "eps_grid[18]",
+  "eps_grid[19]", "eps_grid[20]", "eps_grid[21]", "eps_grid[22]", "eps_grid[23]", "eps_grid[24]",
+  "eps_grid[25]", "eps_grid[26]", "eps_grid[27]", "eps_grid[28]", "eps_grid[29]", "eps_grid[30]",
+  "eps_grid[31]", "eps_grid[32]", "eps_grid[33]", "eps_grid[34]", "eps_grid[35]", "eps_grid[36]",
+  "eps_grid[37]", "eps_grid[38]", "eps_grid[39]", "eps_grid[40]", "eps_grid[41]", "eps_grid[42]",
+  "eps_grid[43]", "eps_grid[44]", "eps_grid[45]", "eps_grid[46]", "eps_grid[47]", "eps_grid[48]",
+  "eps_grid[49]", "eps_grid[50]", "eps_grid[51]", "eps_grid[52]", "eps_grid[53]", "eps_grid[54]",
+  "eps_grid[55]", "eps_grid[56]", "eps_grid[57]", "eps_grid[58]", "eps_grid[59]", "eps_grid[60]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -638,8 +706,325 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of burn severity
   "beta_burnsev",
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "eps_year[1]", "eps_year[2]", "eps_year[3]",
+  # Random noise by grid
+  "eps_grid[1]", "eps_grid[2]", "eps_grid[3]", "eps_grid[4]", "eps_grid[5]", "eps_grid[6]",
+  "eps_grid[7]", "eps_grid[8]", "eps_grid[9]", "eps_grid[10]", "eps_grid[11]", "eps_grid[12]",
+  "eps_grid[13]", "eps_grid[14]", "eps_grid[15]", "eps_grid[16]", "eps_grid[17]", "eps_grid[18]",
+  "eps_grid[19]", "eps_grid[20]", "eps_grid[21]", "eps_grid[22]", "eps_grid[23]", "eps_grid[24]",
+  "eps_grid[25]", "eps_grid[26]", "eps_grid[27]", "eps_grid[28]", "eps_grid[29]", "eps_grid[30]",
+  "eps_grid[31]", "eps_grid[32]", "eps_grid[33]", "eps_grid[34]", "eps_grid[35]", "eps_grid[36]",
+  "eps_grid[37]", "eps_grid[38]", "eps_grid[39]", "eps_grid[40]", "eps_grid[41]", "eps_grid[42]",
+  "eps_grid[43]", "eps_grid[44]", "eps_grid[45]", "eps_grid[46]", "eps_grid[47]", "eps_grid[48]",
+  "eps_grid[49]", "eps_grid[50]", "eps_grid[51]", "eps_grid[52]", "eps_grid[53]", "eps_grid[54]",
+  "eps_grid[55]", "eps_grid[56]", "eps_grid[57]", "eps_grid[58]", "eps_grid[59]", "eps_grid[60]"
   ), type = 'RW_block')
+
+# Block all occupancy (psi) nodes together
+sobs_mcmcConf$removeSamplers(
+  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+), type = 'RW_block')
+
+# Block all presence (present) nodes together
+sobs_mcmcConf$removeSamplers(
+  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
+  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
+  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
+  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
+  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
+  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
+  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
+  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
+  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
+  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
+  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
+  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
+  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
+  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
+  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
+  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
+  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
+  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
+  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
+), type = 'RW_block')
+
+
+# Block all density (N_indv) Nodes together
+sobs_mcmcConf$removeSamplers(
+  "N_indv[1, 1]", "N_indv[1, 2]", "N_indv[1, 3]", "N_indv[1, 4]", "N_indv[1, 5]", "N_indv[1, 6]",
+  "N_indv[2, 1]", "N_indv[2, 2]", "N_indv[2, 3]", "N_indv[2, 4]", "N_indv[2, 5]", "N_indv[2, 6]",
+  "N_indv[3, 1]", "N_indv[3, 2]", "N_indv[3, 3]", "N_indv[3, 4]", "N_indv[3, 5]", "N_indv[3, 6]",
+  "N_indv[4, 1]", "N_indv[4, 2]", "N_indv[4, 3]", "N_indv[4, 4]", "N_indv[4, 5]", "N_indv[4, 6]",
+  "N_indv[5, 1]", "N_indv[5, 2]", "N_indv[5, 3]", "N_indv[5, 4]", "N_indv[5, 5]", "N_indv[5, 6]",
+  "N_indv[6, 1]", "N_indv[6, 2]", "N_indv[6, 3]", "N_indv[6, 4]", "N_indv[6, 5]", "N_indv[6, 6]",
+  "N_indv[7, 1]", "N_indv[7, 2]", "N_indv[7, 3]", "N_indv[7, 4]", "N_indv[7, 5]", "N_indv[7, 6]",
+  "N_indv[8, 1]", "N_indv[8, 2]", "N_indv[8, 3]", "N_indv[8, 4]", "N_indv[8, 5]", "N_indv[8, 6]",
+  "N_indv[9, 1]", "N_indv[9, 2]", "N_indv[9, 3]", "N_indv[9, 4]", "N_indv[9, 5]", "N_indv[9, 6]",
+  "N_indv[10, 1]", "N_indv[10, 2]", "N_indv[10, 3]", "N_indv[10, 4]", "N_indv[10, 5]", "N_indv[10, 6]",
+  "N_indv[11, 1]", "N_indv[11, 2]", "N_indv[11, 3]", "N_indv[11, 4]", "N_indv[11, 5]", "N_indv[11, 6]",
+  "N_indv[12, 1]", "N_indv[12, 2]", "N_indv[12, 3]", "N_indv[12, 4]", "N_indv[12, 5]", "N_indv[12, 6]",
+  "N_indv[13, 1]", "N_indv[13, 2]", "N_indv[13, 3]", "N_indv[13, 4]", "N_indv[13, 5]", "N_indv[13, 6]",
+  "N_indv[14, 1]", "N_indv[14, 2]", "N_indv[14, 3]", "N_indv[14, 4]", "N_indv[14, 5]", "N_indv[14, 6]",
+  "N_indv[15, 1]", "N_indv[15, 2]", "N_indv[15, 3]", "N_indv[15, 4]", "N_indv[15, 5]", "N_indv[15, 6]",
+  "N_indv[16, 1]", "N_indv[16, 2]", "N_indv[16, 3]", "N_indv[16, 4]", "N_indv[16, 5]", "N_indv[16, 6]",
+  "N_indv[17, 1]", "N_indv[17, 2]", "N_indv[17, 3]", "N_indv[17, 4]", "N_indv[17, 5]", "N_indv[17, 6]",
+  "N_indv[18, 1]", "N_indv[18, 2]", "N_indv[18, 3]", "N_indv[18, 4]", "N_indv[18, 5]", "N_indv[18, 6]",
+  "N_indv[19, 1]", "N_indv[19, 2]", "N_indv[19, 3]", "N_indv[19, 4]", "N_indv[19, 5]", "N_indv[19, 6]",
+  "N_indv[20, 1]", "N_indv[20, 2]", "N_indv[20, 3]", "N_indv[20, 4]", "N_indv[20, 5]", "N_indv[20, 6]",
+  "N_indv[21, 1]", "N_indv[21, 2]", "N_indv[21, 3]", "N_indv[21, 4]", "N_indv[21, 5]", "N_indv[21, 6]",
+  "N_indv[22, 1]", "N_indv[22, 2]", "N_indv[22, 3]", "N_indv[22, 4]", "N_indv[22, 5]", "N_indv[22, 6]",
+  "N_indv[23, 1]", "N_indv[23, 2]", "N_indv[23, 3]", "N_indv[23, 4]", "N_indv[23, 5]", "N_indv[23, 6]",
+  "N_indv[24, 1]", "N_indv[24, 2]", "N_indv[24, 3]", "N_indv[24, 4]", "N_indv[24, 5]", "N_indv[24, 6]",
+  "N_indv[25, 1]", "N_indv[25, 2]", "N_indv[25, 3]", "N_indv[25, 4]", "N_indv[25, 5]", "N_indv[25, 6]",
+  "N_indv[26, 1]", "N_indv[26, 2]", "N_indv[26, 3]", "N_indv[26, 4]", "N_indv[26, 5]", "N_indv[26, 6]",
+  "N_indv[27, 1]", "N_indv[27, 2]", "N_indv[27, 3]", "N_indv[27, 4]", "N_indv[27, 5]", "N_indv[27, 6]",
+  "N_indv[28, 1]", "N_indv[28, 2]", "N_indv[28, 3]", "N_indv[28, 4]", "N_indv[28, 5]", "N_indv[28, 6]",
+  "N_indv[29, 1]", "N_indv[29, 2]", "N_indv[29, 3]", "N_indv[29, 4]", "N_indv[29, 5]", "N_indv[29, 6]",
+  "N_indv[30, 1]", "N_indv[30, 2]", "N_indv[30, 3]", "N_indv[30, 4]", "N_indv[30, 5]", "N_indv[30, 6]",
+  "N_indv[31, 1]", "N_indv[31, 2]", "N_indv[31, 3]", "N_indv[31, 4]", "N_indv[31, 5]", "N_indv[31, 6]",
+  "N_indv[32, 1]", "N_indv[32, 2]", "N_indv[32, 3]", "N_indv[32, 4]", "N_indv[32, 5]", "N_indv[32, 6]",
+  "N_indv[33, 1]", "N_indv[33, 2]", "N_indv[33, 3]", "N_indv[33, 4]", "N_indv[33, 5]", "N_indv[33, 6]",
+  "N_indv[34, 1]", "N_indv[34, 2]", "N_indv[34, 3]", "N_indv[34, 4]", "N_indv[34, 5]", "N_indv[34, 6]",
+  "N_indv[35, 1]", "N_indv[35, 2]", "N_indv[35, 3]", "N_indv[35, 4]", "N_indv[35, 5]", "N_indv[35, 6]",
+  "N_indv[36, 1]", "N_indv[36, 2]", "N_indv[36, 3]", "N_indv[36, 4]", "N_indv[36, 5]", "N_indv[36, 6]",
+  "N_indv[37, 1]", "N_indv[37, 2]", "N_indv[37, 3]", "N_indv[37, 4]", "N_indv[37, 5]", "N_indv[37, 6]",
+  "N_indv[38, 1]", "N_indv[38, 2]", "N_indv[38, 3]", "N_indv[38, 4]", "N_indv[38, 5]", "N_indv[38, 6]",
+  "N_indv[39, 1]", "N_indv[39, 2]", "N_indv[39, 3]", "N_indv[39, 4]", "N_indv[39, 5]", "N_indv[39, 6]",
+  "N_indv[40, 1]", "N_indv[40, 2]", "N_indv[40, 3]", "N_indv[40, 4]", "N_indv[40, 5]", "N_indv[40, 6]",
+  "N_indv[41, 1]", "N_indv[41, 2]", "N_indv[41, 3]", "N_indv[41, 4]", "N_indv[41, 5]", "N_indv[41, 6]",
+  "N_indv[42, 1]", "N_indv[42, 2]", "N_indv[42, 3]", "N_indv[42, 4]", "N_indv[42, 5]", "N_indv[42, 6]",
+  "N_indv[43, 1]", "N_indv[43, 2]", "N_indv[43, 3]", "N_indv[43, 4]", "N_indv[43, 5]", "N_indv[43, 6]",
+  "N_indv[44, 1]", "N_indv[44, 2]", "N_indv[44, 3]", "N_indv[44, 4]", "N_indv[44, 5]", "N_indv[44, 6]",
+  "N_indv[45, 1]", "N_indv[45, 2]", "N_indv[45, 3]", "N_indv[45, 4]", "N_indv[45, 5]", "N_indv[45, 6]",
+  "N_indv[46, 1]", "N_indv[46, 2]", "N_indv[46, 3]", "N_indv[46, 4]", "N_indv[46, 5]", "N_indv[46, 6]",
+  "N_indv[47, 1]", "N_indv[47, 2]", "N_indv[47, 3]", "N_indv[47, 4]", "N_indv[47, 5]", "N_indv[47, 6]",
+  "N_indv[48, 1]", "N_indv[48, 2]", "N_indv[48, 3]", "N_indv[48, 4]", "N_indv[48, 5]", "N_indv[48, 6]",
+  "N_indv[49, 1]", "N_indv[49, 2]", "N_indv[49, 3]", "N_indv[49, 4]", "N_indv[49, 5]", "N_indv[49, 6]",
+  "N_indv[50, 1]", "N_indv[50, 2]", "N_indv[50, 3]", "N_indv[50, 4]", "N_indv[50, 5]", "N_indv[50, 6]",
+  "N_indv[51, 1]", "N_indv[51, 2]", "N_indv[51, 3]", "N_indv[51, 4]", "N_indv[51, 5]", "N_indv[51, 6]",
+  "N_indv[52, 1]", "N_indv[52, 2]", "N_indv[52, 3]", "N_indv[52, 4]", "N_indv[52, 5]", "N_indv[52, 6]",
+  "N_indv[53, 1]", "N_indv[53, 2]", "N_indv[53, 3]", "N_indv[53, 4]", "N_indv[53, 5]", "N_indv[53, 6]",
+  "N_indv[54, 1]", "N_indv[54, 2]", "N_indv[54, 3]", "N_indv[54, 4]", "N_indv[54, 5]", "N_indv[54, 6]",
+  "N_indv[55, 1]", "N_indv[55, 2]", "N_indv[55, 3]", "N_indv[55, 4]", "N_indv[55, 5]", "N_indv[55, 6]",
+  "N_indv[56, 1]", "N_indv[56, 2]", "N_indv[56, 3]", "N_indv[56, 4]", "N_indv[56, 5]", "N_indv[56, 6]",
+  "N_indv[57, 1]", "N_indv[57, 2]", "N_indv[57, 3]", "N_indv[57, 4]", "N_indv[57, 5]", "N_indv[57, 6]",
+  "N_indv[58, 1]", "N_indv[58, 2]", "N_indv[58, 3]", "N_indv[58, 4]", "N_indv[58, 5]", "N_indv[58, 6]",
+  "N_indv[59, 1]", "N_indv[59, 2]", "N_indv[59, 3]", "N_indv[59, 4]", "N_indv[59, 5]", "N_indv[59, 6]",
+  "N_indv[60, 1]", "N_indv[60, 2]", "N_indv[60, 3]", "N_indv[60, 4]", "N_indv[60, 5]", "N_indv[60, 6]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  "N_indv[1, 1]", "N_indv[1, 2]", "N_indv[1, 3]", "N_indv[1, 4]", "N_indv[1, 5]", "N_indv[1, 6]",
+  "N_indv[2, 1]", "N_indv[2, 2]", "N_indv[2, 3]", "N_indv[2, 4]", "N_indv[2, 5]", "N_indv[2, 6]",
+  "N_indv[3, 1]", "N_indv[3, 2]", "N_indv[3, 3]", "N_indv[3, 4]", "N_indv[3, 5]", "N_indv[3, 6]",
+  "N_indv[4, 1]", "N_indv[4, 2]", "N_indv[4, 3]", "N_indv[4, 4]", "N_indv[4, 5]", "N_indv[4, 6]",
+  "N_indv[5, 1]", "N_indv[5, 2]", "N_indv[5, 3]", "N_indv[5, 4]", "N_indv[5, 5]", "N_indv[5, 6]",
+  "N_indv[6, 1]", "N_indv[6, 2]", "N_indv[6, 3]", "N_indv[6, 4]", "N_indv[6, 5]", "N_indv[6, 6]",
+  "N_indv[7, 1]", "N_indv[7, 2]", "N_indv[7, 3]", "N_indv[7, 4]", "N_indv[7, 5]", "N_indv[7, 6]",
+  "N_indv[8, 1]", "N_indv[8, 2]", "N_indv[8, 3]", "N_indv[8, 4]", "N_indv[8, 5]", "N_indv[8, 6]",
+  "N_indv[9, 1]", "N_indv[9, 2]", "N_indv[9, 3]", "N_indv[9, 4]", "N_indv[9, 5]", "N_indv[9, 6]",
+  "N_indv[10, 1]", "N_indv[10, 2]", "N_indv[10, 3]", "N_indv[10, 4]", "N_indv[10, 5]", "N_indv[10, 6]",
+  "N_indv[11, 1]", "N_indv[11, 2]", "N_indv[11, 3]", "N_indv[11, 4]", "N_indv[11, 5]", "N_indv[11, 6]",
+  "N_indv[12, 1]", "N_indv[12, 2]", "N_indv[12, 3]", "N_indv[12, 4]", "N_indv[12, 5]", "N_indv[12, 6]",
+  "N_indv[13, 1]", "N_indv[13, 2]", "N_indv[13, 3]", "N_indv[13, 4]", "N_indv[13, 5]", "N_indv[13, 6]",
+  "N_indv[14, 1]", "N_indv[14, 2]", "N_indv[14, 3]", "N_indv[14, 4]", "N_indv[14, 5]", "N_indv[14, 6]",
+  "N_indv[15, 1]", "N_indv[15, 2]", "N_indv[15, 3]", "N_indv[15, 4]", "N_indv[15, 5]", "N_indv[15, 6]",
+  "N_indv[16, 1]", "N_indv[16, 2]", "N_indv[16, 3]", "N_indv[16, 4]", "N_indv[16, 5]", "N_indv[16, 6]",
+  "N_indv[17, 1]", "N_indv[17, 2]", "N_indv[17, 3]", "N_indv[17, 4]", "N_indv[17, 5]", "N_indv[17, 6]",
+  "N_indv[18, 1]", "N_indv[18, 2]", "N_indv[18, 3]", "N_indv[18, 4]", "N_indv[18, 5]", "N_indv[18, 6]",
+  "N_indv[19, 1]", "N_indv[19, 2]", "N_indv[19, 3]", "N_indv[19, 4]", "N_indv[19, 5]", "N_indv[19, 6]",
+  "N_indv[20, 1]", "N_indv[20, 2]", "N_indv[20, 3]", "N_indv[20, 4]", "N_indv[20, 5]", "N_indv[20, 6]",
+  "N_indv[21, 1]", "N_indv[21, 2]", "N_indv[21, 3]", "N_indv[21, 4]", "N_indv[21, 5]", "N_indv[21, 6]",
+  "N_indv[22, 1]", "N_indv[22, 2]", "N_indv[22, 3]", "N_indv[22, 4]", "N_indv[22, 5]", "N_indv[22, 6]",
+  "N_indv[23, 1]", "N_indv[23, 2]", "N_indv[23, 3]", "N_indv[23, 4]", "N_indv[23, 5]", "N_indv[23, 6]",
+  "N_indv[24, 1]", "N_indv[24, 2]", "N_indv[24, 3]", "N_indv[24, 4]", "N_indv[24, 5]", "N_indv[24, 6]",
+  "N_indv[25, 1]", "N_indv[25, 2]", "N_indv[25, 3]", "N_indv[25, 4]", "N_indv[25, 5]", "N_indv[25, 6]",
+  "N_indv[26, 1]", "N_indv[26, 2]", "N_indv[26, 3]", "N_indv[26, 4]", "N_indv[26, 5]", "N_indv[26, 6]",
+  "N_indv[27, 1]", "N_indv[27, 2]", "N_indv[27, 3]", "N_indv[27, 4]", "N_indv[27, 5]", "N_indv[27, 6]",
+  "N_indv[28, 1]", "N_indv[28, 2]", "N_indv[28, 3]", "N_indv[28, 4]", "N_indv[28, 5]", "N_indv[28, 6]",
+  "N_indv[29, 1]", "N_indv[29, 2]", "N_indv[29, 3]", "N_indv[29, 4]", "N_indv[29, 5]", "N_indv[29, 6]",
+  "N_indv[30, 1]", "N_indv[30, 2]", "N_indv[30, 3]", "N_indv[30, 4]", "N_indv[30, 5]", "N_indv[30, 6]",
+  "N_indv[31, 1]", "N_indv[31, 2]", "N_indv[31, 3]", "N_indv[31, 4]", "N_indv[31, 5]", "N_indv[31, 6]",
+  "N_indv[32, 1]", "N_indv[32, 2]", "N_indv[32, 3]", "N_indv[32, 4]", "N_indv[32, 5]", "N_indv[32, 6]",
+  "N_indv[33, 1]", "N_indv[33, 2]", "N_indv[33, 3]", "N_indv[33, 4]", "N_indv[33, 5]", "N_indv[33, 6]",
+  "N_indv[34, 1]", "N_indv[34, 2]", "N_indv[34, 3]", "N_indv[34, 4]", "N_indv[34, 5]", "N_indv[34, 6]",
+  "N_indv[35, 1]", "N_indv[35, 2]", "N_indv[35, 3]", "N_indv[35, 4]", "N_indv[35, 5]", "N_indv[35, 6]",
+  "N_indv[36, 1]", "N_indv[36, 2]", "N_indv[36, 3]", "N_indv[36, 4]", "N_indv[36, 5]", "N_indv[36, 6]",
+  "N_indv[37, 1]", "N_indv[37, 2]", "N_indv[37, 3]", "N_indv[37, 4]", "N_indv[37, 5]", "N_indv[37, 6]",
+  "N_indv[38, 1]", "N_indv[38, 2]", "N_indv[38, 3]", "N_indv[38, 4]", "N_indv[38, 5]", "N_indv[38, 6]",
+  "N_indv[39, 1]", "N_indv[39, 2]", "N_indv[39, 3]", "N_indv[39, 4]", "N_indv[39, 5]", "N_indv[39, 6]",
+  "N_indv[40, 1]", "N_indv[40, 2]", "N_indv[40, 3]", "N_indv[40, 4]", "N_indv[40, 5]", "N_indv[40, 6]",
+  "N_indv[41, 1]", "N_indv[41, 2]", "N_indv[41, 3]", "N_indv[41, 4]", "N_indv[41, 5]", "N_indv[41, 6]",
+  "N_indv[42, 1]", "N_indv[42, 2]", "N_indv[42, 3]", "N_indv[42, 4]", "N_indv[42, 5]", "N_indv[42, 6]",
+  "N_indv[43, 1]", "N_indv[43, 2]", "N_indv[43, 3]", "N_indv[43, 4]", "N_indv[43, 5]", "N_indv[43, 6]",
+  "N_indv[44, 1]", "N_indv[44, 2]", "N_indv[44, 3]", "N_indv[44, 4]", "N_indv[44, 5]", "N_indv[44, 6]",
+  "N_indv[45, 1]", "N_indv[45, 2]", "N_indv[45, 3]", "N_indv[45, 4]", "N_indv[45, 5]", "N_indv[45, 6]",
+  "N_indv[46, 1]", "N_indv[46, 2]", "N_indv[46, 3]", "N_indv[46, 4]", "N_indv[46, 5]", "N_indv[46, 6]",
+  "N_indv[47, 1]", "N_indv[47, 2]", "N_indv[47, 3]", "N_indv[47, 4]", "N_indv[47, 5]", "N_indv[47, 6]",
+  "N_indv[48, 1]", "N_indv[48, 2]", "N_indv[48, 3]", "N_indv[48, 4]", "N_indv[48, 5]", "N_indv[48, 6]",
+  "N_indv[49, 1]", "N_indv[49, 2]", "N_indv[49, 3]", "N_indv[49, 4]", "N_indv[49, 5]", "N_indv[49, 6]",
+  "N_indv[50, 1]", "N_indv[50, 2]", "N_indv[50, 3]", "N_indv[50, 4]", "N_indv[50, 5]", "N_indv[50, 6]",
+  "N_indv[51, 1]", "N_indv[51, 2]", "N_indv[51, 3]", "N_indv[51, 4]", "N_indv[51, 5]", "N_indv[51, 6]",
+  "N_indv[52, 1]", "N_indv[52, 2]", "N_indv[52, 3]", "N_indv[52, 4]", "N_indv[52, 5]", "N_indv[52, 6]",
+  "N_indv[53, 1]", "N_indv[53, 2]", "N_indv[53, 3]", "N_indv[53, 4]", "N_indv[53, 5]", "N_indv[53, 6]",
+  "N_indv[54, 1]", "N_indv[54, 2]", "N_indv[54, 3]", "N_indv[54, 4]", "N_indv[54, 5]", "N_indv[54, 6]",
+  "N_indv[55, 1]", "N_indv[55, 2]", "N_indv[55, 3]", "N_indv[55, 4]", "N_indv[55, 5]", "N_indv[55, 6]",
+  "N_indv[56, 1]", "N_indv[56, 2]", "N_indv[56, 3]", "N_indv[56, 4]", "N_indv[56, 5]", "N_indv[56, 6]",
+  "N_indv[57, 1]", "N_indv[57, 2]", "N_indv[57, 3]", "N_indv[57, 4]", "N_indv[57, 5]", "N_indv[57, 6]",
+  "N_indv[58, 1]", "N_indv[58, 2]", "N_indv[58, 3]", "N_indv[58, 4]", "N_indv[58, 5]", "N_indv[58, 6]",
+  "N_indv[59, 1]", "N_indv[59, 2]", "N_indv[59, 3]", "N_indv[59, 4]", "N_indv[59, 5]", "N_indv[59, 6]",
+  "N_indv[60, 1]", "N_indv[60, 2]", "N_indv[60, 3]", "N_indv[60, 4]", "N_indv[60, 5]", "N_indv[60, 6]"
+), type = 'RW_block')
+
+# Block all simulated data (n_dct_new) Nodes together
+sobs_mcmcConf$removeSamplers(
+  "n_dct_new[1, 1]", "n_dct_new[1, 2]", "n_dct_new[1, 3]", "n_dct_new[1, 4]", "n_dct_new[1, 5]", "n_dct_new[1, 6]",
+  "n_dct_new[2, 1]", "n_dct_new[2, 2]", "n_dct_new[2, 3]", "n_dct_new[2, 4]", "n_dct_new[2, 5]", "n_dct_new[2, 6]",
+  "n_dct_new[3, 1]", "n_dct_new[3, 2]", "n_dct_new[3, 3]", "n_dct_new[3, 4]", "n_dct_new[3, 5]", "n_dct_new[3, 6]",
+  "n_dct_new[4, 1]", "n_dct_new[4, 2]", "n_dct_new[4, 3]", "n_dct_new[4, 4]", "n_dct_new[4, 5]", "n_dct_new[4, 6]",
+  "n_dct_new[5, 1]", "n_dct_new[5, 2]", "n_dct_new[5, 3]", "n_dct_new[5, 4]", "n_dct_new[5, 5]", "n_dct_new[5, 6]",
+  "n_dct_new[6, 1]", "n_dct_new[6, 2]", "n_dct_new[6, 3]", "n_dct_new[6, 4]", "n_dct_new[6, 5]", "n_dct_new[6, 6]",
+  "n_dct_new[7, 1]", "n_dct_new[7, 2]", "n_dct_new[7, 3]", "n_dct_new[7, 4]", "n_dct_new[7, 5]", "n_dct_new[7, 6]",
+  "n_dct_new[8, 1]", "n_dct_new[8, 2]", "n_dct_new[8, 3]", "n_dct_new[8, 4]", "n_dct_new[8, 5]", "n_dct_new[8, 6]",
+  "n_dct_new[9, 1]", "n_dct_new[9, 2]", "n_dct_new[9, 3]", "n_dct_new[9, 4]", "n_dct_new[9, 5]", "n_dct_new[9, 6]",
+  "n_dct_new[10, 1]", "n_dct_new[10, 2]", "n_dct_new[10, 3]", "n_dct_new[10, 4]", "n_dct_new[10, 5]", "n_dct_new[10, 6]",
+  "n_dct_new[11, 1]", "n_dct_new[11, 2]", "n_dct_new[11, 3]", "n_dct_new[11, 4]", "n_dct_new[11, 5]", "n_dct_new[11, 6]",
+  "n_dct_new[12, 1]", "n_dct_new[12, 2]", "n_dct_new[12, 3]", "n_dct_new[12, 4]", "n_dct_new[12, 5]", "n_dct_new[12, 6]",
+  "n_dct_new[13, 1]", "n_dct_new[13, 2]", "n_dct_new[13, 3]", "n_dct_new[13, 4]", "n_dct_new[13, 5]", "n_dct_new[13, 6]",
+  "n_dct_new[14, 1]", "n_dct_new[14, 2]", "n_dct_new[14, 3]", "n_dct_new[14, 4]", "n_dct_new[14, 5]", "n_dct_new[14, 6]",
+  "n_dct_new[15, 1]", "n_dct_new[15, 2]", "n_dct_new[15, 3]", "n_dct_new[15, 4]", "n_dct_new[15, 5]", "n_dct_new[15, 6]",
+  "n_dct_new[16, 1]", "n_dct_new[16, 2]", "n_dct_new[16, 3]", "n_dct_new[16, 4]", "n_dct_new[16, 5]", "n_dct_new[16, 6]",
+  "n_dct_new[17, 1]", "n_dct_new[17, 2]", "n_dct_new[17, 3]", "n_dct_new[17, 4]", "n_dct_new[17, 5]", "n_dct_new[17, 6]",
+  "n_dct_new[18, 1]", "n_dct_new[18, 2]", "n_dct_new[18, 3]", "n_dct_new[18, 4]", "n_dct_new[18, 5]", "n_dct_new[18, 6]",
+  "n_dct_new[19, 1]", "n_dct_new[19, 2]", "n_dct_new[19, 3]", "n_dct_new[19, 4]", "n_dct_new[19, 5]", "n_dct_new[19, 6]",
+  "n_dct_new[20, 1]", "n_dct_new[20, 2]", "n_dct_new[20, 3]", "n_dct_new[20, 4]", "n_dct_new[20, 5]", "n_dct_new[20, 6]",
+  "n_dct_new[21, 1]", "n_dct_new[21, 2]", "n_dct_new[21, 3]", "n_dct_new[21, 4]", "n_dct_new[21, 5]", "n_dct_new[21, 6]",
+  "n_dct_new[22, 1]", "n_dct_new[22, 2]", "n_dct_new[22, 3]", "n_dct_new[22, 4]", "n_dct_new[22, 5]", "n_dct_new[22, 6]",
+  "n_dct_new[23, 1]", "n_dct_new[23, 2]", "n_dct_new[23, 3]", "n_dct_new[23, 4]", "n_dct_new[23, 5]", "n_dct_new[23, 6]",
+  "n_dct_new[24, 1]", "n_dct_new[24, 2]", "n_dct_new[24, 3]", "n_dct_new[24, 4]", "n_dct_new[24, 5]", "n_dct_new[24, 6]",
+  "n_dct_new[25, 1]", "n_dct_new[25, 2]", "n_dct_new[25, 3]", "n_dct_new[25, 4]", "n_dct_new[25, 5]", "n_dct_new[25, 6]",
+  "n_dct_new[26, 1]", "n_dct_new[26, 2]", "n_dct_new[26, 3]", "n_dct_new[26, 4]", "n_dct_new[26, 5]", "n_dct_new[26, 6]",
+  "n_dct_new[27, 1]", "n_dct_new[27, 2]", "n_dct_new[27, 3]", "n_dct_new[27, 4]", "n_dct_new[27, 5]", "n_dct_new[27, 6]",
+  "n_dct_new[28, 1]", "n_dct_new[28, 2]", "n_dct_new[28, 3]", "n_dct_new[28, 4]", "n_dct_new[28, 5]", "n_dct_new[28, 6]",
+  "n_dct_new[29, 1]", "n_dct_new[29, 2]", "n_dct_new[29, 3]", "n_dct_new[29, 4]", "n_dct_new[29, 5]", "n_dct_new[29, 6]",
+  "n_dct_new[30, 1]", "n_dct_new[30, 2]", "n_dct_new[30, 3]", "n_dct_new[30, 4]", "n_dct_new[30, 5]", "n_dct_new[30, 6]",
+  "n_dct_new[31, 1]", "n_dct_new[31, 2]", "n_dct_new[31, 3]", "n_dct_new[31, 4]", "n_dct_new[31, 5]", "n_dct_new[31, 6]",
+  "n_dct_new[32, 1]", "n_dct_new[32, 2]", "n_dct_new[32, 3]", "n_dct_new[32, 4]", "n_dct_new[32, 5]", "n_dct_new[32, 6]",
+  "n_dct_new[33, 1]", "n_dct_new[33, 2]", "n_dct_new[33, 3]", "n_dct_new[33, 4]", "n_dct_new[33, 5]", "n_dct_new[33, 6]",
+  "n_dct_new[34, 1]", "n_dct_new[34, 2]", "n_dct_new[34, 3]", "n_dct_new[34, 4]", "n_dct_new[34, 5]", "n_dct_new[34, 6]",
+  "n_dct_new[35, 1]", "n_dct_new[35, 2]", "n_dct_new[35, 3]", "n_dct_new[35, 4]", "n_dct_new[35, 5]", "n_dct_new[35, 6]",
+  "n_dct_new[36, 1]", "n_dct_new[36, 2]", "n_dct_new[36, 3]", "n_dct_new[36, 4]", "n_dct_new[36, 5]", "n_dct_new[36, 6]",
+  "n_dct_new[37, 1]", "n_dct_new[37, 2]", "n_dct_new[37, 3]", "n_dct_new[37, 4]", "n_dct_new[37, 5]", "n_dct_new[37, 6]",
+  "n_dct_new[38, 1]", "n_dct_new[38, 2]", "n_dct_new[38, 3]", "n_dct_new[38, 4]", "n_dct_new[38, 5]", "n_dct_new[38, 6]",
+  "n_dct_new[39, 1]", "n_dct_new[39, 2]", "n_dct_new[39, 3]", "n_dct_new[39, 4]", "n_dct_new[39, 5]", "n_dct_new[39, 6]",
+  "n_dct_new[40, 1]", "n_dct_new[40, 2]", "n_dct_new[40, 3]", "n_dct_new[40, 4]", "n_dct_new[40, 5]", "n_dct_new[40, 6]",
+  "n_dct_new[41, 1]", "n_dct_new[41, 2]", "n_dct_new[41, 3]", "n_dct_new[41, 4]", "n_dct_new[41, 5]", "n_dct_new[41, 6]",
+  "n_dct_new[42, 1]", "n_dct_new[42, 2]", "n_dct_new[42, 3]", "n_dct_new[42, 4]", "n_dct_new[42, 5]", "n_dct_new[42, 6]",
+  "n_dct_new[43, 1]", "n_dct_new[43, 2]", "n_dct_new[43, 3]", "n_dct_new[43, 4]", "n_dct_new[43, 5]", "n_dct_new[43, 6]",
+  "n_dct_new[44, 1]", "n_dct_new[44, 2]", "n_dct_new[44, 3]", "n_dct_new[44, 4]", "n_dct_new[44, 5]", "n_dct_new[44, 6]",
+  "n_dct_new[45, 1]", "n_dct_new[45, 2]", "n_dct_new[45, 3]", "n_dct_new[45, 4]", "n_dct_new[45, 5]", "n_dct_new[45, 6]",
+  "n_dct_new[46, 1]", "n_dct_new[46, 2]", "n_dct_new[46, 3]", "n_dct_new[46, 4]", "n_dct_new[46, 5]", "n_dct_new[46, 6]",
+  "n_dct_new[47, 1]", "n_dct_new[47, 2]", "n_dct_new[47, 3]", "n_dct_new[47, 4]", "n_dct_new[47, 5]", "n_dct_new[47, 6]",
+  "n_dct_new[48, 1]", "n_dct_new[48, 2]", "n_dct_new[48, 3]", "n_dct_new[48, 4]", "n_dct_new[48, 5]", "n_dct_new[48, 6]",
+  "n_dct_new[49, 1]", "n_dct_new[49, 2]", "n_dct_new[49, 3]", "n_dct_new[49, 4]", "n_dct_new[49, 5]", "n_dct_new[49, 6]",
+  "n_dct_new[50, 1]", "n_dct_new[50, 2]", "n_dct_new[50, 3]", "n_dct_new[50, 4]", "n_dct_new[50, 5]", "n_dct_new[50, 6]",
+  "n_dct_new[51, 1]", "n_dct_new[51, 2]", "n_dct_new[51, 3]", "n_dct_new[51, 4]", "n_dct_new[51, 5]", "n_dct_new[51, 6]",
+  "n_dct_new[52, 1]", "n_dct_new[52, 2]", "n_dct_new[52, 3]", "n_dct_new[52, 4]", "n_dct_new[52, 5]", "n_dct_new[52, 6]",
+  "n_dct_new[53, 1]", "n_dct_new[53, 2]", "n_dct_new[53, 3]", "n_dct_new[53, 4]", "n_dct_new[53, 5]", "n_dct_new[53, 6]",
+  "n_dct_new[54, 1]", "n_dct_new[54, 2]", "n_dct_new[54, 3]", "n_dct_new[54, 4]", "n_dct_new[54, 5]", "n_dct_new[54, 6]",
+  "n_dct_new[55, 1]", "n_dct_new[55, 2]", "n_dct_new[55, 3]", "n_dct_new[55, 4]", "n_dct_new[55, 5]", "n_dct_new[55, 6]",
+  "n_dct_new[56, 1]", "n_dct_new[56, 2]", "n_dct_new[56, 3]", "n_dct_new[56, 4]", "n_dct_new[56, 5]", "n_dct_new[56, 6]",
+  "n_dct_new[57, 1]", "n_dct_new[57, 2]", "n_dct_new[57, 3]", "n_dct_new[57, 4]", "n_dct_new[57, 5]", "n_dct_new[57, 6]",
+  "n_dct_new[58, 1]", "n_dct_new[58, 2]", "n_dct_new[58, 3]", "n_dct_new[58, 4]", "n_dct_new[58, 5]", "n_dct_new[58, 6]",
+  "n_dct_new[59, 1]", "n_dct_new[59, 2]", "n_dct_new[59, 3]", "n_dct_new[59, 4]", "n_dct_new[59, 5]", "n_dct_new[59, 6]",
+  "n_dct_new[60, 1]", "n_dct_new[60, 2]", "n_dct_new[60, 3]", "n_dct_new[60, 4]", "n_dct_new[60, 5]", "n_dct_new[60, 6]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  "n_dct_new[1, 1]", "n_dct_new[1, 2]", "n_dct_new[1, 3]", "n_dct_new[1, 4]", "n_dct_new[1, 5]", "n_dct_new[1, 6]",
+  "n_dct_new[2, 1]", "n_dct_new[2, 2]", "n_dct_new[2, 3]", "n_dct_new[2, 4]", "n_dct_new[2, 5]", "n_dct_new[2, 6]",
+  "n_dct_new[3, 1]", "n_dct_new[3, 2]", "n_dct_new[3, 3]", "n_dct_new[3, 4]", "n_dct_new[3, 5]", "n_dct_new[3, 6]",
+  "n_dct_new[4, 1]", "n_dct_new[4, 2]", "n_dct_new[4, 3]", "n_dct_new[4, 4]", "n_dct_new[4, 5]", "n_dct_new[4, 6]",
+  "n_dct_new[5, 1]", "n_dct_new[5, 2]", "n_dct_new[5, 3]", "n_dct_new[5, 4]", "n_dct_new[5, 5]", "n_dct_new[5, 6]",
+  "n_dct_new[6, 1]", "n_dct_new[6, 2]", "n_dct_new[6, 3]", "n_dct_new[6, 4]", "n_dct_new[6, 5]", "n_dct_new[6, 6]",
+  "n_dct_new[7, 1]", "n_dct_new[7, 2]", "n_dct_new[7, 3]", "n_dct_new[7, 4]", "n_dct_new[7, 5]", "n_dct_new[7, 6]",
+  "n_dct_new[8, 1]", "n_dct_new[8, 2]", "n_dct_new[8, 3]", "n_dct_new[8, 4]", "n_dct_new[8, 5]", "n_dct_new[8, 6]",
+  "n_dct_new[9, 1]", "n_dct_new[9, 2]", "n_dct_new[9, 3]", "n_dct_new[9, 4]", "n_dct_new[9, 5]", "n_dct_new[9, 6]",
+  "n_dct_new[10, 1]", "n_dct_new[10, 2]", "n_dct_new[10, 3]", "n_dct_new[10, 4]", "n_dct_new[10, 5]", "n_dct_new[10, 6]",
+  "n_dct_new[11, 1]", "n_dct_new[11, 2]", "n_dct_new[11, 3]", "n_dct_new[11, 4]", "n_dct_new[11, 5]", "n_dct_new[11, 6]",
+  "n_dct_new[12, 1]", "n_dct_new[12, 2]", "n_dct_new[12, 3]", "n_dct_new[12, 4]", "n_dct_new[12, 5]", "n_dct_new[12, 6]",
+  "n_dct_new[13, 1]", "n_dct_new[13, 2]", "n_dct_new[13, 3]", "n_dct_new[13, 4]", "n_dct_new[13, 5]", "n_dct_new[13, 6]",
+  "n_dct_new[14, 1]", "n_dct_new[14, 2]", "n_dct_new[14, 3]", "n_dct_new[14, 4]", "n_dct_new[14, 5]", "n_dct_new[14, 6]",
+  "n_dct_new[15, 1]", "n_dct_new[15, 2]", "n_dct_new[15, 3]", "n_dct_new[15, 4]", "n_dct_new[15, 5]", "n_dct_new[15, 6]",
+  "n_dct_new[16, 1]", "n_dct_new[16, 2]", "n_dct_new[16, 3]", "n_dct_new[16, 4]", "n_dct_new[16, 5]", "n_dct_new[16, 6]",
+  "n_dct_new[17, 1]", "n_dct_new[17, 2]", "n_dct_new[17, 3]", "n_dct_new[17, 4]", "n_dct_new[17, 5]", "n_dct_new[17, 6]",
+  "n_dct_new[18, 1]", "n_dct_new[18, 2]", "n_dct_new[18, 3]", "n_dct_new[18, 4]", "n_dct_new[18, 5]", "n_dct_new[18, 6]",
+  "n_dct_new[19, 1]", "n_dct_new[19, 2]", "n_dct_new[19, 3]", "n_dct_new[19, 4]", "n_dct_new[19, 5]", "n_dct_new[19, 6]",
+  "n_dct_new[20, 1]", "n_dct_new[20, 2]", "n_dct_new[20, 3]", "n_dct_new[20, 4]", "n_dct_new[20, 5]", "n_dct_new[20, 6]",
+  "n_dct_new[21, 1]", "n_dct_new[21, 2]", "n_dct_new[21, 3]", "n_dct_new[21, 4]", "n_dct_new[21, 5]", "n_dct_new[21, 6]",
+  "n_dct_new[22, 1]", "n_dct_new[22, 2]", "n_dct_new[22, 3]", "n_dct_new[22, 4]", "n_dct_new[22, 5]", "n_dct_new[22, 6]",
+  "n_dct_new[23, 1]", "n_dct_new[23, 2]", "n_dct_new[23, 3]", "n_dct_new[23, 4]", "n_dct_new[23, 5]", "n_dct_new[23, 6]",
+  "n_dct_new[24, 1]", "n_dct_new[24, 2]", "n_dct_new[24, 3]", "n_dct_new[24, 4]", "n_dct_new[24, 5]", "n_dct_new[24, 6]",
+  "n_dct_new[25, 1]", "n_dct_new[25, 2]", "n_dct_new[25, 3]", "n_dct_new[25, 4]", "n_dct_new[25, 5]", "n_dct_new[25, 6]",
+  "n_dct_new[26, 1]", "n_dct_new[26, 2]", "n_dct_new[26, 3]", "n_dct_new[26, 4]", "n_dct_new[26, 5]", "n_dct_new[26, 6]",
+  "n_dct_new[27, 1]", "n_dct_new[27, 2]", "n_dct_new[27, 3]", "n_dct_new[27, 4]", "n_dct_new[27, 5]", "n_dct_new[27, 6]",
+  "n_dct_new[28, 1]", "n_dct_new[28, 2]", "n_dct_new[28, 3]", "n_dct_new[28, 4]", "n_dct_new[28, 5]", "n_dct_new[28, 6]",
+  "n_dct_new[29, 1]", "n_dct_new[29, 2]", "n_dct_new[29, 3]", "n_dct_new[29, 4]", "n_dct_new[29, 5]", "n_dct_new[29, 6]",
+  "n_dct_new[30, 1]", "n_dct_new[30, 2]", "n_dct_new[30, 3]", "n_dct_new[30, 4]", "n_dct_new[30, 5]", "n_dct_new[30, 6]",
+  "n_dct_new[31, 1]", "n_dct_new[31, 2]", "n_dct_new[31, 3]", "n_dct_new[31, 4]", "n_dct_new[31, 5]", "n_dct_new[31, 6]",
+  "n_dct_new[32, 1]", "n_dct_new[32, 2]", "n_dct_new[32, 3]", "n_dct_new[32, 4]", "n_dct_new[32, 5]", "n_dct_new[32, 6]",
+  "n_dct_new[33, 1]", "n_dct_new[33, 2]", "n_dct_new[33, 3]", "n_dct_new[33, 4]", "n_dct_new[33, 5]", "n_dct_new[33, 6]",
+  "n_dct_new[34, 1]", "n_dct_new[34, 2]", "n_dct_new[34, 3]", "n_dct_new[34, 4]", "n_dct_new[34, 5]", "n_dct_new[34, 6]",
+  "n_dct_new[35, 1]", "n_dct_new[35, 2]", "n_dct_new[35, 3]", "n_dct_new[35, 4]", "n_dct_new[35, 5]", "n_dct_new[35, 6]",
+  "n_dct_new[36, 1]", "n_dct_new[36, 2]", "n_dct_new[36, 3]", "n_dct_new[36, 4]", "n_dct_new[36, 5]", "n_dct_new[36, 6]",
+  "n_dct_new[37, 1]", "n_dct_new[37, 2]", "n_dct_new[37, 3]", "n_dct_new[37, 4]", "n_dct_new[37, 5]", "n_dct_new[37, 6]",
+  "n_dct_new[38, 1]", "n_dct_new[38, 2]", "n_dct_new[38, 3]", "n_dct_new[38, 4]", "n_dct_new[38, 5]", "n_dct_new[38, 6]",
+  "n_dct_new[39, 1]", "n_dct_new[39, 2]", "n_dct_new[39, 3]", "n_dct_new[39, 4]", "n_dct_new[39, 5]", "n_dct_new[39, 6]",
+  "n_dct_new[40, 1]", "n_dct_new[40, 2]", "n_dct_new[40, 3]", "n_dct_new[40, 4]", "n_dct_new[40, 5]", "n_dct_new[40, 6]",
+  "n_dct_new[41, 1]", "n_dct_new[41, 2]", "n_dct_new[41, 3]", "n_dct_new[41, 4]", "n_dct_new[41, 5]", "n_dct_new[41, 6]",
+  "n_dct_new[42, 1]", "n_dct_new[42, 2]", "n_dct_new[42, 3]", "n_dct_new[42, 4]", "n_dct_new[42, 5]", "n_dct_new[42, 6]",
+  "n_dct_new[43, 1]", "n_dct_new[43, 2]", "n_dct_new[43, 3]", "n_dct_new[43, 4]", "n_dct_new[43, 5]", "n_dct_new[43, 6]",
+  "n_dct_new[44, 1]", "n_dct_new[44, 2]", "n_dct_new[44, 3]", "n_dct_new[44, 4]", "n_dct_new[44, 5]", "n_dct_new[44, 6]",
+  "n_dct_new[45, 1]", "n_dct_new[45, 2]", "n_dct_new[45, 3]", "n_dct_new[45, 4]", "n_dct_new[45, 5]", "n_dct_new[45, 6]",
+  "n_dct_new[46, 1]", "n_dct_new[46, 2]", "n_dct_new[46, 3]", "n_dct_new[46, 4]", "n_dct_new[46, 5]", "n_dct_new[46, 6]",
+  "n_dct_new[47, 1]", "n_dct_new[47, 2]", "n_dct_new[47, 3]", "n_dct_new[47, 4]", "n_dct_new[47, 5]", "n_dct_new[47, 6]",
+  "n_dct_new[48, 1]", "n_dct_new[48, 2]", "n_dct_new[48, 3]", "n_dct_new[48, 4]", "n_dct_new[48, 5]", "n_dct_new[48, 6]",
+  "n_dct_new[49, 1]", "n_dct_new[49, 2]", "n_dct_new[49, 3]", "n_dct_new[49, 4]", "n_dct_new[49, 5]", "n_dct_new[49, 6]",
+  "n_dct_new[50, 1]", "n_dct_new[50, 2]", "n_dct_new[50, 3]", "n_dct_new[50, 4]", "n_dct_new[50, 5]", "n_dct_new[50, 6]",
+  "n_dct_new[51, 1]", "n_dct_new[51, 2]", "n_dct_new[51, 3]", "n_dct_new[51, 4]", "n_dct_new[51, 5]", "n_dct_new[51, 6]",
+  "n_dct_new[52, 1]", "n_dct_new[52, 2]", "n_dct_new[52, 3]", "n_dct_new[52, 4]", "n_dct_new[52, 5]", "n_dct_new[52, 6]",
+  "n_dct_new[53, 1]", "n_dct_new[53, 2]", "n_dct_new[53, 3]", "n_dct_new[53, 4]", "n_dct_new[53, 5]", "n_dct_new[53, 6]",
+  "n_dct_new[54, 1]", "n_dct_new[54, 2]", "n_dct_new[54, 3]", "n_dct_new[54, 4]", "n_dct_new[54, 5]", "n_dct_new[54, 6]",
+  "n_dct_new[55, 1]", "n_dct_new[55, 2]", "n_dct_new[55, 3]", "n_dct_new[55, 4]", "n_dct_new[55, 5]", "n_dct_new[55, 6]",
+  "n_dct_new[56, 1]", "n_dct_new[56, 2]", "n_dct_new[56, 3]", "n_dct_new[56, 4]", "n_dct_new[56, 5]", "n_dct_new[56, 6]",
+  "n_dct_new[57, 1]", "n_dct_new[57, 2]", "n_dct_new[57, 3]", "n_dct_new[57, 4]", "n_dct_new[57, 5]", "n_dct_new[57, 6]",
+  "n_dct_new[58, 1]", "n_dct_new[58, 2]", "n_dct_new[58, 3]", "n_dct_new[58, 4]", "n_dct_new[58, 5]", "n_dct_new[58, 6]",
+  "n_dct_new[59, 1]", "n_dct_new[59, 2]", "n_dct_new[59, 3]", "n_dct_new[59, 4]", "n_dct_new[59, 5]", "n_dct_new[59, 6]",
+  "n_dct_new[60, 1]", "n_dct_new[60, 2]", "n_dct_new[60, 3]", "n_dct_new[60, 4]", "n_dct_new[60, 5]", "n_dct_new[60, 6]"
+),
+  type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
@@ -675,7 +1060,7 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
-saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_all_rf_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -684,7 +1069,7 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_all_rf_model.rds"))
   
  # Traceplots and density graphs 
 MCMCtrace(object = fire_mcmc_out$samples,
@@ -694,7 +1079,7 @@ MCMCtrace(object = fire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_elevation_model_traceplot"),
+          filename = paste0(model_species, "_fire_elevation_all_rf_model_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -720,7 +1105,7 @@ MCMCplot(object = fire_mcmc_out$samples,
 
 # Name the species to model again
 # plot_species <- all_species[k]
-plot_species <- all_species[5]
+plot_species <- all_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -825,8 +1210,9 @@ params_plot <- beta_dat %>%
                                Parameter == "beta.fyear.high" ~ "Years Since Fire Above 1800m",
                                Parameter == "beta.burnsev" ~ "RdNBR Burn Sevarity"),
          # Add a New column for whether or not the CRI crosses Zero
-         Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ 0,
-                                        CRI.lb * CRI.ub > 0 ~ 1))) %>% 
+         Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ "No",
+                                        CRI.lb * CRI.ub > 0 ~ "Yes"), 
+                              levels = c("No", "Yes"))) %>% 
   # Switch to a factor 
   mutate(Parameter = factor(Parameter, levels = c("Reference Below 1800m", "Reference Above 1800m",
                                                   "Burned Below 1800m","Burned Above 1800m",
@@ -847,7 +1233,7 @@ params_plot <- beta_dat %>%
   # Simple theme
   theme_classic() +
   # Custom colors
-  scale_color_manual(values = c("navyblue", "lightsteelblue4")) +
+  scale_color_manual(values = c("lightsteelblue4", "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
         axis.text.y = element_text(size = 16),
@@ -878,7 +1264,7 @@ treatment_pred_plot <- beta_dat %>%
    mutate(Parameter = factor(Parameter, 
                             levels = c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high"))) %>% 
   ggplot() +
-  geom_boxplot(aes(x = Parameter, y = exp(Mean), color = Parameter, fill = Parameter), 
+  geom_boxplot(aes(x = Parameter, y = exp(Mean), color = Parameter), 
                width = 0.45, size = 0.8) +
   geom_errorbar(aes(x = Parameter, ymin = exp(CRI.lb), ymax = exp(CRI.ub), color = Parameter), 
                 width = 0.2, linewidth = 1.4) +

@@ -545,7 +545,7 @@ for(i in 2:(nyears_rap)){
   # 1200 cells seems like a good cutoff to define grids that fully burned (about half in the fire)
   pre_fire_covs <- pre_fire_covs %>% 
     mutate(
-           Fire.Year = case_when(Fire.Pixels >= 1200 ~ year,
+           Fire.Year = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels >= 1200 ~ year,
                                  TRUE ~ Fire.Year), # Year when the most recent fire affected that grid
            Shrub.Cover.PF = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels >= 1200 ~ Shrub.Cover.tmp,
                                       TRUE ~ Shrub.Cover.PF), # Shrub
