@@ -234,7 +234,6 @@ sabs_model_code <- nimbleCode({
   
   # Parameters in the detection portion of the model
   alpha0 ~ T(dnorm(mean = log(0.125), sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
-  alpha_nbirds ~ dnorm(0, sd = 1.5)            # Effect of how many total birds were seen at the site
   
   # Parameters on the abundance component of the model
   
@@ -243,14 +242,6 @@ sabs_model_code <- nimbleCode({
     # Allow the intercept to vary for each treatment group
     beta0_treatment[l] ~ dnorm(0, sd = 3)
   } # End loop over treatments
-
-  # Random effect hyper-parameters
-  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5)
-
-  # Random effect for each year
-  for(y in 1:nyears){ # nyears = 3
-    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
-  } # end loop over years
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -308,12 +299,10 @@ sabs_model_code <- nimbleCode({
                           gamma_time2 * time[j, k]^2      # Effect of scaled time of day squared
       
       # Detectability (sigma) Log-Linear model 
-      log(sigma[j, k]) <- alpha0  +                       # Single intercept on detectability
-                          alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
+      log(sigma[j, k]) <- alpha0                          # Single intercept on detectability
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[j, k]) <- beta0_treatment[trts[j]] +       # Intercept for each grid type
-                           eps_year[years[j, k]]            # Unexplained noise on abundance by year
+      log(lambda[j, k]) <- beta0_treatment[trts[j]]       # Intercept for each grid type
       
       # Assess model fit: compute Bayesian p-value for using a test statisitc
       e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
@@ -356,11 +345,9 @@ sabs_const <- list (
   nvst = nvst,                 # Number of times each grid was surveyed (6)
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
-  nyears = nyears,             # Number of years we surveyed (3)
   ntrts = ntrts,               # Number of treatments
   
   # Non-stochastic constants
-  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid         # Grid of each observation 
@@ -374,7 +361,6 @@ sabs_dat <- list(
   # Detection level data
   dclass = dclass,         # Distance category for each observation
   midpt = midpt,           # Midpoints of distance bins
-  mean_birds = mean_birds, # Total number of birds seen during each survey
   # Availability level data
   tint = tint,             # Time interval for each observation
   time = time,             # Scaled mean time after sunrise
@@ -410,7 +396,6 @@ str(sabs_dims)
 sabs_inits <- list(
   # Detectablility
   alpha0 = runif(1, -3, -1),
-  alpha_nbirds = rnorm(1, 0, 0.1),
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),
   gamma_date = rnorm(1, 0, 0.1),
@@ -419,8 +404,6 @@ sabs_inits <- list(
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
-  sd_eps_year = runif(1, 0, 1),
-  eps_year = rnorm(ngrids, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),
   present = rbinom(ngrids, 1, 0.5),
@@ -437,14 +420,12 @@ sabs_params <- c(
                  "fit",            # Fit statistic for observed data
                  "fit_new",        # Fit statisitc for simulated data
                  "beta0_treatment",
-                 "sd_eps_year",
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
                  "gamma_time",
                  "gamma_time2",
-                 "alpha0",
-                 "alpha_nbirds"   # Effect of how many total birds were seen on detection probability
+                 "alpha0"
                  )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -479,34 +460,15 @@ sabs_mcmcConf$addSampler(target = c(
   "gamma_date2", "gamma_time2"
   ), type = 'RW_block')
 
-# Block all detection (alpha) nodes together
-sabs_mcmcConf$removeSamplers(
-  # Intercept
-  "alpha0",
-  # Effect of seeing more birds on a survey
-  "alpha_nbirds"
-)
-sabs_mcmcConf$addSampler(target = c(
-  # Intercept
-  "alpha0",
-  # Effect of seeing more birds on a survey
-  "alpha_nbirds"
-), type = 'RW_block')
-
-
 # Block all abundance (beta) nodes together
 sabs_mcmcConf$removeSamplers(
   # Intercept by Treatment
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
-  # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
   )
 
 sabs_mcmcConf$addSampler(target = c(
   # Intercept by Treatment
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
-  # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
   ), type = 'RW_block')
 
 # Block all occupancy (psi) nodes together
@@ -745,6 +707,7 @@ params_plot <- beta_dat %>%
   # Edit theme
   theme(legend.position = "none",
         axis.text.y = element_text(size = 16),
+        axis.title.y = element_blank(),
         axis.title.x = element_text(size = 16),
         axis.text.x = element_text(size = 16)) 
 

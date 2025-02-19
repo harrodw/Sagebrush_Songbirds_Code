@@ -320,7 +320,7 @@ sobs_model_code <- nimbleCode({
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
-  # -------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
   # Iterate over all survey grids
@@ -356,15 +356,12 @@ sobs_model_code <- nimbleCode({
       p_d[j, k] <- sum(pi_pd[j, k, ])
       
       # # Multiply availability with detection probability to yield total probability of capturing a bird
-      # p_cap[j, k] <- p_d[j, k] * p_a[j, k]
+      p_cap[j, k] <- p_d[j, k] * p_a[j, k]
       
       ### Binomial portion of mixture ###
       
       # Number of individual birds detected (observations)
-      n_dct[j, k] ~ dbin(p_d[j, k], n_avail[j, k]) 
-      
-      # Number of birds avaiable
-      n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
+      n_dct[j, k] ~ dbin(p_cap[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
       N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j
@@ -386,23 +383,22 @@ sobs_model_code <- nimbleCode({
                            beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
                            eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
+      # ------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
       
+      # Test statistic for observed data
+      e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
+      Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] +0.5) # Compute chi squared statistic for observed data
       
-      # Chi square statisitc for the availability portion of the model
-      e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
-      n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new avaiable birds from the same binomial
-      Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
-      Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
-      
-      # Chi square statisitc for the detection portion of the model
-      e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
-      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
-      Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
-      Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
+      # Generate replicate count data and compute same fit stats for them
+      n_dct_new[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])                        # Draw new detentions from the same binomial
+      Chi_new[j, k] <- (n_dct_new[j, k] - e_val[j, k])^2 / (e_val[j, k] + 0.5) # Compute chi squared statistic for simulated data data
       
     } # end loop through visits
   } # end loop through survey grids
+  
+  # ----------------------------------------------------------------------------
+  # Availability and detecability likelihood
   
   # Model for binned distance observations of every detected individual
   for(i in 1:nind){       # Loop over all detected individuals
@@ -410,13 +406,15 @@ sobs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])      # likelihood for time removal data
   } # end observation distance and time of detection loop
   
-  # Add up fit stats for avaiability across sites and years
-  fit_pa <- sum(Chi_pa[,])
-  fit_pa_new <- sum(Chi_pa_new[,])
+  # ----------------------------------------------------------------------------
+  # Combine fit statistics
   
-  # Add up fit stats for detectability across sites and years
-  fit_pd <- sum(Chi_pd[,])
-  fit_pd_new <- sum(Chi_pd_new[,])
+  # Add up fit stats across sites and years
+  fit <- sum(Chi[,])
+  fit_new <- sum(Chi_new[,])
+  
+  # Compute over dispersion parameter (c_hat)
+  c_hat <- fit / fit_new
   
 }) # end model statement
 
@@ -457,7 +455,7 @@ sobs_dat <- list(
   # Detection level data
   dclass = dclass,             # Distance category for each observation
   midpt = midpt,               # Midpoints of distance bins
-  mean_birds = mean_birds,     # Total number of birds seen during each survey
+  # mean_birds = mean_birds,     # Total number of birds seen during each survey
   # Availability level data
   tint = tint,                 # Time interval for each observation
   time = time,                 # Scaled mean time after sunrise
@@ -483,14 +481,12 @@ sobs_dims <- list(
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   p_a = c(ngrids, nvst),             # Availability probability
-  # p_cap = c(ngrids, nvst),           # Combined probability of detecting an available bird
+  p_cap = c(ngrids, nvst),           # Combined probability of detecting an available bird
   lambda = c(ngrids, nvst),          # Poisson random variable
   e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
   e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
-  Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
-  Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
-  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
-  Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
+  Chi = c(ngrids , nvst),            # Observed Chi square statistic for availability
+  Chi_new = c(ngrids, nvst)          # Simulated Chi square statistic for availability
 )
 
 # View dimensions
@@ -500,7 +496,7 @@ str(sobs_dims)
 sobs_inits <- list(
   # Detectablility
   alpha0_obsv = runif(nobsv, -2, -0.1),   # Effect of each observer on detecability
-  # alpha_nbirds = rnorm(1, 0, 0.1),
+  # alpha_nbirds = rnorm(1, 0, 0.1),       # Effect of how many total birds were seen on detection probability
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),              # Intercept on availability
   gamma_date = rnorm(1, 0, 0.1),          # Effect of date on availability
@@ -512,14 +508,12 @@ sobs_inits <- list(
   beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
   beta_burnsev = rnorm(1, 0, 0.1),        # Effect of burn severity
   sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
-  eps_year = rnorm(years, 0, 0.1),        # Random noise on abundance by year
+  eps_year = rnorm(nyears, 0, 0.1),        # Random noise on abundance by year
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
   present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
   # Simulated counts
-  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
-  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
   N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
 )
 # View the initial values
@@ -527,10 +521,9 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
-  "fit_pd",          # Fit statistic for observed data
-  "fit_pd_new",      # Fit statisitc for simulated detection  data
-  "fit_pa",          # Fit statistic for first availability data
-  "fit_pa_new",      # Fit statisitc for simulated avaiability data
+  "fit",             # Fit statistic for observed data
+  "fit_new",          # Fit statisitc for simulated data
+  "c_hat",           # Overdispersion parameter
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
   "beta_burnsev",    # Effect of RdNBR burn sevarity
@@ -635,539 +628,6 @@ sobs_mcmcConf$addSampler(target = c(
   "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
 ), type = 'RW_block')
 
-# Block all presence (present) nodes together
-sobs_mcmcConf$removeSamplers(
-  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
-  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
-  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
-  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
-  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
-  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
-  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
-  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
-  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
-  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
-  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
-  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
-  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
-  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
-  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
-  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
-  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
-  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
-  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
-), type = 'RW_block')
-
-# Block all available birds nodes (n_avail) Nodes together
-sobs_mcmcConf$removeSamplers(
-  "n_avail[1, 1]", "n_avail[1, 2]", "n_avail[1, 3]", "n_avail[1, 4]", "n_avail[1, 5]", "n_avail[1, 6]",
-  "n_avail[2, 1]", "n_avail[2, 2]", "n_avail[2, 3]", "n_avail[2, 4]", "n_avail[2, 5]", "n_avail[2, 6]",
-  "n_avail[3, 1]", "n_avail[3, 2]", "n_avail[3, 3]", "n_avail[3, 4]", "n_avail[3, 5]", "n_avail[3, 6]",
-  "n_avail[4, 1]", "n_avail[4, 2]", "n_avail[4, 3]", "n_avail[4, 4]", "n_avail[4, 5]", "n_avail[4, 6]",
-  "n_avail[5, 1]", "n_avail[5, 2]", "n_avail[5, 3]", "n_avail[5, 4]", "n_avail[5, 5]", "n_avail[5, 6]",
-  "n_avail[6, 1]", "n_avail[6, 2]", "n_avail[6, 3]", "n_avail[6, 4]", "n_avail[6, 5]", "n_avail[6, 6]",
-  "n_avail[7, 1]", "n_avail[7, 2]", "n_avail[7, 3]", "n_avail[7, 4]", "n_avail[7, 5]", "n_avail[7, 6]",
-  "n_avail[8, 1]", "n_avail[8, 2]", "n_avail[8, 3]", "n_avail[8, 4]", "n_avail[8, 5]", "n_avail[8, 6]",
-  "n_avail[9, 1]", "n_avail[9, 2]", "n_avail[9, 3]", "n_avail[9, 4]", "n_avail[9, 5]", "n_avail[9, 6]",
-  "n_avail[10, 1]", "n_avail[10, 2]", "n_avail[10, 3]", "n_avail[10, 4]", "n_avail[10, 5]", "n_avail[10, 6]",
-  "n_avail[11, 1]", "n_avail[11, 2]", "n_avail[11, 3]", "n_avail[11, 4]", "n_avail[11, 5]", "n_avail[11, 6]",
-  "n_avail[12, 1]", "n_avail[12, 2]", "n_avail[12, 3]", "n_avail[12, 4]", "n_avail[12, 5]", "n_avail[12, 6]",
-  "n_avail[13, 1]", "n_avail[13, 2]", "n_avail[13, 3]", "n_avail[13, 4]", "n_avail[13, 5]", "n_avail[13, 6]",
-  "n_avail[14, 1]", "n_avail[14, 2]", "n_avail[14, 3]", "n_avail[14, 4]", "n_avail[14, 5]", "n_avail[14, 6]",
-  "n_avail[15, 1]", "n_avail[15, 2]", "n_avail[15, 3]", "n_avail[15, 4]", "n_avail[15, 5]", "n_avail[15, 6]",
-  "n_avail[16, 1]", "n_avail[16, 2]", "n_avail[16, 3]", "n_avail[16, 4]", "n_avail[16, 5]", "n_avail[16, 6]",
-  "n_avail[17, 1]", "n_avail[17, 2]", "n_avail[17, 3]", "n_avail[17, 4]", "n_avail[17, 5]", "n_avail[17, 6]",
-  "n_avail[18, 1]", "n_avail[18, 2]", "n_avail[18, 3]", "n_avail[18, 4]", "n_avail[18, 5]", "n_avail[18, 6]",
-  "n_avail[19, 1]", "n_avail[19, 2]", "n_avail[19, 3]", "n_avail[19, 4]", "n_avail[19, 5]", "n_avail[19, 6]",
-  "n_avail[20, 1]", "n_avail[20, 2]", "n_avail[20, 3]", "n_avail[20, 4]", "n_avail[20, 5]", "n_avail[20, 6]",
-  "n_avail[21, 1]", "n_avail[21, 2]", "n_avail[21, 3]", "n_avail[21, 4]", "n_avail[21, 5]", "n_avail[21, 6]",
-  "n_avail[22, 1]", "n_avail[22, 2]", "n_avail[22, 3]", "n_avail[22, 4]", "n_avail[22, 5]", "n_avail[22, 6]",
-  "n_avail[23, 1]", "n_avail[23, 2]", "n_avail[23, 3]", "n_avail[23, 4]", "n_avail[23, 5]", "n_avail[23, 6]",
-  "n_avail[24, 1]", "n_avail[24, 2]", "n_avail[24, 3]", "n_avail[24, 4]", "n_avail[24, 5]", "n_avail[24, 6]",
-  "n_avail[25, 1]", "n_avail[25, 2]", "n_avail[25, 3]", "n_avail[25, 4]", "n_avail[25, 5]", "n_avail[25, 6]",
-  "n_avail[26, 1]", "n_avail[26, 2]", "n_avail[26, 3]", "n_avail[26, 4]", "n_avail[26, 5]", "n_avail[26, 6]",
-  "n_avail[27, 1]", "n_avail[27, 2]", "n_avail[27, 3]", "n_avail[27, 4]", "n_avail[27, 5]", "n_avail[27, 6]",
-  "n_avail[28, 1]", "n_avail[28, 2]", "n_avail[28, 3]", "n_avail[28, 4]", "n_avail[28, 5]", "n_avail[28, 6]",
-  "n_avail[29, 1]", "n_avail[29, 2]", "n_avail[29, 3]", "n_avail[29, 4]", "n_avail[29, 5]", "n_avail[29, 6]",
-  "n_avail[30, 1]", "n_avail[30, 2]", "n_avail[30, 3]", "n_avail[30, 4]", "n_avail[30, 5]", "n_avail[30, 6]",
-  "n_avail[31, 1]", "n_avail[31, 2]", "n_avail[31, 3]", "n_avail[31, 4]", "n_avail[31, 5]", "n_avail[31, 6]",
-  "n_avail[32, 1]", "n_avail[32, 2]", "n_avail[32, 3]", "n_avail[32, 4]", "n_avail[32, 5]", "n_avail[32, 6]",
-  "n_avail[33, 1]", "n_avail[33, 2]", "n_avail[33, 3]", "n_avail[33, 4]", "n_avail[33, 5]", "n_avail[33, 6]",
-  "n_avail[34, 1]", "n_avail[34, 2]", "n_avail[34, 3]", "n_avail[34, 4]", "n_avail[34, 5]", "n_avail[34, 6]",
-  "n_avail[35, 1]", "n_avail[35, 2]", "n_avail[35, 3]", "n_avail[35, 4]", "n_avail[35, 5]", "n_avail[35, 6]",
-  "n_avail[36, 1]", "n_avail[36, 2]", "n_avail[36, 3]", "n_avail[36, 4]", "n_avail[36, 5]", "n_avail[36, 6]",
-  "n_avail[37, 1]", "n_avail[37, 2]", "n_avail[37, 3]", "n_avail[37, 4]", "n_avail[37, 5]", "n_avail[37, 6]",
-  "n_avail[38, 1]", "n_avail[38, 2]", "n_avail[38, 3]", "n_avail[38, 4]", "n_avail[38, 5]", "n_avail[38, 6]",
-  "n_avail[39, 1]", "n_avail[39, 2]", "n_avail[39, 3]", "n_avail[39, 4]", "n_avail[39, 5]", "n_avail[39, 6]",
-  "n_avail[40, 1]", "n_avail[40, 2]", "n_avail[40, 3]", "n_avail[40, 4]", "n_avail[40, 5]", "n_avail[40, 6]",
-  "n_avail[41, 1]", "n_avail[41, 2]", "n_avail[41, 3]", "n_avail[41, 4]", "n_avail[41, 5]", "n_avail[41, 6]",
-  "n_avail[42, 1]", "n_avail[42, 2]", "n_avail[42, 3]", "n_avail[42, 4]", "n_avail[42, 5]", "n_avail[42, 6]",
-  "n_avail[43, 1]", "n_avail[43, 2]", "n_avail[43, 3]", "n_avail[43, 4]", "n_avail[43, 5]", "n_avail[43, 6]",
-  "n_avail[44, 1]", "n_avail[44, 2]", "n_avail[44, 3]", "n_avail[44, 4]", "n_avail[44, 5]", "n_avail[44, 6]",
-  "n_avail[45, 1]", "n_avail[45, 2]", "n_avail[45, 3]", "n_avail[45, 4]", "n_avail[45, 5]", "n_avail[45, 6]",
-  "n_avail[46, 1]", "n_avail[46, 2]", "n_avail[46, 3]", "n_avail[46, 4]", "n_avail[46, 5]", "n_avail[46, 6]",
-  "n_avail[47, 1]", "n_avail[47, 2]", "n_avail[47, 3]", "n_avail[47, 4]", "n_avail[47, 5]", "n_avail[47, 6]",
-  "n_avail[48, 1]", "n_avail[48, 2]", "n_avail[48, 3]", "n_avail[48, 4]", "n_avail[48, 5]", "n_avail[48, 6]",
-  "n_avail[49, 1]", "n_avail[49, 2]", "n_avail[49, 3]", "n_avail[49, 4]", "n_avail[49, 5]", "n_avail[49, 6]",
-  "n_avail[50, 1]", "n_avail[50, 2]", "n_avail[50, 3]", "n_avail[50, 4]", "n_avail[50, 5]", "n_avail[50, 6]",
-  "n_avail[51, 1]", "n_avail[51, 2]", "n_avail[51, 3]", "n_avail[51, 4]", "n_avail[51, 5]", "n_avail[51, 6]",
-  "n_avail[52, 1]", "n_avail[52, 2]", "n_avail[52, 3]", "n_avail[52, 4]", "n_avail[52, 5]", "n_avail[52, 6]",
-  "n_avail[53, 1]", "n_avail[53, 2]", "n_avail[53, 3]", "n_avail[53, 4]", "n_avail[53, 5]", "n_avail[53, 6]",
-  "n_avail[54, 1]", "n_avail[54, 2]", "n_avail[54, 3]", "n_avail[54, 4]", "n_avail[54, 5]", "n_avail[54, 6]",
-  "n_avail[55, 1]", "n_avail[55, 2]", "n_avail[55, 3]", "n_avail[55, 4]", "n_avail[55, 5]", "n_avail[55, 6]",
-  "n_avail[56, 1]", "n_avail[56, 2]", "n_avail[56, 3]", "n_avail[56, 4]", "n_avail[56, 5]", "n_avail[56, 6]",
-  "n_avail[57, 1]", "n_avail[57, 2]", "n_avail[57, 3]", "n_avail[57, 4]", "n_avail[57, 5]", "n_avail[57, 6]",
-  "n_avail[58, 1]", "n_avail[58, 2]", "n_avail[58, 3]", "n_avail[58, 4]", "n_avail[58, 5]", "n_avail[58, 6]",
-  "n_avail[59, 1]", "n_avail[59, 2]", "n_avail[59, 3]", "n_avail[59, 4]", "n_avail[59, 5]", "n_avail[59, 6]",
-  "n_avail[60, 1]", "n_avail[60, 2]", "n_avail[60, 3]", "n_avail[60, 4]", "n_avail[60, 5]", "n_avail[60, 6]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "n_avail[1, 1]", "n_avail[1, 2]", "n_avail[1, 3]", "n_avail[1, 4]", "n_avail[1, 5]", "n_avail[1, 6]",
-  "n_avail[2, 1]", "n_avail[2, 2]", "n_avail[2, 3]", "n_avail[2, 4]", "n_avail[2, 5]", "n_avail[2, 6]",
-  "n_avail[3, 1]", "n_avail[3, 2]", "n_avail[3, 3]", "n_avail[3, 4]", "n_avail[3, 5]", "n_avail[3, 6]",
-  "n_avail[4, 1]", "n_avail[4, 2]", "n_avail[4, 3]", "n_avail[4, 4]", "n_avail[4, 5]", "n_avail[4, 6]",
-  "n_avail[5, 1]", "n_avail[5, 2]", "n_avail[5, 3]", "n_avail[5, 4]", "n_avail[5, 5]", "n_avail[5, 6]",
-  "n_avail[6, 1]", "n_avail[6, 2]", "n_avail[6, 3]", "n_avail[6, 4]", "n_avail[6, 5]", "n_avail[6, 6]",
-  "n_avail[7, 1]", "n_avail[7, 2]", "n_avail[7, 3]", "n_avail[7, 4]", "n_avail[7, 5]", "n_avail[7, 6]",
-  "n_avail[8, 1]", "n_avail[8, 2]", "n_avail[8, 3]", "n_avail[8, 4]", "n_avail[8, 5]", "n_avail[8, 6]",
-  "n_avail[9, 1]", "n_avail[9, 2]", "n_avail[9, 3]", "n_avail[9, 4]", "n_avail[9, 5]", "n_avail[9, 6]",
-  "n_avail[10, 1]", "n_avail[10, 2]", "n_avail[10, 3]", "n_avail[10, 4]", "n_avail[10, 5]", "n_avail[10, 6]",
-  "n_avail[11, 1]", "n_avail[11, 2]", "n_avail[11, 3]", "n_avail[11, 4]", "n_avail[11, 5]", "n_avail[11, 6]",
-  "n_avail[12, 1]", "n_avail[12, 2]", "n_avail[12, 3]", "n_avail[12, 4]", "n_avail[12, 5]", "n_avail[12, 6]",
-  "n_avail[13, 1]", "n_avail[13, 2]", "n_avail[13, 3]", "n_avail[13, 4]", "n_avail[13, 5]", "n_avail[13, 6]",
-  "n_avail[14, 1]", "n_avail[14, 2]", "n_avail[14, 3]", "n_avail[14, 4]", "n_avail[14, 5]", "n_avail[14, 6]",
-  "n_avail[15, 1]", "n_avail[15, 2]", "n_avail[15, 3]", "n_avail[15, 4]", "n_avail[15, 5]", "n_avail[15, 6]",
-  "n_avail[16, 1]", "n_avail[16, 2]", "n_avail[16, 3]", "n_avail[16, 4]", "n_avail[16, 5]", "n_avail[16, 6]",
-  "n_avail[17, 1]", "n_avail[17, 2]", "n_avail[17, 3]", "n_avail[17, 4]", "n_avail[17, 5]", "n_avail[17, 6]",
-  "n_avail[18, 1]", "n_avail[18, 2]", "n_avail[18, 3]", "n_avail[18, 4]", "n_avail[18, 5]", "n_avail[18, 6]",
-  "n_avail[19, 1]", "n_avail[19, 2]", "n_avail[19, 3]", "n_avail[19, 4]", "n_avail[19, 5]", "n_avail[19, 6]",
-  "n_avail[20, 1]", "n_avail[20, 2]", "n_avail[20, 3]", "n_avail[20, 4]", "n_avail[20, 5]", "n_avail[20, 6]",
-  "n_avail[21, 1]", "n_avail[21, 2]", "n_avail[21, 3]", "n_avail[21, 4]", "n_avail[21, 5]", "n_avail[21, 6]",
-  "n_avail[22, 1]", "n_avail[22, 2]", "n_avail[22, 3]", "n_avail[22, 4]", "n_avail[22, 5]", "n_avail[22, 6]",
-  "n_avail[23, 1]", "n_avail[23, 2]", "n_avail[23, 3]", "n_avail[23, 4]", "n_avail[23, 5]", "n_avail[23, 6]",
-  "n_avail[24, 1]", "n_avail[24, 2]", "n_avail[24, 3]", "n_avail[24, 4]", "n_avail[24, 5]", "n_avail[24, 6]",
-  "n_avail[25, 1]", "n_avail[25, 2]", "n_avail[25, 3]", "n_avail[25, 4]", "n_avail[25, 5]", "n_avail[25, 6]",
-  "n_avail[26, 1]", "n_avail[26, 2]", "n_avail[26, 3]", "n_avail[26, 4]", "n_avail[26, 5]", "n_avail[26, 6]",
-  "n_avail[27, 1]", "n_avail[27, 2]", "n_avail[27, 3]", "n_avail[27, 4]", "n_avail[27, 5]", "n_avail[27, 6]",
-  "n_avail[28, 1]", "n_avail[28, 2]", "n_avail[28, 3]", "n_avail[28, 4]", "n_avail[28, 5]", "n_avail[28, 6]",
-  "n_avail[29, 1]", "n_avail[29, 2]", "n_avail[29, 3]", "n_avail[29, 4]", "n_avail[29, 5]", "n_avail[29, 6]",
-  "n_avail[30, 1]", "n_avail[30, 2]", "n_avail[30, 3]", "n_avail[30, 4]", "n_avail[30, 5]", "n_avail[30, 6]",
-  "n_avail[31, 1]", "n_avail[31, 2]", "n_avail[31, 3]", "n_avail[31, 4]", "n_avail[31, 5]", "n_avail[31, 6]",
-  "n_avail[32, 1]", "n_avail[32, 2]", "n_avail[32, 3]", "n_avail[32, 4]", "n_avail[32, 5]", "n_avail[32, 6]",
-  "n_avail[33, 1]", "n_avail[33, 2]", "n_avail[33, 3]", "n_avail[33, 4]", "n_avail[33, 5]", "n_avail[33, 6]",
-  "n_avail[34, 1]", "n_avail[34, 2]", "n_avail[34, 3]", "n_avail[34, 4]", "n_avail[34, 5]", "n_avail[34, 6]",
-  "n_avail[35, 1]", "n_avail[35, 2]", "n_avail[35, 3]", "n_avail[35, 4]", "n_avail[35, 5]", "n_avail[35, 6]",
-  "n_avail[36, 1]", "n_avail[36, 2]", "n_avail[36, 3]", "n_avail[36, 4]", "n_avail[36, 5]", "n_avail[36, 6]",
-  "n_avail[37, 1]", "n_avail[37, 2]", "n_avail[37, 3]", "n_avail[37, 4]", "n_avail[37, 5]", "n_avail[37, 6]",
-  "n_avail[38, 1]", "n_avail[38, 2]", "n_avail[38, 3]", "n_avail[38, 4]", "n_avail[38, 5]", "n_avail[38, 6]",
-  "n_avail[39, 1]", "n_avail[39, 2]", "n_avail[39, 3]", "n_avail[39, 4]", "n_avail[39, 5]", "n_avail[39, 6]",
-  "n_avail[40, 1]", "n_avail[40, 2]", "n_avail[40, 3]", "n_avail[40, 4]", "n_avail[40, 5]", "n_avail[40, 6]",
-  "n_avail[41, 1]", "n_avail[41, 2]", "n_avail[41, 3]", "n_avail[41, 4]", "n_avail[41, 5]", "n_avail[41, 6]",
-  "n_avail[42, 1]", "n_avail[42, 2]", "n_avail[42, 3]", "n_avail[42, 4]", "n_avail[42, 5]", "n_avail[42, 6]",
-  "n_avail[43, 1]", "n_avail[43, 2]", "n_avail[43, 3]", "n_avail[43, 4]", "n_avail[43, 5]", "n_avail[43, 6]",
-  "n_avail[44, 1]", "n_avail[44, 2]", "n_avail[44, 3]", "n_avail[44, 4]", "n_avail[44, 5]", "n_avail[44, 6]",
-  "n_avail[45, 1]", "n_avail[45, 2]", "n_avail[45, 3]", "n_avail[45, 4]", "n_avail[45, 5]", "n_avail[45, 6]",
-  "n_avail[46, 1]", "n_avail[46, 2]", "n_avail[46, 3]", "n_avail[46, 4]", "n_avail[46, 5]", "n_avail[46, 6]",
-  "n_avail[47, 1]", "n_avail[47, 2]", "n_avail[47, 3]", "n_avail[47, 4]", "n_avail[47, 5]", "n_avail[47, 6]",
-  "n_avail[48, 1]", "n_avail[48, 2]", "n_avail[48, 3]", "n_avail[48, 4]", "n_avail[48, 5]", "n_avail[48, 6]",
-  "n_avail[49, 1]", "n_avail[49, 2]", "n_avail[49, 3]", "n_avail[49, 4]", "n_avail[49, 5]", "n_avail[49, 6]",
-  "n_avail[50, 1]", "n_avail[50, 2]", "n_avail[50, 3]", "n_avail[50, 4]", "n_avail[50, 5]", "n_avail[50, 6]",
-  "n_avail[51, 1]", "n_avail[51, 2]", "n_avail[51, 3]", "n_avail[51, 4]", "n_avail[51, 5]", "n_avail[51, 6]",
-  "n_avail[52, 1]", "n_avail[52, 2]", "n_avail[52, 3]", "n_avail[52, 4]", "n_avail[52, 5]", "n_avail[52, 6]",
-  "n_avail[53, 1]", "n_avail[53, 2]", "n_avail[53, 3]", "n_avail[53, 4]", "n_avail[53, 5]", "n_avail[53, 6]",
-  "n_avail[54, 1]", "n_avail[54, 2]", "n_avail[54, 3]", "n_avail[54, 4]", "n_avail[54, 5]", "n_avail[54, 6]",
-  "n_avail[55, 1]", "n_avail[55, 2]", "n_avail[55, 3]", "n_avail[55, 4]", "n_avail[55, 5]", "n_avail[55, 6]",
-  "n_avail[56, 1]", "n_avail[56, 2]", "n_avail[56, 3]", "n_avail[56, 4]", "n_avail[56, 5]", "n_avail[56, 6]",
-  "n_avail[57, 1]", "n_avail[57, 2]", "n_avail[57, 3]", "n_avail[57, 4]", "n_avail[57, 5]", "n_avail[57, 6]",
-  "n_avail[58, 1]", "n_avail[58, 2]", "n_avail[58, 3]", "n_avail[58, 4]", "n_avail[58, 5]", "n_avail[58, 6]",
-  "n_avail[59, 1]", "n_avail[59, 2]", "n_avail[59, 3]", "n_avail[59, 4]", "n_avail[59, 5]", "n_avail[59, 6]",
-  "n_avail[60, 1]", "n_avail[60, 2]", "n_avail[60, 3]", "n_avail[60, 4]", "n_avail[60, 5]", "n_avail[60, 6]"
-),
-type = 'RW_block')
-
-# Block all density (N_indv) Nodes together
-sobs_mcmcConf$removeSamplers(
-  "N_indv[1, 1]", "N_indv[1, 2]", "N_indv[1, 3]", "N_indv[1, 4]", "N_indv[1, 5]", "N_indv[1, 6]",
-  "N_indv[2, 1]", "N_indv[2, 2]", "N_indv[2, 3]", "N_indv[2, 4]", "N_indv[2, 5]", "N_indv[2, 6]",
-  "N_indv[3, 1]", "N_indv[3, 2]", "N_indv[3, 3]", "N_indv[3, 4]", "N_indv[3, 5]", "N_indv[3, 6]",
-  "N_indv[4, 1]", "N_indv[4, 2]", "N_indv[4, 3]", "N_indv[4, 4]", "N_indv[4, 5]", "N_indv[4, 6]",
-  "N_indv[5, 1]", "N_indv[5, 2]", "N_indv[5, 3]", "N_indv[5, 4]", "N_indv[5, 5]", "N_indv[5, 6]",
-  "N_indv[6, 1]", "N_indv[6, 2]", "N_indv[6, 3]", "N_indv[6, 4]", "N_indv[6, 5]", "N_indv[6, 6]",
-  "N_indv[7, 1]", "N_indv[7, 2]", "N_indv[7, 3]", "N_indv[7, 4]", "N_indv[7, 5]", "N_indv[7, 6]",
-  "N_indv[8, 1]", "N_indv[8, 2]", "N_indv[8, 3]", "N_indv[8, 4]", "N_indv[8, 5]", "N_indv[8, 6]",
-  "N_indv[9, 1]", "N_indv[9, 2]", "N_indv[9, 3]", "N_indv[9, 4]", "N_indv[9, 5]", "N_indv[9, 6]",
-  "N_indv[10, 1]", "N_indv[10, 2]", "N_indv[10, 3]", "N_indv[10, 4]", "N_indv[10, 5]", "N_indv[10, 6]",
-  "N_indv[11, 1]", "N_indv[11, 2]", "N_indv[11, 3]", "N_indv[11, 4]", "N_indv[11, 5]", "N_indv[11, 6]",
-  "N_indv[12, 1]", "N_indv[12, 2]", "N_indv[12, 3]", "N_indv[12, 4]", "N_indv[12, 5]", "N_indv[12, 6]",
-  "N_indv[13, 1]", "N_indv[13, 2]", "N_indv[13, 3]", "N_indv[13, 4]", "N_indv[13, 5]", "N_indv[13, 6]",
-  "N_indv[14, 1]", "N_indv[14, 2]", "N_indv[14, 3]", "N_indv[14, 4]", "N_indv[14, 5]", "N_indv[14, 6]",
-  "N_indv[15, 1]", "N_indv[15, 2]", "N_indv[15, 3]", "N_indv[15, 4]", "N_indv[15, 5]", "N_indv[15, 6]",
-  "N_indv[16, 1]", "N_indv[16, 2]", "N_indv[16, 3]", "N_indv[16, 4]", "N_indv[16, 5]", "N_indv[16, 6]",
-  "N_indv[17, 1]", "N_indv[17, 2]", "N_indv[17, 3]", "N_indv[17, 4]", "N_indv[17, 5]", "N_indv[17, 6]",
-  "N_indv[18, 1]", "N_indv[18, 2]", "N_indv[18, 3]", "N_indv[18, 4]", "N_indv[18, 5]", "N_indv[18, 6]",
-  "N_indv[19, 1]", "N_indv[19, 2]", "N_indv[19, 3]", "N_indv[19, 4]", "N_indv[19, 5]", "N_indv[19, 6]",
-  "N_indv[20, 1]", "N_indv[20, 2]", "N_indv[20, 3]", "N_indv[20, 4]", "N_indv[20, 5]", "N_indv[20, 6]",
-  "N_indv[21, 1]", "N_indv[21, 2]", "N_indv[21, 3]", "N_indv[21, 4]", "N_indv[21, 5]", "N_indv[21, 6]",
-  "N_indv[22, 1]", "N_indv[22, 2]", "N_indv[22, 3]", "N_indv[22, 4]", "N_indv[22, 5]", "N_indv[22, 6]",
-  "N_indv[23, 1]", "N_indv[23, 2]", "N_indv[23, 3]", "N_indv[23, 4]", "N_indv[23, 5]", "N_indv[23, 6]",
-  "N_indv[24, 1]", "N_indv[24, 2]", "N_indv[24, 3]", "N_indv[24, 4]", "N_indv[24, 5]", "N_indv[24, 6]",
-  "N_indv[25, 1]", "N_indv[25, 2]", "N_indv[25, 3]", "N_indv[25, 4]", "N_indv[25, 5]", "N_indv[25, 6]",
-  "N_indv[26, 1]", "N_indv[26, 2]", "N_indv[26, 3]", "N_indv[26, 4]", "N_indv[26, 5]", "N_indv[26, 6]",
-  "N_indv[27, 1]", "N_indv[27, 2]", "N_indv[27, 3]", "N_indv[27, 4]", "N_indv[27, 5]", "N_indv[27, 6]",
-  "N_indv[28, 1]", "N_indv[28, 2]", "N_indv[28, 3]", "N_indv[28, 4]", "N_indv[28, 5]", "N_indv[28, 6]",
-  "N_indv[29, 1]", "N_indv[29, 2]", "N_indv[29, 3]", "N_indv[29, 4]", "N_indv[29, 5]", "N_indv[29, 6]",
-  "N_indv[30, 1]", "N_indv[30, 2]", "N_indv[30, 3]", "N_indv[30, 4]", "N_indv[30, 5]", "N_indv[30, 6]",
-  "N_indv[31, 1]", "N_indv[31, 2]", "N_indv[31, 3]", "N_indv[31, 4]", "N_indv[31, 5]", "N_indv[31, 6]",
-  "N_indv[32, 1]", "N_indv[32, 2]", "N_indv[32, 3]", "N_indv[32, 4]", "N_indv[32, 5]", "N_indv[32, 6]",
-  "N_indv[33, 1]", "N_indv[33, 2]", "N_indv[33, 3]", "N_indv[33, 4]", "N_indv[33, 5]", "N_indv[33, 6]",
-  "N_indv[34, 1]", "N_indv[34, 2]", "N_indv[34, 3]", "N_indv[34, 4]", "N_indv[34, 5]", "N_indv[34, 6]",
-  "N_indv[35, 1]", "N_indv[35, 2]", "N_indv[35, 3]", "N_indv[35, 4]", "N_indv[35, 5]", "N_indv[35, 6]",
-  "N_indv[36, 1]", "N_indv[36, 2]", "N_indv[36, 3]", "N_indv[36, 4]", "N_indv[36, 5]", "N_indv[36, 6]",
-  "N_indv[37, 1]", "N_indv[37, 2]", "N_indv[37, 3]", "N_indv[37, 4]", "N_indv[37, 5]", "N_indv[37, 6]",
-  "N_indv[38, 1]", "N_indv[38, 2]", "N_indv[38, 3]", "N_indv[38, 4]", "N_indv[38, 5]", "N_indv[38, 6]",
-  "N_indv[39, 1]", "N_indv[39, 2]", "N_indv[39, 3]", "N_indv[39, 4]", "N_indv[39, 5]", "N_indv[39, 6]",
-  "N_indv[40, 1]", "N_indv[40, 2]", "N_indv[40, 3]", "N_indv[40, 4]", "N_indv[40, 5]", "N_indv[40, 6]",
-  "N_indv[41, 1]", "N_indv[41, 2]", "N_indv[41, 3]", "N_indv[41, 4]", "N_indv[41, 5]", "N_indv[41, 6]",
-  "N_indv[42, 1]", "N_indv[42, 2]", "N_indv[42, 3]", "N_indv[42, 4]", "N_indv[42, 5]", "N_indv[42, 6]",
-  "N_indv[43, 1]", "N_indv[43, 2]", "N_indv[43, 3]", "N_indv[43, 4]", "N_indv[43, 5]", "N_indv[43, 6]",
-  "N_indv[44, 1]", "N_indv[44, 2]", "N_indv[44, 3]", "N_indv[44, 4]", "N_indv[44, 5]", "N_indv[44, 6]",
-  "N_indv[45, 1]", "N_indv[45, 2]", "N_indv[45, 3]", "N_indv[45, 4]", "N_indv[45, 5]", "N_indv[45, 6]",
-  "N_indv[46, 1]", "N_indv[46, 2]", "N_indv[46, 3]", "N_indv[46, 4]", "N_indv[46, 5]", "N_indv[46, 6]",
-  "N_indv[47, 1]", "N_indv[47, 2]", "N_indv[47, 3]", "N_indv[47, 4]", "N_indv[47, 5]", "N_indv[47, 6]",
-  "N_indv[48, 1]", "N_indv[48, 2]", "N_indv[48, 3]", "N_indv[48, 4]", "N_indv[48, 5]", "N_indv[48, 6]",
-  "N_indv[49, 1]", "N_indv[49, 2]", "N_indv[49, 3]", "N_indv[49, 4]", "N_indv[49, 5]", "N_indv[49, 6]",
-  "N_indv[50, 1]", "N_indv[50, 2]", "N_indv[50, 3]", "N_indv[50, 4]", "N_indv[50, 5]", "N_indv[50, 6]",
-  "N_indv[51, 1]", "N_indv[51, 2]", "N_indv[51, 3]", "N_indv[51, 4]", "N_indv[51, 5]", "N_indv[51, 6]",
-  "N_indv[52, 1]", "N_indv[52, 2]", "N_indv[52, 3]", "N_indv[52, 4]", "N_indv[52, 5]", "N_indv[52, 6]",
-  "N_indv[53, 1]", "N_indv[53, 2]", "N_indv[53, 3]", "N_indv[53, 4]", "N_indv[53, 5]", "N_indv[53, 6]",
-  "N_indv[54, 1]", "N_indv[54, 2]", "N_indv[54, 3]", "N_indv[54, 4]", "N_indv[54, 5]", "N_indv[54, 6]",
-  "N_indv[55, 1]", "N_indv[55, 2]", "N_indv[55, 3]", "N_indv[55, 4]", "N_indv[55, 5]", "N_indv[55, 6]",
-  "N_indv[56, 1]", "N_indv[56, 2]", "N_indv[56, 3]", "N_indv[56, 4]", "N_indv[56, 5]", "N_indv[56, 6]",
-  "N_indv[57, 1]", "N_indv[57, 2]", "N_indv[57, 3]", "N_indv[57, 4]", "N_indv[57, 5]", "N_indv[57, 6]",
-  "N_indv[58, 1]", "N_indv[58, 2]", "N_indv[58, 3]", "N_indv[58, 4]", "N_indv[58, 5]", "N_indv[58, 6]",
-  "N_indv[59, 1]", "N_indv[59, 2]", "N_indv[59, 3]", "N_indv[59, 4]", "N_indv[59, 5]", "N_indv[59, 6]",
-  "N_indv[60, 1]", "N_indv[60, 2]", "N_indv[60, 3]", "N_indv[60, 4]", "N_indv[60, 5]", "N_indv[60, 6]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "N_indv[1, 1]", "N_indv[1, 2]", "N_indv[1, 3]", "N_indv[1, 4]", "N_indv[1, 5]", "N_indv[1, 6]",
-  "N_indv[2, 1]", "N_indv[2, 2]", "N_indv[2, 3]", "N_indv[2, 4]", "N_indv[2, 5]", "N_indv[2, 6]",
-  "N_indv[3, 1]", "N_indv[3, 2]", "N_indv[3, 3]", "N_indv[3, 4]", "N_indv[3, 5]", "N_indv[3, 6]",
-  "N_indv[4, 1]", "N_indv[4, 2]", "N_indv[4, 3]", "N_indv[4, 4]", "N_indv[4, 5]", "N_indv[4, 6]",
-  "N_indv[5, 1]", "N_indv[5, 2]", "N_indv[5, 3]", "N_indv[5, 4]", "N_indv[5, 5]", "N_indv[5, 6]",
-  "N_indv[6, 1]", "N_indv[6, 2]", "N_indv[6, 3]", "N_indv[6, 4]", "N_indv[6, 5]", "N_indv[6, 6]",
-  "N_indv[7, 1]", "N_indv[7, 2]", "N_indv[7, 3]", "N_indv[7, 4]", "N_indv[7, 5]", "N_indv[7, 6]",
-  "N_indv[8, 1]", "N_indv[8, 2]", "N_indv[8, 3]", "N_indv[8, 4]", "N_indv[8, 5]", "N_indv[8, 6]",
-  "N_indv[9, 1]", "N_indv[9, 2]", "N_indv[9, 3]", "N_indv[9, 4]", "N_indv[9, 5]", "N_indv[9, 6]",
-  "N_indv[10, 1]", "N_indv[10, 2]", "N_indv[10, 3]", "N_indv[10, 4]", "N_indv[10, 5]", "N_indv[10, 6]",
-  "N_indv[11, 1]", "N_indv[11, 2]", "N_indv[11, 3]", "N_indv[11, 4]", "N_indv[11, 5]", "N_indv[11, 6]",
-  "N_indv[12, 1]", "N_indv[12, 2]", "N_indv[12, 3]", "N_indv[12, 4]", "N_indv[12, 5]", "N_indv[12, 6]",
-  "N_indv[13, 1]", "N_indv[13, 2]", "N_indv[13, 3]", "N_indv[13, 4]", "N_indv[13, 5]", "N_indv[13, 6]",
-  "N_indv[14, 1]", "N_indv[14, 2]", "N_indv[14, 3]", "N_indv[14, 4]", "N_indv[14, 5]", "N_indv[14, 6]",
-  "N_indv[15, 1]", "N_indv[15, 2]", "N_indv[15, 3]", "N_indv[15, 4]", "N_indv[15, 5]", "N_indv[15, 6]",
-  "N_indv[16, 1]", "N_indv[16, 2]", "N_indv[16, 3]", "N_indv[16, 4]", "N_indv[16, 5]", "N_indv[16, 6]",
-  "N_indv[17, 1]", "N_indv[17, 2]", "N_indv[17, 3]", "N_indv[17, 4]", "N_indv[17, 5]", "N_indv[17, 6]",
-  "N_indv[18, 1]", "N_indv[18, 2]", "N_indv[18, 3]", "N_indv[18, 4]", "N_indv[18, 5]", "N_indv[18, 6]",
-  "N_indv[19, 1]", "N_indv[19, 2]", "N_indv[19, 3]", "N_indv[19, 4]", "N_indv[19, 5]", "N_indv[19, 6]",
-  "N_indv[20, 1]", "N_indv[20, 2]", "N_indv[20, 3]", "N_indv[20, 4]", "N_indv[20, 5]", "N_indv[20, 6]",
-  "N_indv[21, 1]", "N_indv[21, 2]", "N_indv[21, 3]", "N_indv[21, 4]", "N_indv[21, 5]", "N_indv[21, 6]",
-  "N_indv[22, 1]", "N_indv[22, 2]", "N_indv[22, 3]", "N_indv[22, 4]", "N_indv[22, 5]", "N_indv[22, 6]",
-  "N_indv[23, 1]", "N_indv[23, 2]", "N_indv[23, 3]", "N_indv[23, 4]", "N_indv[23, 5]", "N_indv[23, 6]",
-  "N_indv[24, 1]", "N_indv[24, 2]", "N_indv[24, 3]", "N_indv[24, 4]", "N_indv[24, 5]", "N_indv[24, 6]",
-  "N_indv[25, 1]", "N_indv[25, 2]", "N_indv[25, 3]", "N_indv[25, 4]", "N_indv[25, 5]", "N_indv[25, 6]",
-  "N_indv[26, 1]", "N_indv[26, 2]", "N_indv[26, 3]", "N_indv[26, 4]", "N_indv[26, 5]", "N_indv[26, 6]",
-  "N_indv[27, 1]", "N_indv[27, 2]", "N_indv[27, 3]", "N_indv[27, 4]", "N_indv[27, 5]", "N_indv[27, 6]",
-  "N_indv[28, 1]", "N_indv[28, 2]", "N_indv[28, 3]", "N_indv[28, 4]", "N_indv[28, 5]", "N_indv[28, 6]",
-  "N_indv[29, 1]", "N_indv[29, 2]", "N_indv[29, 3]", "N_indv[29, 4]", "N_indv[29, 5]", "N_indv[29, 6]",
-  "N_indv[30, 1]", "N_indv[30, 2]", "N_indv[30, 3]", "N_indv[30, 4]", "N_indv[30, 5]", "N_indv[30, 6]",
-  "N_indv[31, 1]", "N_indv[31, 2]", "N_indv[31, 3]", "N_indv[31, 4]", "N_indv[31, 5]", "N_indv[31, 6]",
-  "N_indv[32, 1]", "N_indv[32, 2]", "N_indv[32, 3]", "N_indv[32, 4]", "N_indv[32, 5]", "N_indv[32, 6]",
-  "N_indv[33, 1]", "N_indv[33, 2]", "N_indv[33, 3]", "N_indv[33, 4]", "N_indv[33, 5]", "N_indv[33, 6]",
-  "N_indv[34, 1]", "N_indv[34, 2]", "N_indv[34, 3]", "N_indv[34, 4]", "N_indv[34, 5]", "N_indv[34, 6]",
-  "N_indv[35, 1]", "N_indv[35, 2]", "N_indv[35, 3]", "N_indv[35, 4]", "N_indv[35, 5]", "N_indv[35, 6]",
-  "N_indv[36, 1]", "N_indv[36, 2]", "N_indv[36, 3]", "N_indv[36, 4]", "N_indv[36, 5]", "N_indv[36, 6]",
-  "N_indv[37, 1]", "N_indv[37, 2]", "N_indv[37, 3]", "N_indv[37, 4]", "N_indv[37, 5]", "N_indv[37, 6]",
-  "N_indv[38, 1]", "N_indv[38, 2]", "N_indv[38, 3]", "N_indv[38, 4]", "N_indv[38, 5]", "N_indv[38, 6]",
-  "N_indv[39, 1]", "N_indv[39, 2]", "N_indv[39, 3]", "N_indv[39, 4]", "N_indv[39, 5]", "N_indv[39, 6]",
-  "N_indv[40, 1]", "N_indv[40, 2]", "N_indv[40, 3]", "N_indv[40, 4]", "N_indv[40, 5]", "N_indv[40, 6]",
-  "N_indv[41, 1]", "N_indv[41, 2]", "N_indv[41, 3]", "N_indv[41, 4]", "N_indv[41, 5]", "N_indv[41, 6]",
-  "N_indv[42, 1]", "N_indv[42, 2]", "N_indv[42, 3]", "N_indv[42, 4]", "N_indv[42, 5]", "N_indv[42, 6]",
-  "N_indv[43, 1]", "N_indv[43, 2]", "N_indv[43, 3]", "N_indv[43, 4]", "N_indv[43, 5]", "N_indv[43, 6]",
-  "N_indv[44, 1]", "N_indv[44, 2]", "N_indv[44, 3]", "N_indv[44, 4]", "N_indv[44, 5]", "N_indv[44, 6]",
-  "N_indv[45, 1]", "N_indv[45, 2]", "N_indv[45, 3]", "N_indv[45, 4]", "N_indv[45, 5]", "N_indv[45, 6]",
-  "N_indv[46, 1]", "N_indv[46, 2]", "N_indv[46, 3]", "N_indv[46, 4]", "N_indv[46, 5]", "N_indv[46, 6]",
-  "N_indv[47, 1]", "N_indv[47, 2]", "N_indv[47, 3]", "N_indv[47, 4]", "N_indv[47, 5]", "N_indv[47, 6]",
-  "N_indv[48, 1]", "N_indv[48, 2]", "N_indv[48, 3]", "N_indv[48, 4]", "N_indv[48, 5]", "N_indv[48, 6]",
-  "N_indv[49, 1]", "N_indv[49, 2]", "N_indv[49, 3]", "N_indv[49, 4]", "N_indv[49, 5]", "N_indv[49, 6]",
-  "N_indv[50, 1]", "N_indv[50, 2]", "N_indv[50, 3]", "N_indv[50, 4]", "N_indv[50, 5]", "N_indv[50, 6]",
-  "N_indv[51, 1]", "N_indv[51, 2]", "N_indv[51, 3]", "N_indv[51, 4]", "N_indv[51, 5]", "N_indv[51, 6]",
-  "N_indv[52, 1]", "N_indv[52, 2]", "N_indv[52, 3]", "N_indv[52, 4]", "N_indv[52, 5]", "N_indv[52, 6]",
-  "N_indv[53, 1]", "N_indv[53, 2]", "N_indv[53, 3]", "N_indv[53, 4]", "N_indv[53, 5]", "N_indv[53, 6]",
-  "N_indv[54, 1]", "N_indv[54, 2]", "N_indv[54, 3]", "N_indv[54, 4]", "N_indv[54, 5]", "N_indv[54, 6]",
-  "N_indv[55, 1]", "N_indv[55, 2]", "N_indv[55, 3]", "N_indv[55, 4]", "N_indv[55, 5]", "N_indv[55, 6]",
-  "N_indv[56, 1]", "N_indv[56, 2]", "N_indv[56, 3]", "N_indv[56, 4]", "N_indv[56, 5]", "N_indv[56, 6]",
-  "N_indv[57, 1]", "N_indv[57, 2]", "N_indv[57, 3]", "N_indv[57, 4]", "N_indv[57, 5]", "N_indv[57, 6]",
-  "N_indv[58, 1]", "N_indv[58, 2]", "N_indv[58, 3]", "N_indv[58, 4]", "N_indv[58, 5]", "N_indv[58, 6]",
-  "N_indv[59, 1]", "N_indv[59, 2]", "N_indv[59, 3]", "N_indv[59, 4]", "N_indv[59, 5]", "N_indv[59, 6]",
-  "N_indv[60, 1]", "N_indv[60, 2]", "N_indv[60, 3]", "N_indv[60, 4]", "N_indv[60, 5]", "N_indv[60, 6]"
-), type = 'RW_block')
-
-# Block all simulated data (n_dct_new) Nodes together
-sobs_mcmcConf$removeSamplers(
-  "n_dct_new[1, 1]", "n_dct_new[1, 2]", "n_dct_new[1, 3]", "n_dct_new[1, 4]", "n_dct_new[1, 5]", "n_dct_new[1, 6]",
-  "n_dct_new[2, 1]", "n_dct_new[2, 2]", "n_dct_new[2, 3]", "n_dct_new[2, 4]", "n_dct_new[2, 5]", "n_dct_new[2, 6]",
-  "n_dct_new[3, 1]", "n_dct_new[3, 2]", "n_dct_new[3, 3]", "n_dct_new[3, 4]", "n_dct_new[3, 5]", "n_dct_new[3, 6]",
-  "n_dct_new[4, 1]", "n_dct_new[4, 2]", "n_dct_new[4, 3]", "n_dct_new[4, 4]", "n_dct_new[4, 5]", "n_dct_new[4, 6]",
-  "n_dct_new[5, 1]", "n_dct_new[5, 2]", "n_dct_new[5, 3]", "n_dct_new[5, 4]", "n_dct_new[5, 5]", "n_dct_new[5, 6]",
-  "n_dct_new[6, 1]", "n_dct_new[6, 2]", "n_dct_new[6, 3]", "n_dct_new[6, 4]", "n_dct_new[6, 5]", "n_dct_new[6, 6]",
-  "n_dct_new[7, 1]", "n_dct_new[7, 2]", "n_dct_new[7, 3]", "n_dct_new[7, 4]", "n_dct_new[7, 5]", "n_dct_new[7, 6]",
-  "n_dct_new[8, 1]", "n_dct_new[8, 2]", "n_dct_new[8, 3]", "n_dct_new[8, 4]", "n_dct_new[8, 5]", "n_dct_new[8, 6]",
-  "n_dct_new[9, 1]", "n_dct_new[9, 2]", "n_dct_new[9, 3]", "n_dct_new[9, 4]", "n_dct_new[9, 5]", "n_dct_new[9, 6]",
-  "n_dct_new[10, 1]", "n_dct_new[10, 2]", "n_dct_new[10, 3]", "n_dct_new[10, 4]", "n_dct_new[10, 5]", "n_dct_new[10, 6]",
-  "n_dct_new[11, 1]", "n_dct_new[11, 2]", "n_dct_new[11, 3]", "n_dct_new[11, 4]", "n_dct_new[11, 5]", "n_dct_new[11, 6]",
-  "n_dct_new[12, 1]", "n_dct_new[12, 2]", "n_dct_new[12, 3]", "n_dct_new[12, 4]", "n_dct_new[12, 5]", "n_dct_new[12, 6]",
-  "n_dct_new[13, 1]", "n_dct_new[13, 2]", "n_dct_new[13, 3]", "n_dct_new[13, 4]", "n_dct_new[13, 5]", "n_dct_new[13, 6]",
-  "n_dct_new[14, 1]", "n_dct_new[14, 2]", "n_dct_new[14, 3]", "n_dct_new[14, 4]", "n_dct_new[14, 5]", "n_dct_new[14, 6]",
-  "n_dct_new[15, 1]", "n_dct_new[15, 2]", "n_dct_new[15, 3]", "n_dct_new[15, 4]", "n_dct_new[15, 5]", "n_dct_new[15, 6]",
-  "n_dct_new[16, 1]", "n_dct_new[16, 2]", "n_dct_new[16, 3]", "n_dct_new[16, 4]", "n_dct_new[16, 5]", "n_dct_new[16, 6]",
-  "n_dct_new[17, 1]", "n_dct_new[17, 2]", "n_dct_new[17, 3]", "n_dct_new[17, 4]", "n_dct_new[17, 5]", "n_dct_new[17, 6]",
-  "n_dct_new[18, 1]", "n_dct_new[18, 2]", "n_dct_new[18, 3]", "n_dct_new[18, 4]", "n_dct_new[18, 5]", "n_dct_new[18, 6]",
-  "n_dct_new[19, 1]", "n_dct_new[19, 2]", "n_dct_new[19, 3]", "n_dct_new[19, 4]", "n_dct_new[19, 5]", "n_dct_new[19, 6]",
-  "n_dct_new[20, 1]", "n_dct_new[20, 2]", "n_dct_new[20, 3]", "n_dct_new[20, 4]", "n_dct_new[20, 5]", "n_dct_new[20, 6]",
-  "n_dct_new[21, 1]", "n_dct_new[21, 2]", "n_dct_new[21, 3]", "n_dct_new[21, 4]", "n_dct_new[21, 5]", "n_dct_new[21, 6]",
-  "n_dct_new[22, 1]", "n_dct_new[22, 2]", "n_dct_new[22, 3]", "n_dct_new[22, 4]", "n_dct_new[22, 5]", "n_dct_new[22, 6]",
-  "n_dct_new[23, 1]", "n_dct_new[23, 2]", "n_dct_new[23, 3]", "n_dct_new[23, 4]", "n_dct_new[23, 5]", "n_dct_new[23, 6]",
-  "n_dct_new[24, 1]", "n_dct_new[24, 2]", "n_dct_new[24, 3]", "n_dct_new[24, 4]", "n_dct_new[24, 5]", "n_dct_new[24, 6]",
-  "n_dct_new[25, 1]", "n_dct_new[25, 2]", "n_dct_new[25, 3]", "n_dct_new[25, 4]", "n_dct_new[25, 5]", "n_dct_new[25, 6]",
-  "n_dct_new[26, 1]", "n_dct_new[26, 2]", "n_dct_new[26, 3]", "n_dct_new[26, 4]", "n_dct_new[26, 5]", "n_dct_new[26, 6]",
-  "n_dct_new[27, 1]", "n_dct_new[27, 2]", "n_dct_new[27, 3]", "n_dct_new[27, 4]", "n_dct_new[27, 5]", "n_dct_new[27, 6]",
-  "n_dct_new[28, 1]", "n_dct_new[28, 2]", "n_dct_new[28, 3]", "n_dct_new[28, 4]", "n_dct_new[28, 5]", "n_dct_new[28, 6]",
-  "n_dct_new[29, 1]", "n_dct_new[29, 2]", "n_dct_new[29, 3]", "n_dct_new[29, 4]", "n_dct_new[29, 5]", "n_dct_new[29, 6]",
-  "n_dct_new[30, 1]", "n_dct_new[30, 2]", "n_dct_new[30, 3]", "n_dct_new[30, 4]", "n_dct_new[30, 5]", "n_dct_new[30, 6]",
-  "n_dct_new[31, 1]", "n_dct_new[31, 2]", "n_dct_new[31, 3]", "n_dct_new[31, 4]", "n_dct_new[31, 5]", "n_dct_new[31, 6]",
-  "n_dct_new[32, 1]", "n_dct_new[32, 2]", "n_dct_new[32, 3]", "n_dct_new[32, 4]", "n_dct_new[32, 5]", "n_dct_new[32, 6]",
-  "n_dct_new[33, 1]", "n_dct_new[33, 2]", "n_dct_new[33, 3]", "n_dct_new[33, 4]", "n_dct_new[33, 5]", "n_dct_new[33, 6]",
-  "n_dct_new[34, 1]", "n_dct_new[34, 2]", "n_dct_new[34, 3]", "n_dct_new[34, 4]", "n_dct_new[34, 5]", "n_dct_new[34, 6]",
-  "n_dct_new[35, 1]", "n_dct_new[35, 2]", "n_dct_new[35, 3]", "n_dct_new[35, 4]", "n_dct_new[35, 5]", "n_dct_new[35, 6]",
-  "n_dct_new[36, 1]", "n_dct_new[36, 2]", "n_dct_new[36, 3]", "n_dct_new[36, 4]", "n_dct_new[36, 5]", "n_dct_new[36, 6]",
-  "n_dct_new[37, 1]", "n_dct_new[37, 2]", "n_dct_new[37, 3]", "n_dct_new[37, 4]", "n_dct_new[37, 5]", "n_dct_new[37, 6]",
-  "n_dct_new[38, 1]", "n_dct_new[38, 2]", "n_dct_new[38, 3]", "n_dct_new[38, 4]", "n_dct_new[38, 5]", "n_dct_new[38, 6]",
-  "n_dct_new[39, 1]", "n_dct_new[39, 2]", "n_dct_new[39, 3]", "n_dct_new[39, 4]", "n_dct_new[39, 5]", "n_dct_new[39, 6]",
-  "n_dct_new[40, 1]", "n_dct_new[40, 2]", "n_dct_new[40, 3]", "n_dct_new[40, 4]", "n_dct_new[40, 5]", "n_dct_new[40, 6]",
-  "n_dct_new[41, 1]", "n_dct_new[41, 2]", "n_dct_new[41, 3]", "n_dct_new[41, 4]", "n_dct_new[41, 5]", "n_dct_new[41, 6]",
-  "n_dct_new[42, 1]", "n_dct_new[42, 2]", "n_dct_new[42, 3]", "n_dct_new[42, 4]", "n_dct_new[42, 5]", "n_dct_new[42, 6]",
-  "n_dct_new[43, 1]", "n_dct_new[43, 2]", "n_dct_new[43, 3]", "n_dct_new[43, 4]", "n_dct_new[43, 5]", "n_dct_new[43, 6]",
-  "n_dct_new[44, 1]", "n_dct_new[44, 2]", "n_dct_new[44, 3]", "n_dct_new[44, 4]", "n_dct_new[44, 5]", "n_dct_new[44, 6]",
-  "n_dct_new[45, 1]", "n_dct_new[45, 2]", "n_dct_new[45, 3]", "n_dct_new[45, 4]", "n_dct_new[45, 5]", "n_dct_new[45, 6]",
-  "n_dct_new[46, 1]", "n_dct_new[46, 2]", "n_dct_new[46, 3]", "n_dct_new[46, 4]", "n_dct_new[46, 5]", "n_dct_new[46, 6]",
-  "n_dct_new[47, 1]", "n_dct_new[47, 2]", "n_dct_new[47, 3]", "n_dct_new[47, 4]", "n_dct_new[47, 5]", "n_dct_new[47, 6]",
-  "n_dct_new[48, 1]", "n_dct_new[48, 2]", "n_dct_new[48, 3]", "n_dct_new[48, 4]", "n_dct_new[48, 5]", "n_dct_new[48, 6]",
-  "n_dct_new[49, 1]", "n_dct_new[49, 2]", "n_dct_new[49, 3]", "n_dct_new[49, 4]", "n_dct_new[49, 5]", "n_dct_new[49, 6]",
-  "n_dct_new[50, 1]", "n_dct_new[50, 2]", "n_dct_new[50, 3]", "n_dct_new[50, 4]", "n_dct_new[50, 5]", "n_dct_new[50, 6]",
-  "n_dct_new[51, 1]", "n_dct_new[51, 2]", "n_dct_new[51, 3]", "n_dct_new[51, 4]", "n_dct_new[51, 5]", "n_dct_new[51, 6]",
-  "n_dct_new[52, 1]", "n_dct_new[52, 2]", "n_dct_new[52, 3]", "n_dct_new[52, 4]", "n_dct_new[52, 5]", "n_dct_new[52, 6]",
-  "n_dct_new[53, 1]", "n_dct_new[53, 2]", "n_dct_new[53, 3]", "n_dct_new[53, 4]", "n_dct_new[53, 5]", "n_dct_new[53, 6]",
-  "n_dct_new[54, 1]", "n_dct_new[54, 2]", "n_dct_new[54, 3]", "n_dct_new[54, 4]", "n_dct_new[54, 5]", "n_dct_new[54, 6]",
-  "n_dct_new[55, 1]", "n_dct_new[55, 2]", "n_dct_new[55, 3]", "n_dct_new[55, 4]", "n_dct_new[55, 5]", "n_dct_new[55, 6]",
-  "n_dct_new[56, 1]", "n_dct_new[56, 2]", "n_dct_new[56, 3]", "n_dct_new[56, 4]", "n_dct_new[56, 5]", "n_dct_new[56, 6]",
-  "n_dct_new[57, 1]", "n_dct_new[57, 2]", "n_dct_new[57, 3]", "n_dct_new[57, 4]", "n_dct_new[57, 5]", "n_dct_new[57, 6]",
-  "n_dct_new[58, 1]", "n_dct_new[58, 2]", "n_dct_new[58, 3]", "n_dct_new[58, 4]", "n_dct_new[58, 5]", "n_dct_new[58, 6]",
-  "n_dct_new[59, 1]", "n_dct_new[59, 2]", "n_dct_new[59, 3]", "n_dct_new[59, 4]", "n_dct_new[59, 5]", "n_dct_new[59, 6]",
-  "n_dct_new[60, 1]", "n_dct_new[60, 2]", "n_dct_new[60, 3]", "n_dct_new[60, 4]", "n_dct_new[60, 5]", "n_dct_new[60, 6]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "n_dct_new[1, 1]", "n_dct_new[1, 2]", "n_dct_new[1, 3]", "n_dct_new[1, 4]", "n_dct_new[1, 5]", "n_dct_new[1, 6]",
-  "n_dct_new[2, 1]", "n_dct_new[2, 2]", "n_dct_new[2, 3]", "n_dct_new[2, 4]", "n_dct_new[2, 5]", "n_dct_new[2, 6]",
-  "n_dct_new[3, 1]", "n_dct_new[3, 2]", "n_dct_new[3, 3]", "n_dct_new[3, 4]", "n_dct_new[3, 5]", "n_dct_new[3, 6]",
-  "n_dct_new[4, 1]", "n_dct_new[4, 2]", "n_dct_new[4, 3]", "n_dct_new[4, 4]", "n_dct_new[4, 5]", "n_dct_new[4, 6]",
-  "n_dct_new[5, 1]", "n_dct_new[5, 2]", "n_dct_new[5, 3]", "n_dct_new[5, 4]", "n_dct_new[5, 5]", "n_dct_new[5, 6]",
-  "n_dct_new[6, 1]", "n_dct_new[6, 2]", "n_dct_new[6, 3]", "n_dct_new[6, 4]", "n_dct_new[6, 5]", "n_dct_new[6, 6]",
-  "n_dct_new[7, 1]", "n_dct_new[7, 2]", "n_dct_new[7, 3]", "n_dct_new[7, 4]", "n_dct_new[7, 5]", "n_dct_new[7, 6]",
-  "n_dct_new[8, 1]", "n_dct_new[8, 2]", "n_dct_new[8, 3]", "n_dct_new[8, 4]", "n_dct_new[8, 5]", "n_dct_new[8, 6]",
-  "n_dct_new[9, 1]", "n_dct_new[9, 2]", "n_dct_new[9, 3]", "n_dct_new[9, 4]", "n_dct_new[9, 5]", "n_dct_new[9, 6]",
-  "n_dct_new[10, 1]", "n_dct_new[10, 2]", "n_dct_new[10, 3]", "n_dct_new[10, 4]", "n_dct_new[10, 5]", "n_dct_new[10, 6]",
-  "n_dct_new[11, 1]", "n_dct_new[11, 2]", "n_dct_new[11, 3]", "n_dct_new[11, 4]", "n_dct_new[11, 5]", "n_dct_new[11, 6]",
-  "n_dct_new[12, 1]", "n_dct_new[12, 2]", "n_dct_new[12, 3]", "n_dct_new[12, 4]", "n_dct_new[12, 5]", "n_dct_new[12, 6]",
-  "n_dct_new[13, 1]", "n_dct_new[13, 2]", "n_dct_new[13, 3]", "n_dct_new[13, 4]", "n_dct_new[13, 5]", "n_dct_new[13, 6]",
-  "n_dct_new[14, 1]", "n_dct_new[14, 2]", "n_dct_new[14, 3]", "n_dct_new[14, 4]", "n_dct_new[14, 5]", "n_dct_new[14, 6]",
-  "n_dct_new[15, 1]", "n_dct_new[15, 2]", "n_dct_new[15, 3]", "n_dct_new[15, 4]", "n_dct_new[15, 5]", "n_dct_new[15, 6]",
-  "n_dct_new[16, 1]", "n_dct_new[16, 2]", "n_dct_new[16, 3]", "n_dct_new[16, 4]", "n_dct_new[16, 5]", "n_dct_new[16, 6]",
-  "n_dct_new[17, 1]", "n_dct_new[17, 2]", "n_dct_new[17, 3]", "n_dct_new[17, 4]", "n_dct_new[17, 5]", "n_dct_new[17, 6]",
-  "n_dct_new[18, 1]", "n_dct_new[18, 2]", "n_dct_new[18, 3]", "n_dct_new[18, 4]", "n_dct_new[18, 5]", "n_dct_new[18, 6]",
-  "n_dct_new[19, 1]", "n_dct_new[19, 2]", "n_dct_new[19, 3]", "n_dct_new[19, 4]", "n_dct_new[19, 5]", "n_dct_new[19, 6]",
-  "n_dct_new[20, 1]", "n_dct_new[20, 2]", "n_dct_new[20, 3]", "n_dct_new[20, 4]", "n_dct_new[20, 5]", "n_dct_new[20, 6]",
-  "n_dct_new[21, 1]", "n_dct_new[21, 2]", "n_dct_new[21, 3]", "n_dct_new[21, 4]", "n_dct_new[21, 5]", "n_dct_new[21, 6]",
-  "n_dct_new[22, 1]", "n_dct_new[22, 2]", "n_dct_new[22, 3]", "n_dct_new[22, 4]", "n_dct_new[22, 5]", "n_dct_new[22, 6]",
-  "n_dct_new[23, 1]", "n_dct_new[23, 2]", "n_dct_new[23, 3]", "n_dct_new[23, 4]", "n_dct_new[23, 5]", "n_dct_new[23, 6]",
-  "n_dct_new[24, 1]", "n_dct_new[24, 2]", "n_dct_new[24, 3]", "n_dct_new[24, 4]", "n_dct_new[24, 5]", "n_dct_new[24, 6]",
-  "n_dct_new[25, 1]", "n_dct_new[25, 2]", "n_dct_new[25, 3]", "n_dct_new[25, 4]", "n_dct_new[25, 5]", "n_dct_new[25, 6]",
-  "n_dct_new[26, 1]", "n_dct_new[26, 2]", "n_dct_new[26, 3]", "n_dct_new[26, 4]", "n_dct_new[26, 5]", "n_dct_new[26, 6]",
-  "n_dct_new[27, 1]", "n_dct_new[27, 2]", "n_dct_new[27, 3]", "n_dct_new[27, 4]", "n_dct_new[27, 5]", "n_dct_new[27, 6]",
-  "n_dct_new[28, 1]", "n_dct_new[28, 2]", "n_dct_new[28, 3]", "n_dct_new[28, 4]", "n_dct_new[28, 5]", "n_dct_new[28, 6]",
-  "n_dct_new[29, 1]", "n_dct_new[29, 2]", "n_dct_new[29, 3]", "n_dct_new[29, 4]", "n_dct_new[29, 5]", "n_dct_new[29, 6]",
-  "n_dct_new[30, 1]", "n_dct_new[30, 2]", "n_dct_new[30, 3]", "n_dct_new[30, 4]", "n_dct_new[30, 5]", "n_dct_new[30, 6]",
-  "n_dct_new[31, 1]", "n_dct_new[31, 2]", "n_dct_new[31, 3]", "n_dct_new[31, 4]", "n_dct_new[31, 5]", "n_dct_new[31, 6]",
-  "n_dct_new[32, 1]", "n_dct_new[32, 2]", "n_dct_new[32, 3]", "n_dct_new[32, 4]", "n_dct_new[32, 5]", "n_dct_new[32, 6]",
-  "n_dct_new[33, 1]", "n_dct_new[33, 2]", "n_dct_new[33, 3]", "n_dct_new[33, 4]", "n_dct_new[33, 5]", "n_dct_new[33, 6]",
-  "n_dct_new[34, 1]", "n_dct_new[34, 2]", "n_dct_new[34, 3]", "n_dct_new[34, 4]", "n_dct_new[34, 5]", "n_dct_new[34, 6]",
-  "n_dct_new[35, 1]", "n_dct_new[35, 2]", "n_dct_new[35, 3]", "n_dct_new[35, 4]", "n_dct_new[35, 5]", "n_dct_new[35, 6]",
-  "n_dct_new[36, 1]", "n_dct_new[36, 2]", "n_dct_new[36, 3]", "n_dct_new[36, 4]", "n_dct_new[36, 5]", "n_dct_new[36, 6]",
-  "n_dct_new[37, 1]", "n_dct_new[37, 2]", "n_dct_new[37, 3]", "n_dct_new[37, 4]", "n_dct_new[37, 5]", "n_dct_new[37, 6]",
-  "n_dct_new[38, 1]", "n_dct_new[38, 2]", "n_dct_new[38, 3]", "n_dct_new[38, 4]", "n_dct_new[38, 5]", "n_dct_new[38, 6]",
-  "n_dct_new[39, 1]", "n_dct_new[39, 2]", "n_dct_new[39, 3]", "n_dct_new[39, 4]", "n_dct_new[39, 5]", "n_dct_new[39, 6]",
-  "n_dct_new[40, 1]", "n_dct_new[40, 2]", "n_dct_new[40, 3]", "n_dct_new[40, 4]", "n_dct_new[40, 5]", "n_dct_new[40, 6]",
-  "n_dct_new[41, 1]", "n_dct_new[41, 2]", "n_dct_new[41, 3]", "n_dct_new[41, 4]", "n_dct_new[41, 5]", "n_dct_new[41, 6]",
-  "n_dct_new[42, 1]", "n_dct_new[42, 2]", "n_dct_new[42, 3]", "n_dct_new[42, 4]", "n_dct_new[42, 5]", "n_dct_new[42, 6]",
-  "n_dct_new[43, 1]", "n_dct_new[43, 2]", "n_dct_new[43, 3]", "n_dct_new[43, 4]", "n_dct_new[43, 5]", "n_dct_new[43, 6]",
-  "n_dct_new[44, 1]", "n_dct_new[44, 2]", "n_dct_new[44, 3]", "n_dct_new[44, 4]", "n_dct_new[44, 5]", "n_dct_new[44, 6]",
-  "n_dct_new[45, 1]", "n_dct_new[45, 2]", "n_dct_new[45, 3]", "n_dct_new[45, 4]", "n_dct_new[45, 5]", "n_dct_new[45, 6]",
-  "n_dct_new[46, 1]", "n_dct_new[46, 2]", "n_dct_new[46, 3]", "n_dct_new[46, 4]", "n_dct_new[46, 5]", "n_dct_new[46, 6]",
-  "n_dct_new[47, 1]", "n_dct_new[47, 2]", "n_dct_new[47, 3]", "n_dct_new[47, 4]", "n_dct_new[47, 5]", "n_dct_new[47, 6]",
-  "n_dct_new[48, 1]", "n_dct_new[48, 2]", "n_dct_new[48, 3]", "n_dct_new[48, 4]", "n_dct_new[48, 5]", "n_dct_new[48, 6]",
-  "n_dct_new[49, 1]", "n_dct_new[49, 2]", "n_dct_new[49, 3]", "n_dct_new[49, 4]", "n_dct_new[49, 5]", "n_dct_new[49, 6]",
-  "n_dct_new[50, 1]", "n_dct_new[50, 2]", "n_dct_new[50, 3]", "n_dct_new[50, 4]", "n_dct_new[50, 5]", "n_dct_new[50, 6]",
-  "n_dct_new[51, 1]", "n_dct_new[51, 2]", "n_dct_new[51, 3]", "n_dct_new[51, 4]", "n_dct_new[51, 5]", "n_dct_new[51, 6]",
-  "n_dct_new[52, 1]", "n_dct_new[52, 2]", "n_dct_new[52, 3]", "n_dct_new[52, 4]", "n_dct_new[52, 5]", "n_dct_new[52, 6]",
-  "n_dct_new[53, 1]", "n_dct_new[53, 2]", "n_dct_new[53, 3]", "n_dct_new[53, 4]", "n_dct_new[53, 5]", "n_dct_new[53, 6]",
-  "n_dct_new[54, 1]", "n_dct_new[54, 2]", "n_dct_new[54, 3]", "n_dct_new[54, 4]", "n_dct_new[54, 5]", "n_dct_new[54, 6]",
-  "n_dct_new[55, 1]", "n_dct_new[55, 2]", "n_dct_new[55, 3]", "n_dct_new[55, 4]", "n_dct_new[55, 5]", "n_dct_new[55, 6]",
-  "n_dct_new[56, 1]", "n_dct_new[56, 2]", "n_dct_new[56, 3]", "n_dct_new[56, 4]", "n_dct_new[56, 5]", "n_dct_new[56, 6]",
-  "n_dct_new[57, 1]", "n_dct_new[57, 2]", "n_dct_new[57, 3]", "n_dct_new[57, 4]", "n_dct_new[57, 5]", "n_dct_new[57, 6]",
-  "n_dct_new[58, 1]", "n_dct_new[58, 2]", "n_dct_new[58, 3]", "n_dct_new[58, 4]", "n_dct_new[58, 5]", "n_dct_new[58, 6]",
-  "n_dct_new[59, 1]", "n_dct_new[59, 2]", "n_dct_new[59, 3]", "n_dct_new[59, 4]", "n_dct_new[59, 5]", "n_dct_new[59, 6]",
-  "n_dct_new[60, 1]", "n_dct_new[60, 2]", "n_dct_new[60, 3]", "n_dct_new[60, 4]", "n_dct_new[60, 5]", "n_dct_new[60, 6]"
-),
-  type = 'RW_block')
-
-# Block all simulated available birds nodes (n_avail_new) Nodes together
-sobs_mcmcConf$removeSamplers(
-  "n_avail_new[1, 1]", "n_avail_new[1, 2]", "n_avail_new[1, 3]", "n_avail_new[1, 4]", "n_avail_new[1, 5]", "n_avail_new[1, 6]",
-  "n_avail_new[2, 1]", "n_avail_new[2, 2]", "n_avail_new[2, 3]", "n_avail_new[2, 4]", "n_avail_new[2, 5]", "n_avail_new[2, 6]",
-  "n_avail_new[3, 1]", "n_avail_new[3, 2]", "n_avail_new[3, 3]", "n_avail_new[3, 4]", "n_avail_new[3, 5]", "n_avail_new[3, 6]",
-  "n_avail_new[4, 1]", "n_avail_new[4, 2]", "n_avail_new[4, 3]", "n_avail_new[4, 4]", "n_avail_new[4, 5]", "n_avail_new[4, 6]",
-  "n_avail_new[5, 1]", "n_avail_new[5, 2]", "n_avail_new[5, 3]", "n_avail_new[5, 4]", "n_avail_new[5, 5]", "n_avail_new[5, 6]",
-  "n_avail_new[6, 1]", "n_avail_new[6, 2]", "n_avail_new[6, 3]", "n_avail_new[6, 4]", "n_avail_new[6, 5]", "n_avail_new[6, 6]",
-  "n_avail_new[7, 1]", "n_avail_new[7, 2]", "n_avail_new[7, 3]", "n_avail_new[7, 4]", "n_avail_new[7, 5]", "n_avail_new[7, 6]",
-  "n_avail_new[8, 1]", "n_avail_new[8, 2]", "n_avail_new[8, 3]", "n_avail_new[8, 4]", "n_avail_new[8, 5]", "n_avail_new[8, 6]",
-  "n_avail_new[9, 1]", "n_avail_new[9, 2]", "n_avail_new[9, 3]", "n_avail_new[9, 4]", "n_avail_new[9, 5]", "n_avail_new[9, 6]",
-  "n_avail_new[10, 1]", "n_avail_new[10, 2]", "n_avail_new[10, 3]", "n_avail_new[10, 4]", "n_avail_new[10, 5]", "n_avail_new[10, 6]",
-  "n_avail_new[11, 1]", "n_avail_new[11, 2]", "n_avail_new[11, 3]", "n_avail_new[11, 4]", "n_avail_new[11, 5]", "n_avail_new[11, 6]",
-  "n_avail_new[12, 1]", "n_avail_new[12, 2]", "n_avail_new[12, 3]", "n_avail_new[12, 4]", "n_avail_new[12, 5]", "n_avail_new[12, 6]",
-  "n_avail_new[13, 1]", "n_avail_new[13, 2]", "n_avail_new[13, 3]", "n_avail_new[13, 4]", "n_avail_new[13, 5]", "n_avail_new[13, 6]",
-  "n_avail_new[14, 1]", "n_avail_new[14, 2]", "n_avail_new[14, 3]", "n_avail_new[14, 4]", "n_avail_new[14, 5]", "n_avail_new[14, 6]",
-  "n_avail_new[15, 1]", "n_avail_new[15, 2]", "n_avail_new[15, 3]", "n_avail_new[15, 4]", "n_avail_new[15, 5]", "n_avail_new[15, 6]",
-  "n_avail_new[16, 1]", "n_avail_new[16, 2]", "n_avail_new[16, 3]", "n_avail_new[16, 4]", "n_avail_new[16, 5]", "n_avail_new[16, 6]",
-  "n_avail_new[17, 1]", "n_avail_new[17, 2]", "n_avail_new[17, 3]", "n_avail_new[17, 4]", "n_avail_new[17, 5]", "n_avail_new[17, 6]",
-  "n_avail_new[18, 1]", "n_avail_new[18, 2]", "n_avail_new[18, 3]", "n_avail_new[18, 4]", "n_avail_new[18, 5]", "n_avail_new[18, 6]",
-  "n_avail_new[19, 1]", "n_avail_new[19, 2]", "n_avail_new[19, 3]", "n_avail_new[19, 4]", "n_avail_new[19, 5]", "n_avail_new[19, 6]",
-  "n_avail_new[20, 1]", "n_avail_new[20, 2]", "n_avail_new[20, 3]", "n_avail_new[20, 4]", "n_avail_new[20, 5]", "n_avail_new[20, 6]",
-  "n_avail_new[21, 1]", "n_avail_new[21, 2]", "n_avail_new[21, 3]", "n_avail_new[21, 4]", "n_avail_new[21, 5]", "n_avail_new[21, 6]",
-  "n_avail_new[22, 1]", "n_avail_new[22, 2]", "n_avail_new[22, 3]", "n_avail_new[22, 4]", "n_avail_new[22, 5]", "n_avail_new[22, 6]",
-  "n_avail_new[23, 1]", "n_avail_new[23, 2]", "n_avail_new[23, 3]", "n_avail_new[23, 4]", "n_avail_new[23, 5]", "n_avail_new[23, 6]",
-  "n_avail_new[24, 1]", "n_avail_new[24, 2]", "n_avail_new[24, 3]", "n_avail_new[24, 4]", "n_avail_new[24, 5]", "n_avail_new[24, 6]",
-  "n_avail_new[25, 1]", "n_avail_new[25, 2]", "n_avail_new[25, 3]", "n_avail_new[25, 4]", "n_avail_new[25, 5]", "n_avail_new[25, 6]",
-  "n_avail_new[26, 1]", "n_avail_new[26, 2]", "n_avail_new[26, 3]", "n_avail_new[26, 4]", "n_avail_new[26, 5]", "n_avail_new[26, 6]",
-  "n_avail_new[27, 1]", "n_avail_new[27, 2]", "n_avail_new[27, 3]", "n_avail_new[27, 4]", "n_avail_new[27, 5]", "n_avail_new[27, 6]",
-  "n_avail_new[28, 1]", "n_avail_new[28, 2]", "n_avail_new[28, 3]", "n_avail_new[28, 4]", "n_avail_new[28, 5]", "n_avail_new[28, 6]",
-  "n_avail_new[29, 1]", "n_avail_new[29, 2]", "n_avail_new[29, 3]", "n_avail_new[29, 4]", "n_avail_new[29, 5]", "n_avail_new[29, 6]",
-  "n_avail_new[30, 1]", "n_avail_new[30, 2]", "n_avail_new[30, 3]", "n_avail_new[30, 4]", "n_avail_new[30, 5]", "n_avail_new[30, 6]",
-  "n_avail_new[31, 1]", "n_avail_new[31, 2]", "n_avail_new[31, 3]", "n_avail_new[31, 4]", "n_avail_new[31, 5]", "n_avail_new[31, 6]",
-  "n_avail_new[32, 1]", "n_avail_new[32, 2]", "n_avail_new[32, 3]", "n_avail_new[32, 4]", "n_avail_new[32, 5]", "n_avail_new[32, 6]",
-  "n_avail_new[33, 1]", "n_avail_new[33, 2]", "n_avail_new[33, 3]", "n_avail_new[33, 4]", "n_avail_new[33, 5]", "n_avail_new[33, 6]",
-  "n_avail_new[34, 1]", "n_avail_new[34, 2]", "n_avail_new[34, 3]", "n_avail_new[34, 4]", "n_avail_new[34, 5]", "n_avail_new[34, 6]",
-  "n_avail_new[35, 1]", "n_avail_new[35, 2]", "n_avail_new[35, 3]", "n_avail_new[35, 4]", "n_avail_new[35, 5]", "n_avail_new[35, 6]",
-  "n_avail_new[36, 1]", "n_avail_new[36, 2]", "n_avail_new[36, 3]", "n_avail_new[36, 4]", "n_avail_new[36, 5]", "n_avail_new[36, 6]",
-  "n_avail_new[37, 1]", "n_avail_new[37, 2]", "n_avail_new[37, 3]", "n_avail_new[37, 4]", "n_avail_new[37, 5]", "n_avail_new[37, 6]",
-  "n_avail_new[38, 1]", "n_avail_new[38, 2]", "n_avail_new[38, 3]", "n_avail_new[38, 4]", "n_avail_new[38, 5]", "n_avail_new[38, 6]",
-  "n_avail_new[39, 1]", "n_avail_new[39, 2]", "n_avail_new[39, 3]", "n_avail_new[39, 4]", "n_avail_new[39, 5]", "n_avail_new[39, 6]",
-  "n_avail_new[40, 1]", "n_avail_new[40, 2]", "n_avail_new[40, 3]", "n_avail_new[40, 4]", "n_avail_new[40, 5]", "n_avail_new[40, 6]",
-  "n_avail_new[41, 1]", "n_avail_new[41, 2]", "n_avail_new[41, 3]", "n_avail_new[41, 4]", "n_avail_new[41, 5]", "n_avail_new[41, 6]",
-  "n_avail_new[42, 1]", "n_avail_new[42, 2]", "n_avail_new[42, 3]", "n_avail_new[42, 4]", "n_avail_new[42, 5]", "n_avail_new[42, 6]",
-  "n_avail_new[43, 1]", "n_avail_new[43, 2]", "n_avail_new[43, 3]", "n_avail_new[43, 4]", "n_avail_new[43, 5]", "n_avail_new[43, 6]",
-  "n_avail_new[44, 1]", "n_avail_new[44, 2]", "n_avail_new[44, 3]", "n_avail_new[44, 4]", "n_avail_new[44, 5]", "n_avail_new[44, 6]",
-  "n_avail_new[45, 1]", "n_avail_new[45, 2]", "n_avail_new[45, 3]", "n_avail_new[45, 4]", "n_avail_new[45, 5]", "n_avail_new[45, 6]",
-  "n_avail_new[46, 1]", "n_avail_new[46, 2]", "n_avail_new[46, 3]", "n_avail_new[46, 4]", "n_avail_new[46, 5]", "n_avail_new[46, 6]",
-  "n_avail_new[47, 1]", "n_avail_new[47, 2]", "n_avail_new[47, 3]", "n_avail_new[47, 4]", "n_avail_new[47, 5]", "n_avail_new[47, 6]",
-  "n_avail_new[48, 1]", "n_avail_new[48, 2]", "n_avail_new[48, 3]", "n_avail_new[48, 4]", "n_avail_new[48, 5]", "n_avail_new[48, 6]",
-  "n_avail_new[49, 1]", "n_avail_new[49, 2]", "n_avail_new[49, 3]", "n_avail_new[49, 4]", "n_avail_new[49, 5]", "n_avail_new[49, 6]",
-  "n_avail_new[50, 1]", "n_avail_new[50, 2]", "n_avail_new[50, 3]", "n_avail_new[50, 4]", "n_avail_new[50, 5]", "n_avail_new[50, 6]",
-  "n_avail_new[51, 1]", "n_avail_new[51, 2]", "n_avail_new[51, 3]", "n_avail_new[51, 4]", "n_avail_new[51, 5]", "n_avail_new[51, 6]",
-  "n_avail_new[52, 1]", "n_avail_new[52, 2]", "n_avail_new[52, 3]", "n_avail_new[52, 4]", "n_avail_new[52, 5]", "n_avail_new[52, 6]",
-  "n_avail_new[53, 1]", "n_avail_new[53, 2]", "n_avail_new[53, 3]", "n_avail_new[53, 4]", "n_avail_new[53, 5]", "n_avail_new[53, 6]",
-  "n_avail_new[54, 1]", "n_avail_new[54, 2]", "n_avail_new[54, 3]", "n_avail_new[54, 4]", "n_avail_new[54, 5]", "n_avail_new[54, 6]",
-  "n_avail_new[55, 1]", "n_avail_new[55, 2]", "n_avail_new[55, 3]", "n_avail_new[55, 4]", "n_avail_new[55, 5]", "n_avail_new[55, 6]",
-  "n_avail_new[56, 1]", "n_avail_new[56, 2]", "n_avail_new[56, 3]", "n_avail_new[56, 4]", "n_avail_new[56, 5]", "n_avail_new[56, 6]",
-  "n_avail_new[57, 1]", "n_avail_new[57, 2]", "n_avail_new[57, 3]", "n_avail_new[57, 4]", "n_avail_new[57, 5]", "n_avail_new[57, 6]",
-  "n_avail_new[58, 1]", "n_avail_new[58, 2]", "n_avail_new[58, 3]", "n_avail_new[58, 4]", "n_avail_new[58, 5]", "n_avail_new[58, 6]",
-  "n_avail_new[59, 1]", "n_avail_new[59, 2]", "n_avail_new[59, 3]", "n_avail_new[59, 4]", "n_avail_new[59, 5]", "n_avail_new[59, 6]",
-  "n_avail_new[60, 1]", "n_avail_new[60, 2]", "n_avail_new[60, 3]", "n_avail_new[60, 4]", "n_avail_new[60, 5]", "n_avail_new[60, 6]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "n_avail_new[1, 1]", "n_avail_new[1, 2]", "n_avail_new[1, 3]", "n_avail_new[1, 4]", "n_avail_new[1, 5]", "n_avail_new[1, 6]",
-  "n_avail_new[2, 1]", "n_avail_new[2, 2]", "n_avail_new[2, 3]", "n_avail_new[2, 4]", "n_avail_new[2, 5]", "n_avail_new[2, 6]",
-  "n_avail_new[3, 1]", "n_avail_new[3, 2]", "n_avail_new[3, 3]", "n_avail_new[3, 4]", "n_avail_new[3, 5]", "n_avail_new[3, 6]",
-  "n_avail_new[4, 1]", "n_avail_new[4, 2]", "n_avail_new[4, 3]", "n_avail_new[4, 4]", "n_avail_new[4, 5]", "n_avail_new[4, 6]",
-  "n_avail_new[5, 1]", "n_avail_new[5, 2]", "n_avail_new[5, 3]", "n_avail_new[5, 4]", "n_avail_new[5, 5]", "n_avail_new[5, 6]",
-  "n_avail_new[6, 1]", "n_avail_new[6, 2]", "n_avail_new[6, 3]", "n_avail_new[6, 4]", "n_avail_new[6, 5]", "n_avail_new[6, 6]",
-  "n_avail_new[7, 1]", "n_avail_new[7, 2]", "n_avail_new[7, 3]", "n_avail_new[7, 4]", "n_avail_new[7, 5]", "n_avail_new[7, 6]",
-  "n_avail_new[8, 1]", "n_avail_new[8, 2]", "n_avail_new[8, 3]", "n_avail_new[8, 4]", "n_avail_new[8, 5]", "n_avail_new[8, 6]",
-  "n_avail_new[9, 1]", "n_avail_new[9, 2]", "n_avail_new[9, 3]", "n_avail_new[9, 4]", "n_avail_new[9, 5]", "n_avail_new[9, 6]",
-  "n_avail_new[10, 1]", "n_avail_new[10, 2]", "n_avail_new[10, 3]", "n_avail_new[10, 4]", "n_avail_new[10, 5]", "n_avail_new[10, 6]",
-  "n_avail_new[11, 1]", "n_avail_new[11, 2]", "n_avail_new[11, 3]", "n_avail_new[11, 4]", "n_avail_new[11, 5]", "n_avail_new[11, 6]",
-  "n_avail_new[12, 1]", "n_avail_new[12, 2]", "n_avail_new[12, 3]", "n_avail_new[12, 4]", "n_avail_new[12, 5]", "n_avail_new[12, 6]",
-  "n_avail_new[13, 1]", "n_avail_new[13, 2]", "n_avail_new[13, 3]", "n_avail_new[13, 4]", "n_avail_new[13, 5]", "n_avail_new[13, 6]",
-  "n_avail_new[14, 1]", "n_avail_new[14, 2]", "n_avail_new[14, 3]", "n_avail_new[14, 4]", "n_avail_new[14, 5]", "n_avail_new[14, 6]",
-  "n_avail_new[15, 1]", "n_avail_new[15, 2]", "n_avail_new[15, 3]", "n_avail_new[15, 4]", "n_avail_new[15, 5]", "n_avail_new[15, 6]",
-  "n_avail_new[16, 1]", "n_avail_new[16, 2]", "n_avail_new[16, 3]", "n_avail_new[16, 4]", "n_avail_new[16, 5]", "n_avail_new[16, 6]",
-  "n_avail_new[17, 1]", "n_avail_new[17, 2]", "n_avail_new[17, 3]", "n_avail_new[17, 4]", "n_avail_new[17, 5]", "n_avail_new[17, 6]",
-  "n_avail_new[18, 1]", "n_avail_new[18, 2]", "n_avail_new[18, 3]", "n_avail_new[18, 4]", "n_avail_new[18, 5]", "n_avail_new[18, 6]",
-  "n_avail_new[19, 1]", "n_avail_new[19, 2]", "n_avail_new[19, 3]", "n_avail_new[19, 4]", "n_avail_new[19, 5]", "n_avail_new[19, 6]",
-  "n_avail_new[20, 1]", "n_avail_new[20, 2]", "n_avail_new[20, 3]", "n_avail_new[20, 4]", "n_avail_new[20, 5]", "n_avail_new[20, 6]",
-  "n_avail_new[21, 1]", "n_avail_new[21, 2]", "n_avail_new[21, 3]", "n_avail_new[21, 4]", "n_avail_new[21, 5]", "n_avail_new[21, 6]",
-  "n_avail_new[22, 1]", "n_avail_new[22, 2]", "n_avail_new[22, 3]", "n_avail_new[22, 4]", "n_avail_new[22, 5]", "n_avail_new[22, 6]",
-  "n_avail_new[23, 1]", "n_avail_new[23, 2]", "n_avail_new[23, 3]", "n_avail_new[23, 4]", "n_avail_new[23, 5]", "n_avail_new[23, 6]",
-  "n_avail_new[24, 1]", "n_avail_new[24, 2]", "n_avail_new[24, 3]", "n_avail_new[24, 4]", "n_avail_new[24, 5]", "n_avail_new[24, 6]",
-  "n_avail_new[25, 1]", "n_avail_new[25, 2]", "n_avail_new[25, 3]", "n_avail_new[25, 4]", "n_avail_new[25, 5]", "n_avail_new[25, 6]",
-  "n_avail_new[26, 1]", "n_avail_new[26, 2]", "n_avail_new[26, 3]", "n_avail_new[26, 4]", "n_avail_new[26, 5]", "n_avail_new[26, 6]",
-  "n_avail_new[27, 1]", "n_avail_new[27, 2]", "n_avail_new[27, 3]", "n_avail_new[27, 4]", "n_avail_new[27, 5]", "n_avail_new[27, 6]",
-  "n_avail_new[28, 1]", "n_avail_new[28, 2]", "n_avail_new[28, 3]", "n_avail_new[28, 4]", "n_avail_new[28, 5]", "n_avail_new[28, 6]",
-  "n_avail_new[29, 1]", "n_avail_new[29, 2]", "n_avail_new[29, 3]", "n_avail_new[29, 4]", "n_avail_new[29, 5]", "n_avail_new[29, 6]",
-  "n_avail_new[30, 1]", "n_avail_new[30, 2]", "n_avail_new[30, 3]", "n_avail_new[30, 4]", "n_avail_new[30, 5]", "n_avail_new[30, 6]",
-  "n_avail_new[31, 1]", "n_avail_new[31, 2]", "n_avail_new[31, 3]", "n_avail_new[31, 4]", "n_avail_new[31, 5]", "n_avail_new[31, 6]",
-  "n_avail_new[32, 1]", "n_avail_new[32, 2]", "n_avail_new[32, 3]", "n_avail_new[32, 4]", "n_avail_new[32, 5]", "n_avail_new[32, 6]",
-  "n_avail_new[33, 1]", "n_avail_new[33, 2]", "n_avail_new[33, 3]", "n_avail_new[33, 4]", "n_avail_new[33, 5]", "n_avail_new[33, 6]",
-  "n_avail_new[34, 1]", "n_avail_new[34, 2]", "n_avail_new[34, 3]", "n_avail_new[34, 4]", "n_avail_new[34, 5]", "n_avail_new[34, 6]",
-  "n_avail_new[35, 1]", "n_avail_new[35, 2]", "n_avail_new[35, 3]", "n_avail_new[35, 4]", "n_avail_new[35, 5]", "n_avail_new[35, 6]",
-  "n_avail_new[36, 1]", "n_avail_new[36, 2]", "n_avail_new[36, 3]", "n_avail_new[36, 4]", "n_avail_new[36, 5]", "n_avail_new[36, 6]",
-  "n_avail_new[37, 1]", "n_avail_new[37, 2]", "n_avail_new[37, 3]", "n_avail_new[37, 4]", "n_avail_new[37, 5]", "n_avail_new[37, 6]",
-  "n_avail_new[38, 1]", "n_avail_new[38, 2]", "n_avail_new[38, 3]", "n_avail_new[38, 4]", "n_avail_new[38, 5]", "n_avail_new[38, 6]",
-  "n_avail_new[39, 1]", "n_avail_new[39, 2]", "n_avail_new[39, 3]", "n_avail_new[39, 4]", "n_avail_new[39, 5]", "n_avail_new[39, 6]",
-  "n_avail_new[40, 1]", "n_avail_new[40, 2]", "n_avail_new[40, 3]", "n_avail_new[40, 4]", "n_avail_new[40, 5]", "n_avail_new[40, 6]",
-  "n_avail_new[41, 1]", "n_avail_new[41, 2]", "n_avail_new[41, 3]", "n_avail_new[41, 4]", "n_avail_new[41, 5]", "n_avail_new[41, 6]",
-  "n_avail_new[42, 1]", "n_avail_new[42, 2]", "n_avail_new[42, 3]", "n_avail_new[42, 4]", "n_avail_new[42, 5]", "n_avail_new[42, 6]",
-  "n_avail_new[43, 1]", "n_avail_new[43, 2]", "n_avail_new[43, 3]", "n_avail_new[43, 4]", "n_avail_new[43, 5]", "n_avail_new[43, 6]",
-  "n_avail_new[44, 1]", "n_avail_new[44, 2]", "n_avail_new[44, 3]", "n_avail_new[44, 4]", "n_avail_new[44, 5]", "n_avail_new[44, 6]",
-  "n_avail_new[45, 1]", "n_avail_new[45, 2]", "n_avail_new[45, 3]", "n_avail_new[45, 4]", "n_avail_new[45, 5]", "n_avail_new[45, 6]",
-  "n_avail_new[46, 1]", "n_avail_new[46, 2]", "n_avail_new[46, 3]", "n_avail_new[46, 4]", "n_avail_new[46, 5]", "n_avail_new[46, 6]",
-  "n_avail_new[47, 1]", "n_avail_new[47, 2]", "n_avail_new[47, 3]", "n_avail_new[47, 4]", "n_avail_new[47, 5]", "n_avail_new[47, 6]",
-  "n_avail_new[48, 1]", "n_avail_new[48, 2]", "n_avail_new[48, 3]", "n_avail_new[48, 4]", "n_avail_new[48, 5]", "n_avail_new[48, 6]",
-  "n_avail_new[49, 1]", "n_avail_new[49, 2]", "n_avail_new[49, 3]", "n_avail_new[49, 4]", "n_avail_new[49, 5]", "n_avail_new[49, 6]",
-  "n_avail_new[50, 1]", "n_avail_new[50, 2]", "n_avail_new[50, 3]", "n_avail_new[50, 4]", "n_avail_new[50, 5]", "n_avail_new[50, 6]",
-  "n_avail_new[51, 1]", "n_avail_new[51, 2]", "n_avail_new[51, 3]", "n_avail_new[51, 4]", "n_avail_new[51, 5]", "n_avail_new[51, 6]",
-  "n_avail_new[52, 1]", "n_avail_new[52, 2]", "n_avail_new[52, 3]", "n_avail_new[52, 4]", "n_avail_new[52, 5]", "n_avail_new[52, 6]",
-  "n_avail_new[53, 1]", "n_avail_new[53, 2]", "n_avail_new[53, 3]", "n_avail_new[53, 4]", "n_avail_new[53, 5]", "n_avail_new[53, 6]",
-  "n_avail_new[54, 1]", "n_avail_new[54, 2]", "n_avail_new[54, 3]", "n_avail_new[54, 4]", "n_avail_new[54, 5]", "n_avail_new[54, 6]",
-  "n_avail_new[55, 1]", "n_avail_new[55, 2]", "n_avail_new[55, 3]", "n_avail_new[55, 4]", "n_avail_new[55, 5]", "n_avail_new[55, 6]",
-  "n_avail_new[56, 1]", "n_avail_new[56, 2]", "n_avail_new[56, 3]", "n_avail_new[56, 4]", "n_avail_new[56, 5]", "n_avail_new[56, 6]",
-  "n_avail_new[57, 1]", "n_avail_new[57, 2]", "n_avail_new[57, 3]", "n_avail_new[57, 4]", "n_avail_new[57, 5]", "n_avail_new[57, 6]",
-  "n_avail_new[58, 1]", "n_avail_new[58, 2]", "n_avail_new[58, 3]", "n_avail_new[58, 4]", "n_avail_new[58, 5]", "n_avail_new[58, 6]",
-  "n_avail_new[59, 1]", "n_avail_new[59, 2]", "n_avail_new[59, 3]", "n_avail_new[59, 4]", "n_avail_new[59, 5]", "n_avail_new[59, 6]",
-  "n_avail_new[60, 1]", "n_avail_new[60, 2]", "n_avail_new[60, 3]", "n_avail_new[60, 4]", "n_avail_new[60, 5]", "n_avail_new[60, 6]"
-),
-type = 'RW_block')
-
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
 sobs_mcmcConf$unsampledNodes      # Look at unsampled nodes
@@ -1227,6 +687,7 @@ MCMCtrace(object = fire_mcmc_out$samples,
 # View MCMC summary
 MCMCsummary(object = fire_mcmc_out$samples, 
             params = sobs_params,
+            excl = c(),
             round = 2)
 
 # View MCMC plot
@@ -1234,7 +695,7 @@ MCMCplot(object = fire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
 
-} # End modeling loop (Comment this out) ----
+# } # End modeling loop (Comment this out) ----
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
@@ -1243,11 +704,11 @@ MCMCplot(object = fire_mcmc_out$samples,
 # 4.1) Prepare and view model output ################################################
 
 # Loop over all species 
-for(s in 1:length(all_species)) { # (Comment this out) ----
+# for(s in 1:length(all_species)) { # (Comment this out) ----
 
 # Name the species to model again
-plot_species <- all_species[s]
-# plot_species <- all_species[2]
+# plot_species <- all_species[s]
+plot_species <- all_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
