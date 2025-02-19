@@ -296,7 +296,7 @@ sabs_model_code <- nimbleCode({
         log(g[j, k, b]) <- -(midpt[b]^2) / (2 * sigma[j, k]^2) # Half-normal detection function
         f[j, k, b] <- (2 * midpt[b]) / trunc_dist^2  * delta   # Prob density function out to max truncation distance 
         pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]              # Detection cell probability
-        pi_pd_c[j, k, b] <- f[j, k, b] / p_d[j, k]             # Proportion of total probability in each cell probability
+        pi_pd_c[j, k, b] <- pi_pd[j, k, b] / p_d[j, k]         # Proportion of total probability in each cell probability
       }
       
       # Rectangular integral approx. of integral that yields the Pr(capture)
@@ -556,6 +556,7 @@ MCMCsummary(object = sabs_mcmc_out$samples,
 
 # View MCMC plot
 MCMCplot(object = sabs_mcmc_out$samples,
+         excl = c("fit", "fit_new"),
          guide_lines = TRUE,
          params = sabs_params)
 
@@ -578,20 +579,12 @@ sabs_mcmc_out$summary$all.chains
 
 # 4.2) Extract coefficient values ###############################################################
 
-# Extract effect sizes
-
-# Mean across years 
-beta0_year1 <- sabs_mcmc_out$summary$all.chains[2,] 
-beta0_year2 <- sabs_mcmc_out$summary$all.chains[3,]
-beta0_year3 <- sabs_mcmc_out$summary$all.chains[4,]
-year_mean_intercept <- colMeans(bind_rows(beta0_year1, beta0_year2, beta0_year3))
 
 # Treatment intercepts
-beta0_ref_low <- year_mean_intercept # Low reference gets the overall mean
-# sabs_mcmc_out$summary$all.chains[33,]   
-beta0_ref_high <- year_mean_intercept + sabs_mcmc_out$summary$all.chains[6,]
-beta0_burn_low <- year_mean_intercept + sabs_mcmc_out$summary$all.chains[7,]
-beta0_burn_high <- year_mean_intercept + sabs_mcmc_out$summary$all.chains[5,]
+beta0_ref_low <- sabs_mcmc_out$summary$all.chains[2,] 
+beta0_ref_high <- sabs_mcmc_out$summary$all.chains[3,]
+beta0_burn_low <- sabs_mcmc_out$summary$all.chains[4,]
+beta0_burn_high <- sabs_mcmc_out$summary$all.chains[5,]
 
 # View Betas
 bind_rows(beta0_ref_low,

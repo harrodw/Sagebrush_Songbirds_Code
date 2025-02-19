@@ -55,6 +55,33 @@ study_species <- all_species[s]
 # Define a truncation distance (km)
 trunc_dist <- 0.125
 
+# Find out how many total observations there were for the grid plus visit
+#I only need a few columns
+indv_counts_tmp <- sobs %>%
+  # Remove very far observations
+  filter(Distance <= 200) %>% 
+  # Remove NOBI's
+  filter(Species != "NOBI" & Species != study_species) %>% 
+  # Column for each distinct visit
+  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  #Reframe the data to total observations per grid
+  group_by(Grid.ID, Visit.ID) %>% 
+  reframe(Grid.ID, Visit.ID, Total.Indv = n()) %>% 
+  distinct()
+
+# Impute the missing surveys
+missing_indv_counts <- indv_counts_tmp %>% 
+  filter(Grid.ID %in% c("ID-C11", "ID-C22") & Visit.ID == "Y1-V2") %>% 
+  mutate(Visit.ID = "Y1-V1")
+
+# Add these to the data
+indv_counts <- indv_counts_tmp %>% 
+  bind_rows(missing_indv_counts)
+# View
+# glimpse(indv_counts)
+
+
+
 # Make a table of important species sightings by visit
 counts_0inf <- sobs %>%
   # Switch from m to km
@@ -105,7 +132,7 @@ visit_count <- sobs %>%
 #...and view
 # glimpse(visit_count)
 
-#Join the three datasets, add zeros and average observations within year
+#Join all datasets, add zeros and average observations within year
 counts_temp <-  visit_count %>% 
   left_join(counts_0inf, by = c("Grid.ID", "Year", "Visit.ID", "Ord.Date")) %>% 
   mutate(Count = case_when(is.na(Count) ~ 0, TRUE ~ Count)) %>% 
@@ -119,44 +146,10 @@ counts_temp <-  visit_count %>%
   # # Make an observer.Experience column
   mutate(Observer.Experience = case_when(Observer.ID %in% no_prev_season ~ 1,
                                          Observer.ID %in% prev_season ~ 2))
-  # Split up Observers By Year
-  # mutate(Observer.Year = case_when(Observer.ID == "Two-Observers" ~ "Two-Observers",
-  #                                  TRUE ~ paste(Observer.ID, Year, sep = "-"))) %>% 
-  
-  # Remove the unnesseary column
-  # select(-n.Observers)
-  
-#...and view
+# View
 # glimpse(counts_temp)
-# print(counts_temp, n = Inf)
-# counts_temp %>% 
-# count(Observer.ID)
-
-# View the surveys that weren't done
-# counts_temp %>%
-#   group_by(Grid.ID) %>%
-#   filter(n() < 6)
-# ID-C11, Y1-V1 and ID-C22, Y1-V1 weren't recorded
 
 # For now I'm going to impute these miissing surveys using existing data
-# new_dat <- tibble(Grid.ID = c("ID-C11", "ID-C22"),
-#                   Grid.Type = c("R", "R"),
-#                   Year = c("Y1", "Y1"),
-#                   Visit.ID = c("Y1-V1", "Y1-V1"),
-#                   # Saying Rory filled in the data
-#                   Observer.ID = c("Rory", "Rory"),
-#                   # Average ordianal date across visits
-#                   Ord.Date = c(floor(mean(counts_temp$Ord.Date[which(counts_temp$Grid.ID == "ID-C11")])),
-#                                floor(mean(counts_temp$Ord.Date[which(counts_temp$Grid.ID == "ID-C22")]))),
-#                   # Average survey time across visits
-#                   Mean.MAS = c(mean(counts_temp$Mean.MAS[which(counts_temp$Grid.ID == "ID-C11")]),
-#                                mean(counts_temp$Mean.MAS[which(counts_temp$Grid.ID == "ID-C22")])),
-#                   # Average count across visits
-#                   Count = c(floor(mean(counts_temp$Count[which(counts_temp$Grid.ID == "ID-C11")])),
-#                             floor(mean(counts_temp$Count[which(counts_temp$Grid.ID == "ID-C22")]))),
-#                   # Average number of points surevyed
-#                   n.Points = c(floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C11")])),
-#                                floor(mean(counts_temp$n.Points[which(counts_temp$Grid.ID == "ID-C22")]))))
 new_counts <- counts_temp %>% 
   #Select the necessary data 
   filter(Grid.ID %in% c("ID-C11", "ID-C22") & Visit.ID == "Y1-V2") %>%
@@ -172,7 +165,9 @@ counts_temp2 <- counts_temp %>%
   # Create a column to show that this is not imputed data
   mutate(Imputed = FALSE) %>% 
   bind_rows(new_counts) %>% 
-  arrange(Grid.ID, Year, Visit.ID)
+  arrange(Grid.ID, Year, Visit.ID) %>% 
+  # Add the total observations per grid
+  left_join(indv_counts, by = c("Grid.ID", "Visit.ID"))
 #...and view
 # glimpse(counts_temp2)
 # new_dat%>% 
@@ -241,19 +236,9 @@ observations_temp <- sobs %>%
   dplyr::select(Grid.ID, Observer.ID, Observer.Experience, Distance, 
                 Dist.Bin, Dist.Bin.Midpoint, Time.Interval, Year, Visit.ID) %>% 
   left_join(obsv_count, by = c("Grid.ID", "Visit.ID")) %>% 
-  # Make a "new observer" for the grids that were surveyed by two people
-  # mutate(Observer.ID = case_when(n.Observers == 1 ~ Observer.ID,
-  #                                n.Observers > 1 ~ "Two-Observers",
-  #                                TRUE ~ NA)) %>% 
   # # Make an observer.Experience column
   mutate(Observer.Experience = case_when(Observer.ID %in% no_prev_season ~ 1,
                                          Observer.ID %in% prev_season ~ 2)) 
-  # # Split up Observers By Year
-  # mutate(Observer.Year = case_when(Observer.ID == "Two-Observers" ~ "Two-Observers",
-  #                                  TRUE ~ paste(Observer.ID, Year, sep = "-"))) %>% 
-  # # Remove the unnesseary column
-  # select(-n.Observers)
-
 
 # Propegrate the existing data for the icomplete surveys (ID-C11 and ID-C22 Y1-V1)
 # ID-C11

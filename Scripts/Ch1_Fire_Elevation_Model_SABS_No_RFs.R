@@ -509,8 +509,6 @@ saveRDS(sabs_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3) Model output and diagnostics ##############################################
 ################################################################################
 
-# Clear plots
-# dev.off()
 
 # 3.1) View model output
 
@@ -535,6 +533,7 @@ MCMCsummary(object = sabs_mcmc_out$samples,
 
 # View MCMC plot
 MCMCplot(object = sabs_mcmc_out$samples,
+         excl = c("fit", "fit_new"),
          guide_lines = TRUE,
          params = sabs_params)
 

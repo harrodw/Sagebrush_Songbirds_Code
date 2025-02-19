@@ -27,32 +27,32 @@ rm(list = ls())
 all_species <- c(
   "BRSP",
   "SATH",
-  # "SABS",
-  "GTTO",
   "VESP",
   "WEME",
-  "HOLA"
-  )
+  "HOLA",
+  "GTTO"
+)
 
 # Loop over all species
-for(k in 1:length(all_species)){ # (Comment this out) ----
+for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-model_species <- all_species[k]
+model_species <- all_species[s]
 # model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
+# Total Indv = number of all other species (Good proxy for noise)
 sobs_counts_temp <- read.csv(paste0("Data/Outputs/", model_species, "_Grid_Counts.csv")) %>%
   tibble() %>%
   select(-X)
-# #  or from github
+# Or from github
 # covs <- read.csv(paste0("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/",
 #                         model_species, "_Grid_Counts.csv"))%>%
 #   dplyr::select(-X) %>%
 #   tibble()
 #view the counts
-# glimpse(sobs_counts_temp)
+glimpse(sobs_counts_temp)
 
 # Add in the observation data from the local drive
 sobs_observations_temp <- read.csv(paste0("Data/Outputs/", model_species, "_Observations.csv")) %>% 
@@ -63,7 +63,7 @@ sobs_observations_temp <- read.csv(paste0("Data/Outputs/", model_species, "_Obse
 #   dplyr::select(-X) %>%
 #   tibble()
 # View the observations
-# glimpse(sobs_observations_temp)
+glimpse(sobs_observations_temp)
 
 # Add covariates from the local drive
 # Aspect only on areas with greater than 3 degree slopes
@@ -77,43 +77,10 @@ covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
 # covs <- read.csv("https://raw.githubusercontent.com/harrodw/Sagebrush_Songbirds_Code/main/Data/Outputs/grid_covs.csv") %>%
 #   dplyr::select(-X) %>%
 #   tibble()
-
 # View covariates
-# glimpse(covs)
-
-# Add in the full dataset
-full_dat <- read.csv("Data/Outputs/sobs_data.csv") 
+glimpse(covs)
   
 # 1.2) Prepare the count level data ################################################################
-
-# Find out how many total observations there were for the grid plus visit
-#I only need a few columns
-indv_counts_tmp <- full_dat %>%
-  # Remove very far observations
-  filter(Distance <= 250) %>% 
-  # Remove NOBI's
-  filter(Species != "NOBI") %>% 
-  # Column for each distinct visit
-  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  # Only need a few columns
-  select(Grid.ID, Visit.ID, Species) %>% 
-  #Reframe the data to total observations per grid
-  group_by(Grid.ID, Visit.ID) %>% 
-  reframe(Grid.ID, Visit.ID, Total.Indv = n()) %>% 
-  distinct()
-
-# Impute the missing surveys
-missing_indv_counts <- indv_counts_tmp %>% 
-  filter(Grid.ID %in% c("ID-C11", "ID-C22") & Visit.ID == "Y1-V2") %>% 
-  mutate(Visit.ID = "Y1-V1")
-
-# Add these to the data
-indv_counts <- indv_counts_tmp %>% 
-  bind_rows(missing_indv_counts)
-
-# View
-glimpse(indv_counts)
-
 
 # Change necessary variables to scales and factors
 sobs_counts_temp2 <- sobs_counts_temp %>%
@@ -127,8 +94,6 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
          Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
                                       Year == "Y2" ~ 2023 - Fire.Year,
                                       Year == "Y3" ~ 2024 - Fire.Year)) %>%
-  # Add the total observations per grid
-  left_join(indv_counts, by = c("Grid.ID", "Visit.ID")) %>% 
   # Other things that should be factors
   mutate_at(c("Grid.ID", "Visit.ID", "Observer.ID", "Observer.ID", "Year"), factor) %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
@@ -151,7 +116,7 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
   
 
 #...and view
-glimpse(sobs_counts_temp2)
+# glimpse(sobs_counts_temp2)
 
 # Isolate the burned Grids as their own object so I can accurately scale them
 fire_stats <- sobs_counts_temp2 %>% 
@@ -168,25 +133,10 @@ sd_ln_fyear <- sd(fire_stats$ln.Years.Since.Fire)
 mean_rdnbr <- mean(fire_stats$rdnbr.125m)
 sd_rdnbr <- sd(fire_stats$rdnbr.125m)
 
-# Isolate cover covariates on reference grids 
-ref_stats <- sobs_counts_temp2 %>% 
-  filter(Burned == 0) %>% 
-  distinct(Grid.ID, Shrub.Cover.125m, Perennial.Cover.125m)
-# View
-# glimpse(ref_stats)
-
-# Find the reference covariate mean and sd 
-mean_shrub <- mean(ref_stats$Shrub.Cover.125m)
-sd_shrub <- sd(ref_stats$Shrub.Cover.125m)
-mean_pern <- mean(ref_stats$Perennial.Cover.125m)
-sd_pern <- sd(ref_stats$Perennial.Cover.125m)
-
 # Scale each covariate
 sobs_counts <- sobs_counts_temp2 %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
   mutate(Elevation.scl = scale(Elevation.125m)[,1],
-         Shrub.Cover.scl = (Shrub.Cover.125m - mean_shrub) - sd_shrub,
-         Perennial.Cover.scl = (Perennial.Cover.125m - mean_pern) - sd_pern,
          Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1],
          Total.Indv.scl = scale(Total.Indv)[,1],
@@ -194,7 +144,7 @@ sobs_counts <- sobs_counts_temp2 %>%
          ln.Years.Since.Fire.scl = (ln.Years.Since.Fire - mean_ln_fyear) /sd_ln_fyear,
          rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr)
 # View
-glimpse(sobs_counts)
+# glimpse(sobs_counts)
 
 # 1.3) Prepare the observation level data ################################################################
 
@@ -204,12 +154,12 @@ sobs_counts <- sobs_counts %>%
   mutate(Grid.ID.num = as.numeric(Grid.ID),
          Year.num = as.numeric(Year),
          Visit.ID.num = as.numeric(Visit.ID),
-         Observer.ID.num = as.numeric(Observer.ID)) 
+         Observer.ID.num = as.numeric(Observer.ID))
 
 # View who each observer is
-# sobs_counts %>% 
-#   distinct(Observer.ID, Observer.ID.num, Observer.Experience) %>% 
-#   arrange(Observer.ID.num) %>% 
+# sobs_counts %>%
+#   distinct(Observer.ID, Observer.ID.num, Observer.Experience) %>%
+#   arrange(Observer.ID.num) %>%
 #   print(n = Inf)
 
 # Pull out the covariates that need to be shared across counts and observations
@@ -224,64 +174,11 @@ sobs_observations <- sobs_observations_temp %>%
   left_join(point_ids, by = c("Grid.ID", "Year", "Visit.ID"))
 
 # View Counts
-# glimpse(sobs_counts)
+glimpse(sobs_counts)
 
 # View observations
-# glimpse(sobs_observations)
+glimpse(sobs_observations)
 
-
-# 1.4) Plot preliminary correlations in the data ##############################################################
-# 
-# # Plot a specific treatment and bird abundance
-# sobs_counts %>%
-#   ggplot() +
-#   geom_boxplot(aes(x = factor(Treatment), y = Count, color = factor(Treatment))) +
-#   theme_bw()
-# 
-# # Plot burn sevarity and bird abundance
-# sobs_counts %>%
-#   filter(Burned == 1) %>%
-#   ggplot() +
-#   geom_smooth(aes(x = rdnbr.125m, y = Count, 
-#                   # color = factor(Treatment)
-#                   ), method = "glm", method.args = list(family = "quasipoisson")) +
-#   geom_jitter(aes(x = rdnbr.125m, y = Count, 
-#                   # color = factor(Treatment)
-#               )) +
-#   theme_bw()
-# 
-# # Plot time since fire and bird abundance
-# sobs_counts %>%
-#   filter(Burned == 1) %>%
-#   ggplot() +
-#   geom_smooth(aes(x = Years.Since.Fire, y = Count, 
-#                   color = factor(Treatment)),
-#               method = "glm", method.args = list(family = "quasipoisson")) +
-#   geom_jitter(aes(x = Years.Since.Fire, y = Count, 
-#                   color = factor(Treatment))) +
-#   theme_bw()
-# 
-# # What are these low elevation recovered burn grids with high counts?
-# sobs_counts %>% 
-#   # filter(Burned == 1) %>% 
-#   select(Grid.ID, Treatment, Years.Since.Fire, Count, Elevation.125m) %>% 
-#   arrange(Years.Since.Fire) %>% 
-#   print(n = Inf)
-# 
-# # Plot detection frequency by distance for each observer to insurre that the data is appropriate for distance sampling
-# sobs_observations %>%
-#   group_by(Grid.ID, Observer.ID, Observer.Experience, Dist.Bin, Dist.Bin.Midpoint) %>%
-#   reframe(Grid.ID, Observer.ID, Observer.Experience, Dist.Bin, , Dist.Bin.Midpoint, bin.count = n()) %>%
-#   distinct() %>%
-#   ggplot(aes(x = Dist.Bin, y = bin.count
-#              )) +
-#   geom_col(fill = "lightblue") +
-#   theme_bw() +
-#   facet_wrap(~Observer.ID)
-# 
-# # How many observations did each observer have?
-# sobs_observations %>% 
-#   count(Observer.ID) 
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -419,17 +316,11 @@ sobs_model_code <- nimbleCode({
   
   # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year 
-  sd_eps_grid ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each grid
 
   # Random effect for each year
   for(y in 1:nyears){ # nyears = 3
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
-  
-  # Random effect for each grid
-  for(j in 1: ngrids) { # Loop over all grids
-    eps_grid[j] ~ dnorm(0, sd = sd_eps_grid)
-  } # End RF loop over grids
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -493,8 +384,7 @@ sobs_model_code <- nimbleCode({
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
                            beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
-                           eps_year[years[j, k]] +                              # Unexplained noise on abundance by year
-                           eps_grid[j]
+                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
       # Assess model fit: compute Bayesian p-value for using a test statisitc
       e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
@@ -607,9 +497,7 @@ sobs_inits <- list(
   beta_fyear = rnorm(nelv, 0, 0.1),
   beta_burnsev = rnorm(1, 0, 0.1),
   sd_eps_year = runif(1, 0, 1),
-  sd_eps_year = runif(1, 0, 1),
   eps_year = rnorm(years, 0, 0.1),
-  eps_grid = rnorm(ngrids, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0, 1),
   present = rbinom(ngrids, 1, 0.5),
@@ -666,14 +554,18 @@ sobs_mcmcConf$removeSamplers(
   "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]",
+  # Effect of seeing more birds on a survey
+  "alpha_nbirds"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Effect of each observer
   "alpha0_obsv[1]","alpha0_obsv[2]", "alpha0_obsv[3]", "alpha0_obsv[4]",
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
-  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
+  "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]",
+  # Effect of seeing more birds on a survey
+  "alpha_nbirds"
   ), type = 'RW_block')
 
 # Block all abundance (beta) nodes together
@@ -685,18 +577,7 @@ sobs_mcmcConf$removeSamplers(
   # Effect of burn severity
   "beta_burnsev",
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]",
-  # Random noise by grid
-  "eps_grid[1]", "eps_grid[2]", "eps_grid[3]", "eps_grid[4]", "eps_grid[5]", "eps_grid[6]",
-  "eps_grid[7]", "eps_grid[8]", "eps_grid[9]", "eps_grid[10]", "eps_grid[11]", "eps_grid[12]",
-  "eps_grid[13]", "eps_grid[14]", "eps_grid[15]", "eps_grid[16]", "eps_grid[17]", "eps_grid[18]",
-  "eps_grid[19]", "eps_grid[20]", "eps_grid[21]", "eps_grid[22]", "eps_grid[23]", "eps_grid[24]",
-  "eps_grid[25]", "eps_grid[26]", "eps_grid[27]", "eps_grid[28]", "eps_grid[29]", "eps_grid[30]",
-  "eps_grid[31]", "eps_grid[32]", "eps_grid[33]", "eps_grid[34]", "eps_grid[35]", "eps_grid[36]",
-  "eps_grid[37]", "eps_grid[38]", "eps_grid[39]", "eps_grid[40]", "eps_grid[41]", "eps_grid[42]",
-  "eps_grid[43]", "eps_grid[44]", "eps_grid[45]", "eps_grid[46]", "eps_grid[47]", "eps_grid[48]",
-  "eps_grid[49]", "eps_grid[50]", "eps_grid[51]", "eps_grid[52]", "eps_grid[53]", "eps_grid[54]",
-  "eps_grid[55]", "eps_grid[56]", "eps_grid[57]", "eps_grid[58]", "eps_grid[59]", "eps_grid[60]"
+  "eps_year[1]", "eps_year[2]", "eps_year[3]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -706,18 +587,7 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of burn severity
   "beta_burnsev",
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]",
-  # Random noise by grid
-  "eps_grid[1]", "eps_grid[2]", "eps_grid[3]", "eps_grid[4]", "eps_grid[5]", "eps_grid[6]",
-  "eps_grid[7]", "eps_grid[8]", "eps_grid[9]", "eps_grid[10]", "eps_grid[11]", "eps_grid[12]",
-  "eps_grid[13]", "eps_grid[14]", "eps_grid[15]", "eps_grid[16]", "eps_grid[17]", "eps_grid[18]",
-  "eps_grid[19]", "eps_grid[20]", "eps_grid[21]", "eps_grid[22]", "eps_grid[23]", "eps_grid[24]",
-  "eps_grid[25]", "eps_grid[26]", "eps_grid[27]", "eps_grid[28]", "eps_grid[29]", "eps_grid[30]",
-  "eps_grid[31]", "eps_grid[32]", "eps_grid[33]", "eps_grid[34]", "eps_grid[35]", "eps_grid[36]",
-  "eps_grid[37]", "eps_grid[38]", "eps_grid[39]", "eps_grid[40]", "eps_grid[41]", "eps_grid[42]",
-  "eps_grid[43]", "eps_grid[44]", "eps_grid[45]", "eps_grid[46]", "eps_grid[47]", "eps_grid[48]",
-  "eps_grid[49]", "eps_grid[50]", "eps_grid[51]", "eps_grid[52]", "eps_grid[53]", "eps_grid[54]",
-  "eps_grid[55]", "eps_grid[56]", "eps_grid[57]", "eps_grid[58]", "eps_grid[59]", "eps_grid[60]"
+  "eps_year[1]", "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # Block all occupancy (psi) nodes together
@@ -1101,11 +971,11 @@ MCMCplot(object = fire_mcmc_out$samples,
 # 4.1) Prepare and view model output ################################################
 
 # Loop over all species 
-# for(k in 1:length(all_species)) { # (Comment this out) ----
+for(s in 1:length(all_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_species[k]
-plot_species <- all_species[2]
+plot_species <- all_species[s]
+# plot_species <- all_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -1233,7 +1103,9 @@ params_plot <- beta_dat %>%
   # Simple theme
   theme_classic() +
   # Custom colors
-  scale_color_manual(values = c("lightsteelblue4", "navyblue")) +
+  
+  scale_color_manual(values = c("No" = "lightsteelblue4", 
+                                "Yes" = "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
         axis.text.y = element_text(size = 16),
