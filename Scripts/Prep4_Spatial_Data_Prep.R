@@ -428,13 +428,14 @@ pre_fire_covs <- sobs %>%
   # Add storage covariates (PF = pre fire)
   mutate(
          # Temporary covariates
-         Fire.Pixels = NA,
+         Fire.Pixels.tmp = NA,
          Shrub.Cover.tmp = NA,
          PFG.Cover.tmp = NA,
          AFG.Cover.tmp = NA,
          BG.Cover.tmp = NA, 
          Tree.Cover.tmp = NA,
          # Perminant covariates
+         Fire.Pixels = NA,
          Fire.Year = NA,
          Shrub.Cover.PF = NA,
          PFG.Cover.PF = NA,
@@ -534,7 +535,7 @@ for(i in 2:(nyears_rap)){
   bg_cvr <- terra::extract(x = bg_rast, y = pre_fire_buff, fun = function(x) mean(x, na.rm = TRUE)) # Bare ground
   
   # Assign those covariate summaries to the covariates data frame
-  pre_fire_covs$Fire.Pixels <- pixel_count[,2] # Summary of how many raster pixels are inside that buffer
+  pre_fire_covs$Fire.Pixels.tmp <- pixel_count[,2] # Summary of how many raster pixels are inside that buffer
   pre_fire_covs$Shrub.Cover.tmp <- shrub_cvr[,2] # Shrub
   pre_fire_covs$PFG.Cover.tmp <- pfg_cvr[,2] # Perennial forbs and grass
   pre_fire_covs$AFG.Cover.tmp <- afg_cvr[,2] # Annual grasses
@@ -542,20 +543,22 @@ for(i in 2:(nyears_rap)){
   pre_fire_covs$BG.Cover.tmp <- bg_cvr[,2] # Bare grund
   
   # Assine the non-NA temp covariates to the perminant ones
-  # 1200 cells seems like a good cutoff to define grids that fully burned (about half in the fire)
+  # 600 cells seems like a good cutoff to define grids that fully burned (about 1/4th in the fire)
   pre_fire_covs <- pre_fire_covs %>% 
     mutate(
-           Fire.Year = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels >= 1200 ~ year,
+           Fire.Pixels = case_when(Fire.Pixels.tmp >= 800 ~ Fire.Pixels.tmp,
+                                 TRUE ~ Fire.Year), # Number of pixels inside the burn
+           Fire.Year = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels.tmp >= 800 ~ year,
                                  TRUE ~ Fire.Year), # Year when the most recent fire affected that grid
-           Shrub.Cover.PF = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels >= 1200 ~ Shrub.Cover.tmp,
+           Shrub.Cover.PF = case_when(!is.na(Shrub.Cover.tmp) & Fire.Pixels.tmp >= 800 ~ Shrub.Cover.tmp,
                                       TRUE ~ Shrub.Cover.PF), # Shrub
-           PFG.Cover.PF = case_when(!is.na(PFG.Cover.tmp) & Fire.Pixels >= 1200 ~ PFG.Cover.tmp,
+           PFG.Cover.PF = case_when(!is.na(PFG.Cover.tmp) & Fire.Pixels.tmp >= 800 ~ PFG.Cover.tmp,
                                       TRUE ~ PFG.Cover.PF), # Perennial forbs and grass
-           AFG.Cover.PF = case_when(!is.na(AFG.Cover.tmp) & Fire.Pixels >= 1200 ~ AFG.Cover.tmp,
+           AFG.Cover.PF = case_when(!is.na(AFG.Cover.tmp) & Fire.Pixels.tmp >= 800 ~ AFG.Cover.tmp,
                                       TRUE ~ AFG.Cover.PF), # Annual grass
-           Tree.Cover.PF = case_when(!is.na(Tree.Cover.tmp) & Fire.Pixels >= 1200 ~ Tree.Cover.tmp,
+           Tree.Cover.PF = case_when(!is.na(Tree.Cover.tmp) & Fire.Pixels.tmp >= 800 ~ Tree.Cover.tmp,
                                       TRUE ~ Tree.Cover.PF), # Trees
-           BG.Cover.PF = case_when(!is.na(BG.Cover.tmp) & Fire.Pixels >= 1200 ~ BG.Cover.tmp,
+           BG.Cover.PF = case_when(!is.na(BG.Cover.tmp) & Fire.Pixels.tmp >= 800 ~ BG.Cover.tmp,
                                       TRUE ~ BG.Cover.PF) # Bare ground
            )
   
@@ -589,18 +592,25 @@ pre_fire_covs$Current.Shrub <- shrub_mean[,2]
 # Remove the temporary covariates
 pre_fire_covs_final <- pre_fire_covs %>% 
   dplyr::select(Grid.ID, Grid.Type, Elevation, Current.Shrub, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
-                AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF, Grid.X, Grid.Y) %>% 
+                AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF, Fire.Pixels, Grid.X, Grid.Y) %>% 
   # Replace NA's
-  mutate(across(everything(), ~ replace_na(., -999))) 
+  mutate(across(everything(), ~ replace_na(., 0))) %>% 
+  # Log-transform Annual cover and Tree cover
+  mutate(ln.AFG.Cover.PF = case_when(AFG.Cover.PF > 0 ~ log(AFG.Cover.PF), 
+                                     TRUE ~ 0),
+         ln.Tree.Cover.PF = case_when(Tree.Cover.PF > 0 ~ log(Tree.Cover.PF), 
+                                      TRUE ~  0))
   
 # View
 glimpse(pre_fire_covs_final)
-print(pre_fire_covs_final, n = nrow(pre_fire_covs_final))
+pre_fire_covs_final %>% 
+  arrange(Grid.Type, Grid.ID) %>% 
+  print(n = nrow(pre_fire_covs_final))
 
 #Pull out just the covariates on grids with info
 pre_fire_corr <- pre_fire_covs_final %>% 
   filter(Fire.Year > 0) %>%  
-  select(Elevation, Current.Shrub, Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
+  select(Elevation, Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
 # View
 print(pre_fire_corr, n = Inf)
   

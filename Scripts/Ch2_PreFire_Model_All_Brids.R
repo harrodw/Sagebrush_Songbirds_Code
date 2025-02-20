@@ -25,16 +25,20 @@ rm(list = ls())
 # 1.1) Read in data ############################################################
 
 # List of Species 
-all_species <- c("BRSP", "SATH", 
-                 # "SABS", "GTTO", 
-                 "VESP", "WEME", "HOLA")
+all_species <- c("BRSP", 
+                 "SATH", 
+                 "SABS", 
+                 "GTTO",
+                 "VESP", 
+                 "WEME", 
+                 "HOLA")
 
 # Loop over all species 
-for(k in 1:length(all_species)){
+for(s in 1:length(all_species)){
 
 # Pick a species to model
-model_species <- all_species[k]
-# model_species <- "SATH"
+model_species <- all_species[s]
+# model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -84,12 +88,8 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
   mutate(Burned = case_when(Grid.Type == "R" ~ 0,
                             Grid.Type == "B" ~ 1)) %>% 
   # Remove columns that are no longer needed
-  dplyr::select(-Grid.Type) %>% 
-  # Log-transform Annual cover and Tree cover
-  mutate(ln.AFG.Cover.PF = case_when(Burned == 1 ~ log(AFG.Cover.PF), 
-                                  TRUE ~ AFG.Cover.PF),
-         ln.Tree.Cover.PF = case_when(Burned == 1 ~ log(Tree.Cover.PF), 
-                                   TRUE ~  Tree.Cover.PF))
+  dplyr::select(-Grid.Type) 
+
 
 #...and view
 glimpse(sobs_counts_temp2)
@@ -122,33 +122,18 @@ sd_afg_cvr <- sd(fire_covs$ln.AFG.Cover.PF)
 sd_tree_cvr <- sd(fire_covs$ln.Tree.Cover.PF)
 sd_bg_cvr <- sd(fire_covs$BG.Cover.PF)
 
-# Isolate cover covariates on reference grids 
-ref_stats <- sobs_counts_temp2 %>% 
-  filter(Burned == 0) %>% 
-  distinct(Grid.ID, Shrub.Cover.125m, Perennial.Cover.125m)
-# View
-glimpse(ref_stats)
-
-# Find the reference covariate mean and sd 
-mean_shrub <- mean(ref_stats$Shrub.Cover.125m)
-sd_shrub <- sd(ref_stats$Shrub.Cover.125m)
-mean_pern <- mean(ref_stats$Perennial.Cover.125m)
-sd_pern <- sd(ref_stats$Perennial.Cover.125m)
-
-
 # Scale the other covariates
 sobs_counts <- sobs_counts_temp2 %>%
   mutate(
     # Manually scale pre-fire covariates
     Years.Since.Fire =(Years.Since.Fire - mean_fyear) / sd_fyear,
-    Shrub.Cover.Cur = (Shrub.Cover.Current - mean_shrub) - sd_shrub,
-    Perennial.Cover.Cur = (Perennial.Cover.Current - mean_pern) - sd_pern,
     Shrub.Cover.PF = (Shrub.Cover.PF - mean_shrub_cvr) / sd_shrub_cvr,
     PFG.Cover.PF = (PFG.Cover.PF - mean_pfg_cvr) / sd_pfg_cvr,
     ln.AFG.Cover.PF = (ln.AFG.Cover.PF - mean_afg_cvr) / sd_afg_cvr,
     ln.Tree.Cover.PF = (ln.Tree.Cover.PF - mean_tree_cvr) / sd_tree_cvr,
     BG.Cover.PF = (BG.Cover.PF - mean_bg_cvr) / sd_bg_cvr, 
     # Automatically scale others
+    Elevation.scl = scale(Elevation)[,1],
     Mean.MAS = scale(Mean.MAS)[,1],   
     Ord.Date = scale(Ord.Date)[,1]    
   )
@@ -207,20 +192,15 @@ trunc_dist <- 0.125
 nrows <- length(unique(sobs_counts$Grid.ID.num))  # Number of survey grids
 ncols <- length(unique(sobs_counts$Visit.ID.num)) # Times each grid was visited
 
-# Build a storage matrix of observations by visit
-count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of years by visit
-year_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of survey times by visit
-time_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of survey dates by visit
-date_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for the proportion of points visited during each survey
-area <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for who conducted each survey
-obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for years since fire during each survey
-fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+# Storage Matrices 
+count_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix of observations by visit
+year_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix of years by visit
+time_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix of survey times by visit
+date_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix of survey dates by visit
+area_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for the proportion of points visited during each survey
+obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for who conducted each survey
+exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observer experience
+fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -238,14 +218,6 @@ for(y in 1:nrow(count_mat)){
   obsv_mat[y,] <- count_visit$Observer.ID.num
   fyear_mat[y,] <- count_visit$Years.Since.Fire
 }
-
-# View the matrices
-count_mat  # Number of individuals recorded at each visit
-year_mat   # Year during which each visit took place
-time_mat   # Scaled mean time of day for each visit
-date_mat   # Scaled date for each visit
-area       # Number of points visited during each survey 
-obsv_mat   # Who conducted each survey
 
 # Loop sizes 
 ngrids <- length(unique(sobs_counts$Grid.ID.num))          # Number of survey grids
@@ -273,6 +245,7 @@ day <- date_mat                                            # Matrix of scaled da
 n_dct <- count_mat                                         # Matrix of the number of detected individuals per grid per survey 
 years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
+elevation <- sobs_counts$Elevation.scl[1:ngrids]           # Elevation on each grid
 shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover on each grid
 pern_cvr <- sobs_counts$Perennial.Cover.scl[1:ngrids]      # Percent perennial cover on each grid
 fire_year <- fyear_mat                                     # How long since the most recent fire in each grid
@@ -311,8 +284,6 @@ sobs_model_code <- nimbleCode({
 
   # Fixed effects on abundance
   beta0 ~ dnorm(0, sd = 3)             # Abundance intercept
-  beta_cur_shrub ~  dnorm(0, sd = 1.5) # Effect of current shrub cover on reference grids
-  beta_cur_pern ~  dnorm(0, sd = 1.5)  # Effect of current shrub cover on reference grids
   beta_burn ~ dnorm(0, sd = 3)         # Effect of fire
   beta_elv ~  dnorm(0, sd = 1.5)       # Effect of elevation
   beta_fyear ~ dnorm(0, sd = 1.5)      # Effect of years since fire on burned grids
@@ -322,13 +293,13 @@ sobs_model_code <- nimbleCode({
   beta_tree ~ dnorm(0, sd = 1.5)       # Effect of tree cover
   beta_bg ~ dnorm(0, sd = 1.5)         # Effect of bare ground cover
   
-  # Sd in yearly abundance hyperparameter 
-  sd_eps_year ~  T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
-  
-  # Random effect on abundance
-  for(y in 1:nyears){
-    eps_year[y] ~ dnorm(0, sd_beta0)
-  }
+  # # Sd in yearly abundance hyperparameter 
+  # sd_eps_year ~  T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
+  # 
+  # # Random effect on abundance
+  # for(y in 1:nyears){
+  #   eps_year[y] ~ dnorm(0, sd_beta0)
+  # }
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -343,6 +314,18 @@ sobs_model_code <- nimbleCode({
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
       
+      ### Imperfect availability portion of the model ###
+      
+      # Construction of the cell probabilities for the nints time intervals
+      for (t in 1:nints){
+        pi_pa[j, k, t] <- phi[j, k] * (1 - phi[j, k])^(t - 1)  # Availability cell probability
+        pi_pa_c[j, k, t] <- pi_pa[j, k, t] / p_a[j, k]         # Proportion of availability probability in each time interval class
+      }
+      # Rectangular integral approx. of integral that yields the Pr(available)
+      p_a[j, k] <- sum(pi_pa[j, k, ])
+      
+      ### Imperfect detection portion of the model ###
+      
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
         log(g[j, k, b]) <- -midpt[b] * midpt[b] / (2 * sigma[j, k]^2) # Half-normal detection function
@@ -350,32 +333,25 @@ sobs_model_code <- nimbleCode({
         pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]                     # Detection cell probability
         pi_pd_c[j, k, b] <- pi_pd[j, k, b] / p_d[j, k]                # Proportion of total probability in each cell probability
       }
-      # Rectangular integral approx. of integral that yields the Pr(capture)
-      p_dct[j, k] <- sum(pi_pd[j, k, ])
+      # Rectangular integral approx. of integral that yields the detection probability
+      p_d[j, k] <- sum(pi_pd[j, k, ])
       
-      # Construction of the cell probabilities for the nints time intervals
-      for (t in 1:nints){
-        pi_pa[j, k, t] <- p_a[j, k] * (1 - p_a[j, k])^(t - 1)         # Availability cell probability
-        pi_pa_c[j, k, t] <- pi_pa[j, k, t] / phi[j, k]                # Proportion of availability probability in each time interval class
-      }   
+      ### Binomial portion of mixture ###
       
-      # Rectangular integral approx. of integral that yields the Pr(available)
-      phi[j, k] <- sum(pi_pa[j, k, ])
+      # Number of individual birds detected (observations)
+      n_dct[j, k] ~ dbin(p_d[j, k], n_avail[j, k]) 
       
-      # Multiply availability with capture probability to yield total marginal probability
-      p_marg[j, k] <- p_dct[j, k] * phi[j, k]
-      
-      ### Binomial portion of mixture 
-      n_dct[j, k] ~ dbin(p_marg[j, k], N_indv[j, k])                  # Number of individual birds captured (observations)
+      # Number of birds avaiable
+      n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k]) # ZIP true abundance at site s in year y
+      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j during visit k
       
       # Detectability (sigma) Log-Linear model 
       log(sigma[j, k]) <- alpha0_obsv[observers[j, k]]                # Effect of each observer on detectability
       
-      # Availability (p_a) Log-linear model for availability
-      logit(p_a[j, k]) <- gamma0 +                                    # Intercept on availability 
+      # Availability (phi) Log-linear model for availability
+      logit(phi[j, k]) <- gamma0 +                                    # Intercept on availability 
                           gamma_date * day[j, k] +                    # Effect of scaled ordinal date 
                           gamma_date2 * day[j, k]^2 +                 # Effect of scaled ordinal date squared 
                           gamma_time * time[j, k] +                   # Effect of scaled time of day 
@@ -383,23 +359,32 @@ sobs_model_code <- nimbleCode({
       
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0  +                                   # Intercept on abundance
-                           beta_elevation * elevation[j]              # Effect of elevation
                            beta_burn * burned[j] +                    # Effect of fire 
+                           beta_elv* elevation[j] +                   # Effect of elevation
                            beta_fyear * fire_year[j, k] * burned[j] + # Effect of years since fire on burned grids
                            beta_shrub * shrub_cvr[j] * burned[j] +    # Effect of shrub cover
                            beta_pfg *  pfg_cvr[j] * burned[j] +       # Effect of Perennial Cover
                            beta_afg * afg_cvr[j] * burned[j] +        # Effect of annual grass
                            beta_tree * tree_cvr[j] * burned[j] +      # Effect of tree cover
-                           beta_bg * bg_cvr[j] * burned[j] +          # Effect of bare ground cover
-                           eps_year[years[j, k]]
+                           beta_bg * bg_cvr[j] * burned[j]            # Effect of bare ground cover
+                           # eps_year[years[j, k]]                     # Random noise by year
                            
-     # Assess model fit: compute Bayesian p-value for using a test statisitc
-     e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                        # Expected value for binomial portion of the model
-     Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] +0.5)  # Compute chi squared statistic for observed data
+      # -------------------------------------------------------------------------------------------------------------------
+      # Assess model fit: compute Bayesian p-value for using a test statisitcs
+      
+      # Chi square statisitc for the availability portion of the model
+      e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
+      n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
+      Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
+      Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
+      
+      # Chi square statisitc for the detection portion of the model
+      e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
+      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
+      Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
+      Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
+      
                            
-     # Generate replicate count data and compute same fit stats for them
-     n_dct_new[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])                        # Draw new detections from the same binomial
-     Chi_new[j, k] <- (n_dct_new[j, k] - e_val[j, k])^2 / (e_val[j, k] + 0.5) # Compute chi squared statistic for simulated data data
       
     } # end loop through visits
   } # end loop through survey grids
@@ -410,12 +395,16 @@ sobs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])   # linking time removal data
   } # end observation loop
   
-  # Add up fit stats across sites and years
-  fit <- sum(Chi[,])
-  fit_new <- sum(Chi_new[,])
+  # --------------------------------------------------------------------------------------------
+  # Combine fit statistics
   
-  # c-hat value, should converge to ~1
-  c_hat <- fit / fit_new
+  # Add up fit stats for availability across sites and years
+  fit_pa <- sum(Chi_pa[,])
+  fit_pa_new <- sum(Chi_pa_new[,])
+  
+  # Add up fit stats for detectability across sites and years
+  fit_pd <- sum(Chi_pd[,])
+  fit_pd_new <- sum(Chi_pd_new[,])
   
 })
 
@@ -427,7 +416,6 @@ sobs_const <- list (
   area = area,             # Number of points surveyed per grid per visit
   delta = delta,           # Bin width
   trunc_dist = trunc_dist, # Truncation distance
-  
   # For loop sizes
   ngrids = ngrids,         # Number of survey grids
   nind = nind,             # Number of individuals detected 
@@ -435,10 +423,9 @@ sobs_const <- list (
   nvst = nvst,             # Number of times each grid was surveyed (6)
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
-  nyears = nyears,          # Number of years we surveyed
-  
+  # nyears = nyears,          # Number of years we surveyed
   # Non-stochastic constants
-  years = years,          # Year when each survey took place
+  # years = years,          # Year when each survey took place
   obs_visit  = obs_visit,  # Visit when each observation took place
   obs_grid  = obs_grid,    # Grid of each observation 
   observers = observers    # Effect of observer associated with each survey
@@ -451,12 +438,10 @@ sobs_dat <- list(
   # Observation Level data
   dclass = dclass,        # Distance category for each observation
   midpt = midpt,          # Midpoints of distance bins
-  
   # Abundance data
   tint = tint,            # Time interval for each observation
   time = time,            # Scaled mean time after sunrise 
   day = day,              # Scaled date
-  
   #Point level data
   n_dct = n_dct,          # Number of detected individuals per site
   elevation = elevation,  # Elevation (m)
@@ -484,63 +469,73 @@ sobs_dims <- list(
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   phi = c(ngrids, nvst),             # Availability probability
   lambda = c(ngrids, nvst),          # Poisson random variable
-  Chi = c(ngrids , nvst),            # Observed Chi square statisitc
-  Chi_new = c(ngrids, nvst)          # Simulated Chi square statisitc
+  e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
+  e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
+  Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
+  Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
+  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
+  Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
 )
 # View the dimensions
 str(sobs_dims)
 
 # Initial Values
 sobs_inits <- list(
-  # Detecability 
-  alpha0_obsv = runif(nobsv, -3, -1),
+  # Detectablility
+  alpha0_obsv = runif(nobsv, -2, -0.1),  # Effect of each observer on detecability
   # Availability 
-  gamma0 = rnorm(1, 0, 0.1),
-  gamma_date = rnorm(1, 0, 0.1), 
-  gamma_time = rnorm(1, 0, 0.1),
-  gamma_date2 = rnorm(1, 0, 0.1),  
-  gamma_time2 = rnorm(1, 0, 0.1),
+  gamma0 = rnorm(1, 0, 0.1),             # Intercept on availability
+  gamma_date = rnorm(1, 0, 0.1),         # Effect of date on availability
+  gamma_time = rnorm(1, 0, 0.1),         # Effect of time of day on availability
+  gamma_date2 = rnorm(1, 0, 0.1),        # Effect of date on availability (quadratic)
+  gamma_time2 = rnorm(1, 0, 0.1),        # Effect of time of day on availability (quadratic)
   # Abundance 
-  sd_eps_year = runif(1, 0, 0.5),
-  eps_year = runif(nyears, 0, 1),    
-  beta0 = rnorm(1, 0, 0.1),
-  beta_elv = rnorm(1, 0, 0.1),
-  beta_burn = rnorm(1, 0, 0.1),
-  beta_fyear = rnorm(1, 0, 0.1),
-  beta_shrub = rnorm(1, 0, 0.1),
-  beta_pfg = rnorm(1, 0, 0.1),
-  beta_afg = rnorm(1, 0, 0.1),
-  beta_tree = rnorm(1, 0, 0.1),
-  beta_bg = rnorm(1, 0, 0.1),
+  # sd_eps_year = runif(1, 0, 0.5),       # Mangitude of random effect
+  # eps_year = runif(nyears, 0, 1),       # Random effect of year
+  beta0 = rnorm(1, 0, 0.1),              # Intercept
+  beta_burn = rnorm(1, 0, 0.1),          # Effect of Fire
+  beta_elv = rnorm(1, 0, 0.1),           # Effect of elevation
+  beta_fyear = rnorm(1, 0, 0.1),         # Effect of time since fire on burned grids
+  beta_shrub = rnorm(1, 0, 0.1),         # Effect of pre fire shrub cover
+  beta_pfg = rnorm(1, 0, 0.1),           # Effect of pre fire perennial forb and grass cover
+  beta_afg = rnorm(1, 0, 0.1),           # Effect of pre fire annual grass cover
+  beta_tree = rnorm(1, 0, 0.1),          # Effect of pre fire tree cover
+  beta_bg = rnorm(1, 0, 0.1),            # Effect of pre fire bare ground cover
   # Presence 
-  psi = runif(ngrids, 0.4, 0.6),
-  present = rbinom(ngrids, 1, 0.5),
-  # Simulated data
-  N_indv = count_mat + 1      # start each grid with an individual present
+  psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
+  present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
+  # Simulated counts
+  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
+  n_dct_new = count_mat,                  # Simulated detected birds 
+  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
+  N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
 )  
 # View the initial values
 str(sobs_inits)
 
 # Params to save
-sobs_params <- c("beta0",
-                 "beta_elev",
-                 "beta_burn",
-                 "beta_fyear",
-                 "beta_shrub",
-                 "beta_pfg",
-                 "beta_afg",
-                 "beta_tree",
-                 "beta_bg",
-                 "sd_eps_year",
-                 "gamma0", 
-                 "gamma_date", 
-                 "gamma_date2", 
-                 "gamma_time", 
-                 "gamma_time2", 
-                 "alpha0_obsv",
-                 "fit",
-                 "fit_new",
-                 "c_hat")
+sobs_params <- c(
+                 "fit_pd",          # Fit statistic for observed data
+                 "fit_pd_new",      # Fit statistic for simulated detection  data
+                 "fit_pa",          # Fit statistic for first availability data
+                 "fit_pa_new",      # Fit statistic for simulated availability data
+                 "beta0",           # Intercept
+                 "beta_burn",       # Effect of Fire
+                 "beta_elv",       # Effect of elevation
+                 "beta_fyear",      # Effect of time since fire on burned grids
+                 "beta_shrub",      # Effect of pre fire shrub cover
+                 "beta_pfg",        # Effect of pre fire perennial forb and grass cover
+                 "beta_afg",        # Effect of pre fire annual grass cover
+                 "beta_tree",       # Effect of pre fire tree cover
+                 "beta_bg",         # Effect of pre fire bare ground cover
+                 # "sd_eps_year",   # Random Noise by year
+                 "gamma0",          # Intercept on availability
+                 "gamma_date",      # Effect of date on singing rate
+                 "gamma_date2",     # Quadratic effect of date on singing rate
+                 "gamma_time",      # Effect of time of day on singing rate
+                 "gamma_time2",     # Quadratic e of time of day on singing rate
+                 "alpha0_obsv"      # Intercept for each observer on detection rate
+                 )
 
 
 # 2.3) Configure and Run the model ###########################################################
@@ -551,27 +546,6 @@ sobs_model_vect <- nimbleModel(sobs_model_code,
                                constants = sobs_const,
                                dimensions = sobs_dims,
                                inits = sobs_inits)
-
-# MCMC settings for default nimble model setup
-# nc_test <- 1  ;  ni_test <- 1000  ;  nb_test <- 500  ;  nt_test <- 10          
-
-# From Kezia and Liz:
-# Next, run an MCMC with NIMBLE defaults; this can be a slow step.
-# the just-do-it way to run an MCMC. this will take all steps to set up
-# and run an MCMC using NIMBLE’s default configuration. Handles everything from 
-# model building to compilation to running the MCMC
-# sobs_model_out_test <- nimbleMCMC(code = sobs_model_code,
-#                                          constants = sobs_const,
-#                                          data = sobs_dat,
-#                                          dimensions = sobs_dims,
-#                                          inits = sobs_inits,
-#                                          monitors = sobs_params,
-#                                          nchains = nc_test,
-#                                          niter = ni_test, 
-#                                          nburnin = nb_test, 
-#                                          thin = nt_test, 
-#                                          samplesAsCodaMCMC = T,
-#                                          summary = T)
 
 # Assign default samplers to nodes
 sobs_mcmcConf <- configureMCMC(sobs_model_vect, 
@@ -598,28 +572,42 @@ sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_
                          type = 'RW_block')
 
 # Block all abundance (beta) nodes together
-sobs_mcmcConf$removeSamplers("beta0",
-                             "beta_elv",
-                             "beta_burn", 
-                             "beta_fyear", 
-                             "beta_shrub", 
-                             "beta_pfg", 
-                             "beta_afg", 
-                             "beta_tree", 
-                             "beta_bg",
-                             "eps_year[1]", "eps_year[2]", "eps_year[3]")
+sobs_mcmcConf$removeSamplers("beta0", "beta_elv", "beta_burn", "beta_fyear", 
+                             "beta_shrub","beta_pfg", "beta_afg", "beta_tree", "beta_bg"
+                             # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+                             )
 
-sobs_mcmcConf$addSampler(target = c("beta0",
-                                    "beta_elv",
-                                    "beta_burn", 
-                                    "beta_fyear", 
-                                    "beta_shrub", 
-                                    "beta_pfg", 
-                                    "beta_afg", 
-                                    "beta_tree", 
-                                    "beta_bg",
-                                    "eps_year[1]", "eps_year[2]", "eps_year[3]"),
+sobs_mcmcConf$addSampler(target = c("beta0", "beta_elv", "beta_burn", "beta_fyear", 
+                                    "beta_shrub","beta_pfg", "beta_afg", "beta_tree", "beta_bg"
+                                    # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+                                    ),
                          type = 'RW_block')
+
+# Block all occupancy (psi) nodes together
+sobs_mcmcConf$removeSamplers(
+  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers() # print samplers being used 
@@ -645,7 +633,7 @@ message(paste((ni - nb) / nt), " samples will be kept from the posterior")
 # Run the sampler
 start <- Sys.time()                                     # Start time for the sampler
 start
-prefire_mcmc_out <- runMCMC(cMCMC,
+PreFire_mcmc_out <- runMCMC(cMCMC,
                          niter = ni, 
                          nburnin = nb, 
                          thin = nt, 
@@ -655,7 +643,7 @@ prefire_mcmc_out <- runMCMC(cMCMC,
 difftime(Sys.time(), start)                             # End time for the sampler
 
 # Save model output to local drive
-saveRDS(prefire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+saveRDS(PreFire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                      study_species, "_PreFire_model.rds"))
 
 ################################################################################
@@ -669,11 +657,11 @@ saveRDS(prefire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_P
 # 3.1) View model output
 
 # Load the output back in
-prefire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+PreFire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                           plot_species, "_PreFire_model_out.rds"))
 
 # Traceplots and density graphs 
-MCMCtrace(object = prefire_mcmc_out$samples,
+MCMCtrace(object = PreFire_mcmc_out$samples,
           params = sobs_params,
           pdf = TRUE,
           open_pdf = TRUE,
@@ -684,289 +672,158 @@ MCMCtrace(object = prefire_mcmc_out$samples,
           type = 'both')
 
 # View MCMC summary
-MCMCsummary(object = prefire_mcmc_out$samples, 
+MCMCsummary(object = PreFire_mcmc_out$samples, 
             params = sobs_params,
             round = 2)
 
 # View MCMC plot
-MCMCplot(object = prefire_mcmc_out$samples,
+MCMCplot(object = PreFire_mcmc_out$samples,
+         excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new"),
          guide_lines = TRUE,
          params = sobs_params)
 
-} # End the loop over species 
+} # End the loop over species
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
 #####################################################################################
 
-# 4.1) Prepare and view model output ################################################
+# 4.1) Prepare data for model output ################################################
 
-# Pick a species to plot
-plot_species <- "SATH"
+# Clear environments again
+rm(list = ls())
 
+
+# 4.2) Graph each species responce to fire ###############################################################
+
+# List of Species to plot 
+all_plot_species <- c(
+  "BRSP",
+  "SATH",
+  "VESP",
+  "WEME",
+  "HOLA",
+  "GTTO"
+)
+
+# Loop over all species 
+# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+  
+# Name the species to model again
+# plot_species <- all_plot_species[s]
+plot_species <- all_plot_species[1]
+  
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
   mutate(Species.Name = case_when(Species.Code == "SATH" ~ "Sage Thrasher",
-                                  Species.Code == "BRSP" ~ "Brewer's Sparrow", 
-                                  Species.Code == "SABS" ~ "Sagebrush Sparrow",
-                                  Species.Code == "GTTO" ~ "Green-Tailed Towhee",
-                                  Species.Code == "VESP" ~ "Vesper Sparrow",
-                                  Species.Code == "WEME" ~ "Western Meadowlark",
-                                  Species.Code == "HOLA" ~ "Horned Lark"))
-species_name <- plot_species_df$Species.Name[1]
+                                    Species.Code == "BRSP" ~ "Brewer's Sparrow", 
+                                    Species.Code == "SABS" ~ "Sagebrush Sparrow",
+                                    Species.Code == "GTTO" ~ "Green-Tailed Towhee",
+                                    Species.Code == "VESP" ~ "Vesper Sparrow",
+                                    Species.Code == "WEME" ~ "Western Meadowlark",
+                                    Species.Code == "HOLA" ~ "Horned Lark"))
+species_name <- plot_species_df$Species.Name
 # View
 species_name
-
-# Load the output back in
-prefire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       plot_species, "_PreFire_model_out.rds"))
-
-# View MCMC summary
-prefire_mcmc_out$summary$all.chains
-
-# Parameters for the MCMC plot
-sobs_params_plot <- c(
-  "beta0_year",
-  "beta_burn",
-  "beta_fyear",
-  "beta_shrub", 
-  "beta_pfg", 
-  "beta_afg", 
-  "beta_tree"
-)
-
-# View MCMC plot
-MCMCplot(object = prefire_mcmc_out$samples,
-         guide_lines = TRUE,
-         labels = c(
-                    "2022 Intercept",
-                    "2023 Intercept",
-                    "2024 Intercept",
-                    "Fire",
-                    "Years Since Fire",
-                    "Prefire Shrub Cover",
-                    "Prefire Perennial Cover",
-                    "Prefire Annual Cover",
-                    "Prefire Tree Cover"),
-         main = species_name,
-         col = "black",
-         ref_ovl = TRUE,
-         params = sobs_params_plot) 
-
-# Save the plot
-ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                         plot_species, "_treatment.png"),
-       width = 700,
-       height = 500,
-       units = "mm",
-       dpi = 1000)
-
-# 4.2) Extract coefficient values ###############################################################
-
-
-# Extract Beta0 values
-beta0_year1 <- prefire_mcmc_out$summary$all.chains[18,]
-beta0_year2 <- prefire_mcmc_out$summary$all.chains[19,]
-beta0_year3 <- prefire_mcmc_out$summary$all.chains[20,]
-# View intercepts
-bind_rows(beta0_year1, beta0_year2, beta0_year3)
-
-# Extract effect sizes
-beta_burn <- prefire_mcmc_out$summary$all.chains[22,]
-beta_fyear <- prefire_mcmc_out$summary$all.chains[23,]
-beta_shrub <- prefire_mcmc_out$summary$all.chains[25,]
-beta_pfg <- prefire_mcmc_out$summary$all.chains[24,]
-beta_afg <- prefire_mcmc_out$summary$all.chains[21,]
-beta_tree <- prefire_mcmc_out$summary$all.chains[26,]
-
-# View Betas
-bind_rows(beta_burn, beta_fyear,beta_shrub, beta_pfg, beta_afg, beta_tree)
-
-# Combine everything into a dataframe
-beta_dat <- data.frame(bind_rows(beta0_year1, beta0_year2, beta0_year3,
-                                 beta_burn,
-                                 beta_fyear,
-                                 beta_shrub, 
-                                 beta_pfg,
-                                 beta_afg, 
-                                 beta_tree)) %>% 
-  mutate(Parameter = c("Beta0.Year1", "Beta0.Year2", "Beta0.Year3",
-                       "Beta.Burn", 
-                       "Beta.fYear",
-                       "Beta.Shrub", 
-                       "Beta.PFG", 
-                       "Beta.AFG", 
-                       "Beta.Tree")) %>% 
-  relocate(Parameter, .before = Mean) %>% 
-  rename(CI.lb = X95.CI_low,
-         CI.ub = X95.CI_upp)
-
-# View output dataframe
-glimpse(beta_dat)
-head(beta_dat, n = Inf)
-
-# 4.3) Predicted values ##########################################################################
-
-# Pick a number of samples for posterior predictions
-n <- 1000
-
-# Rearrange the columns that I need
-beta_dat_long <- beta_dat %>%
-  pivot_longer(cols = c(Mean, CI.lb, CI.ub),
-               names_to = "Statistic",
-               values_to = "Value") %>% 
-  mutate(ColumnName = paste(Parameter, Statistic, sep = ".")) %>%
-  select(ColumnName, Value)
-
-# Then pivot to the desired format
-
-# Then pivot to the desired format
-beta_dat_pred <- beta_dat_long %>%
-  pivot_wider(names_from = ColumnName,
-              values_from = Value) %>%
-  # Average the intercept across all years
-  mutate(Beta0.Mean = rowMeans(select(., matches("Beta0.Year[0-9]+\\.Mean")), na.rm = TRUE),
-         Beta0.lb = rowMeans(select(., matches("Beta0.Year[0-9]+\\.CI.lb")), na.rm = TRUE),
-         Beta0.ub = rowMeans(select(., matches("Beta0.Year[0-9]+\\.CI.ub")), na.rm = TRUE)) %>% 
-  # Repeat each sample n times
-  slice(rep(1:n(), each = n)) %>% 
-  # Add in the predictive values 
-  mutate(Pred = seq(from = -2, to = 2, length.out = n))
   
-# View the new data 
-glimpse(beta_dat_pred)
-
-# 4.3) Plot each predicted value ###########################################
-
-# Shrub cover plot --------------------------------------------------------------------
-
-# Plot shrub cover 
-shrub_pred_plot <- beta_dat_pred %>% 
-  mutate(
-    # Calculate the reference grid mean and CI
-    Beta0.Pred.Trend =  exp(Beta0.Mean),
-    Beta0.Pred.lb = exp(Beta0.lb),
-    Beta0.Pred.ub =  exp(Beta0.ub),
-    # Calculate the predicted response to shrub cover 
-    Shrub.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.Shrub.Mean * Pred),
-    Shrub.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.Shrub.CI.lb * Pred),
-    Shrub.Pred.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.Shrub.CI.ub * Pred),
-    # Transform shrub cover back to the native scale
-    Pred.Naive = (Pred * sd_shrub_cvr) + mean_shrub_cvr
-  ) %>% 
-  filter(Pred.Naive >= 0) %>%
-  ggplot() +
-  # Mean and CI for counts on reference grids
-  geom_line(aes(x = Pred.Naive, y = Beta0.Pred.Trend), col = "blue") +
-  geom_ribbon(aes(x = Pred.Naive, ymin = Beta0.Pred.lb, ymax = Beta0.Pred.ub),
-              alpha = 0.2, fill = "blue") +
-  # Effect of fire and pre--fire shrub cover
-  geom_line(aes(x = Pred.Naive, y = Shrub.Pred.Trend), color = "red", lwd = 1) + 
-  geom_ribbon(aes(x = Pred.Naive, ymin = Shrub.Pred.lb , ymax = Shrub.Pred.ub), 
-              alpha = 0.2, fill = "red") +  
-  labs(title = "", x = "Percent Pre-Fire Shrub Cover", y = "Predicted Abundance (birds/km^2)") +
-  ylim(0, 90) +
-  theme_classic()
-
-# Display the plot
-shrub_pred_plot
-
-# Perennial forb and grass cover plot --------------------------------------------------------------------
-
-# Plot shrub cover 
-pfg_pred_plot <- beta_dat_pred %>% 
-  mutate(
-    # Calculate the reference grid mean and CI
-    Beta0.Pred.Trend =  exp(Beta0.Mean),
-    Beta0.Pred.lb = exp(Beta0.lb),
-    Beta0.Pred.ub =  exp(Beta0.ub),
-    # Calculate the predicted response to PFG cover 
-    PFG.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.PFG.Mean * Pred),
-    PFG.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.PFG.CI.lb * Pred),
-    PFG.Pred.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.PFG.CI.ub * Pred),
-    # Transform PFG cover back to the native scale
-    Pred.Naive = (Pred * sd_pfg_cvr) + mean_pfg_cvr
-  ) %>% 
-  filter(Pred.Naive >= 0) %>%
-  ggplot() +
-  # Mean and CI for counts on reference grids
-  geom_line(aes(x = Pred.Naive, y = Beta0.Pred.Trend), col = "blue") +
-  geom_ribbon(aes(x = Pred.Naive, ymin = Beta0.Pred.lb, ymax = Beta0.Pred.ub),
-              alpha = 0.2, fill = "blue") +
-  # Effect of fire and pre--fire perennial cover
-  geom_line(aes(x = Pred.Naive, y = PFG.Pred.Trend), color = "red", lwd = 1) + 
-  geom_ribbon(aes(x = Pred.Naive, ymin = PFG.Pred.lb , ymax = PFG.Pred.ub), 
-              alpha = 0.2, fill = "red") +  
-  labs(title = "", x = "Percent Pre-Fire Perennial Cover", y = "Predicted Abundance (birds/km^2)") +
-  ylim(0, 90) +
-  theme_classic()
-
-# Display the plot
-pfg_pred_plot
-
-# Annual grass cover plot --------------------------------------------------------------------
-
-# Plot shrub cover 
-afg_pred_plot <- beta_dat_pred %>% 
-  mutate(
-    # Calculate the reference grid mean and CI
-    Beta0.Pred.Trend =  exp(Beta0.Mean),
-    Beta0.Pred.lb = exp(Beta0.lb),
-    Beta0.Pred.ub =  exp(Beta0.ub),
-    # Calculate the predicted response to AFG cover 
-    AFG.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.AFG.Mean * Pred),
-    AFG.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.AFG.CI.lb * Pred),
-    AFG.Pred.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.AFG.CI.ub * Pred),
-    # Transform AFG cover back to the native scale
-    Pred.Naive = exp((Pred * sd_afg_cvr) + mean_afg_cvr)
-  ) %>% 
-  filter(Pred.Naive >= 0) %>%
-  ggplot() +
-  # Mean and CI for counts on reference grids
-  geom_line(aes(x = Pred.Naive, y = Beta0.Pred.Trend), col = "blue") +
-  geom_ribbon(aes(x = Pred.Naive, ymin = Beta0.Pred.lb, ymax = Beta0.Pred.ub),
-              alpha = 0.2, fill = "blue") +
-  # Effect of fire and pre--fire perennial cover
-  geom_line(aes(x = Pred.Naive, y = AFG.Pred.Trend), color = "red", lwd = 1) + 
-  geom_ribbon(aes(x = Pred.Naive, ymin = AFG.Pred.lb , ymax = AFG.Pred.ub), 
-              alpha = 0.2, fill = "red") +  
-  labs(title = "", x = "Percent Pre-Fire Annual Grass Cover", y = "Predicted Abundance (birds/km^2)") +
-  ylim(0, 90) +
-  theme_classic()
-
-# Display the plot
-afg_pred_plot
-
-# Tree cover plot --------------------------------------------------------------------
-
-# Plot shrub cover 
-tree_pred_plot <- beta_dat_pred %>% 
-  mutate(
-    # Calculate the reference grid mean and CI
-    Beta0.Pred.Trend =  exp(Beta0.Mean),
-    Beta0.Pred.lb = exp(Beta0.lb),
-    Beta0.Pred.ub =  exp(Beta0.ub),
-    # Calculate the predicted response to Tree cover 
-    Tree.Pred.Trend =  exp(Beta0.Mean + Beta.Burn.Mean + Beta.Tree.Mean * Pred),
-    Tree.Pred.lb = exp(Beta0.lb + Beta.Burn.CI.lb + Beta.Tree.CI.lb * Pred),
-    Tree.Pred.ub =  exp(Beta0.ub + Beta.Burn.CI.ub + Beta.Tree.CI.ub * Pred),
-    # Transform Tree cover back to the native scale
-    Pred.Naive = exp((Pred * sd_tree_cvr) + mean_tree_cvr)
-  ) %>% 
-  filter(Pred.Naive >= 0) %>%
-  ggplot() +
-  # Mean and CI for counts on reference grids
-  geom_line(aes(x = Pred.Naive, y = Beta0.Pred.Trend), col = "blue") +
-  geom_ribbon(aes(x = Pred.Naive, ymin = Beta0.Pred.lb, ymax = Beta0.Pred.ub),
-              alpha = 0.2, fill = "blue") +
-  # Effect of fire and pre--fire perennial cover
-  geom_line(aes(x = Pred.Naive, y = Tree.Pred.Trend), color = "red", lwd = 1) + 
-  geom_ribbon(aes(x = Pred.Naive, ymin = Tree.Pred.lb , ymax = Tree.Pred.ub), 
-              alpha = 0.2, fill = "red") +  
-  labs(title = "", x = "Percent Pre-Fire Tree Cover", y = "Predicted Abundance (birds/km^2)") +
-  ylim(0, 90) +
-  theme_classic()
-
-# Display the plot
-tree_pred_plot
+# Load the output back in
+PreFire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
+                                        plot_species, "_PreFire_model_out.rds"))
+  
+# View MCMC summary
+PreFire_mcmc_out$summary$all.chains
+  
+# Extract effect sizes
+beta0 <- PreFire_mcmc_out$summary$all.chains[18,]
+beta_burned <- PreFire_mcmc_out$summary$all.chains[21,]
+beta_elv <- PreFire_mcmc_out$summary$all.chains[22,]
+beta_fyear <- PreFire_mcmc_out$summary$all.chains[23,] 
+beta_shrub <- PreFire_mcmc_out$summary$all.chains[25,] 
+beta_pfg <- PreFire_mcmc_out$summary$all.chains[24,]
+beta_afg <- PreFire_mcmc_out$summary$all.chains[19,]
+beya_tree <- PreFire_mcmc_out$summary$all.chains[26,]
+beta_bg <- PreFire_mcmc_out$summary$all.chains[20,]
+  
+# Combine everything into a dataframe
+beta_dat <- data.frame(bind_rows(beta0,
+                                 beta_burned,
+                                 beta_elv,
+                                 beta_fyear,
+                                 beta_shrub,
+                                 beta_pfg,
+                                 beta_afg,
+                                 beya_tree,
+                                 beta_bg)) %>% 
+    mutate(Parameter = c("beta0", "beta.burned", "beta.elvation", "beta.fyear", 
+                         "beta.shrub", "beta.pfg", "beta.afg", "beta.tree", "beta.bg")) %>% 
+    relocate(Parameter, .before = Mean) %>% 
+    rename(CRI.lb = X95.CI_low,
+           CRI.ub = X95.CI_upp)
+  
+# View output dataframe
+head(beta_dat, n = Inf)
+  
+# Parameter estimate plot -------------------------------------------------------------------------
+  
+# Create the plot
+params_plot <- beta_dat %>% 
+# Rename Parameters
+mutate(Parameter = case_when(Parameter == "beta0" ~ "Intercept",
+                                 Parameter == "beta.burned" ~ "Burned",
+                                 Parameter == "beta.elvation" ~ "Elevation (m)",
+                                 Parameter == "beta.fyear" ~ "Years Since Fire",
+                                 Parameter == "beta.shrub" ~ "Pre-Fire Shrub Cover",
+                                 Parameter == "beta.pfg" ~ "Pre-Fire Perennial Cover",
+                                 Parameter == "beta.afg" ~ "Pre-Fire Annual Cover",
+                                 Parameter == "beta.tree" ~ "Pre-Fire Tree Cover",
+                                 Parameter == "beta.bg" ~ "Pre-Fire Bare Ground Cover"),
+        # Add a New column for whether or not the CRI crosses Zero
+        Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ "No",
+                                          CRI.lb * CRI.ub > 0 ~ "Yes"), 
+                                levels = c("No", "Yes"))) %>% 
+    # Switch to a factor 
+    mutate(Parameter = factor(Parameter, levels = c("Pre-Fire Bare Ground Cover",
+                                                    "Pre-Fire Tree Cover",
+                                                    "Pre-Fire Annual Cover",
+                                                    "Pre-Fire Perennial Cover",
+                                                    "Pre-Fire Shrub Cover",
+                                                    "Years Since Fire",
+                                                    "Elevation (m)",
+                                                    "Burned",
+                                                    "Intercept"
+                                                    ))) %>% 
+    # Open the plot
+    ggplot(aes(y = Parameter)) +
+    # Add points at the mean values for each parameters
+    geom_point(aes(x = Mean, color = Significant), shape = 15, size = 4) +
+    # Add whiskers for 95% Bayesian Credible intervals
+    geom_linerange(aes(xmin = CRI.lb, xmax = CRI.ub, color = Significant), linewidth = 1.5) +
+    # Add a vertical Line at zero
+    geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
+    # Change the Labels
+    labs(x = "Parameter Estimate", y = "") +
+    # Simple theme
+    theme_classic() +
+    # Custom colors
+    scale_color_manual(values = c("No" = "lightsteelblue4", 
+                                  "Yes" = "navyblue")) +
+    # Edit theme
+    theme(legend.position = "none",
+          axis.text.y = element_text(size = 16),
+          axis.title.x = element_text(size = 16),
+          axis.text.x = element_text(size = 16)) 
+  
+  
+# View the plot
+params_plot
+  
+# Save the plot
+ggsave(plot = params_plot,
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+              plot_species, "_params.png"),
+       width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+  
+} # End plotting loop over all species (Comment this out) ----

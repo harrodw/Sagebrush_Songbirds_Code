@@ -343,7 +343,7 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j
+      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j during visit k
       
       # Availability (phi) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                       # Intercept on availability
@@ -669,11 +669,11 @@ MCMCtrace(object = fire_mcmc_out$samples,
 # View MCMC summary
 MCMCsummary(object = fire_mcmc_out$samples, 
             params = sobs_params,
-            excl = c(),
             round = 2)
 
 # View MCMC plot
 MCMCplot(object = fire_mcmc_out$samples,
+         excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new"),
          guide_lines = TRUE,
          params = sobs_params)
 
