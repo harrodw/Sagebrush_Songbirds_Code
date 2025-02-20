@@ -423,10 +423,8 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nelv = nelv,                 # Number of elevations (2)
-  nyears = nyears,             # Number of years we surveyed (3)
   
   # Non-stochastic constants
-  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -634,7 +632,7 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
-saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model_no_rf.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -643,7 +641,7 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model_no_rf.rds"))
   
  # Traceplots and density graphs 
 MCMCtrace(object = fire_mcmc_out$samples,
@@ -653,7 +651,7 @@ MCMCtrace(object = fire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_elevation_model_traceplot"),
+          filename = paste0(model_species, "_fire_elevation_model_no_rf_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -676,11 +674,11 @@ MCMCplot(object = fire_mcmc_out$samples,
 # 4.1) Prepare and view model output ################################################
 
 # Loop over all species 
-# for(s in 1:length(all_species)) { # (Comment this out) ----
+for(s in 1:length(all_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_species[s]
-plot_species <- all_species[1]
+plot_species <- all_species[s]
+# plot_species <- all_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -697,7 +695,7 @@ species_name
 
 # Load the output back in
 fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
-                                       plot_species, "_fire_elevation_model.rds"))
+                                       plot_species, "_fire_elevation_model_no_rf.rds"))
 
 # View MCMC summary
 fire_mcmc_out$summary$all.chains
@@ -823,7 +821,7 @@ params_plot
 
 # Save the plot
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_no_rf_",
                                        plot_species, "_params.png"),
        width = 200,
        height = 120,
@@ -875,7 +873,7 @@ treatment_pred_plot
 
 # Save the plot
 ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_no_rf_",
                          plot_species, "_treatment.png"),
        width = 200,
        height = 120,
@@ -956,7 +954,7 @@ fyear_pred_plot
 
 # Save the plot
 ggsave(plot = fyear_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_no_rf_",
                          plot_species, "_fyear.png"),
        width = 200,
        height = 120,
@@ -982,7 +980,7 @@ rdnbr_pred_plot <- beta_dat_pred %>%
   ggplot() +
   # Low elevation reference
   geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
-                color = "Low Elevation Reference"), size = 1) +
+                color = "Low Elevation Reference"), linewidth = 1) +
   geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.low.CRI.lb), 
                   ymax = exp(beta0.ref.low.CRI.ub), 
                   fill = "Low Elevation Reference"), alpha = 0.2) +
@@ -1030,7 +1028,7 @@ rdnbr_pred_plot
 
 # Save the plot
 ggsave(plot = rdnbr_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_no_rf_",
                          plot_species, "_burnsev.png"),
        width = 200,
        height = 120,

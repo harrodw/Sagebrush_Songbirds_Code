@@ -1,7 +1,7 @@
 #----------------------------------------------------------------
 # Will Harrod
 # Hierarchical distance sampling for sagebrush songbird point count data
-# Simplified script for sagerbush sparrow to acount for few detections
+# Simplified script for sagebrush sparrow to account for few detections
 # September 2024
 #
 # Code based on open source code from: 
@@ -263,7 +263,6 @@ sabs_model_code <- nimbleCode({
         pi_pa[j, k, t] <- phi[j, k] * (1 - phi[j, k])^(t - 1)  # Availability cell probability
         pi_pa_c[j, k, t] <- pi_pa[j, k, t] / p_a[j, k]         # Proportion of availability probability in each time interval class
       }
-      
       # Rectangular integral approx. of integral that yields the Pr(available)
       p_a[j, k] <- sum(pi_pa[j, k, ])
       
@@ -271,25 +270,24 @@ sabs_model_code <- nimbleCode({
       
       # Construction of the cell probabilities for the nbins distance bands
       for(b in 1:nbins){       
-        log(g[j, k, b]) <- -(midpt[b]^2) / (2 * sigma[j, k]^2) # Half-normal detection function
-        f[j, k, b] <- (2 * midpt[b]) / trunc_dist^2  * delta   # Prob density function out to max truncation distance 
-        pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]              # Detection cell probability
-        pi_pd_c[j, k, b] <- pi_pd[j, k, b] / p_d[j, k]         # Proportion of total probability in each cell probability
+        log(g[j, k, b]) <- -midpt[b] * midpt[b] / (2 * sigma[j, k]^2) # Half-normal detection function
+        f[j, k, b] <- ((2 * midpt[b]) / trunc_dist^2) * delta         # Prob density function out to max truncation distance 
+        pi_pd[j, k, b] <- g[j, k, b] * f[j, k, b]                     # Detection cell probability
+        pi_pd_c[j, k, b] <- pi_pd[j, k, b] / p_d[j, k]                # Proportion of total probability in each cell probability
       }
-      
-      # Rectangular integral approx. of integral that yields the Pr(capture)
+      # Rectangular integral approx. of integral that yields the detection probability
       p_d[j, k] <- sum(pi_pd[j, k, ])
-      
-      # Multiply availability with detection probability to yield total probability of capturing a bird
-      p_cap[j, k] <- p_d[j, k] * p_a[j, k]
       
       ### Binomial portion of mixture ###
       
+      # Number of individual birds detected (observations)
+      n_dct[j, k] ~ dbin(p_d[j, k], n_avail[j, k]) 
+      
+      # Number of birds avaiable
+      n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
+      
       # Poisson abundance portion of mixture
       N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site s in year y
-      
-      # Number of individual birds captured (observations)
-      n_dct[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])         
         
       # Availability (avail) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                        # Intercept on availability
@@ -304,16 +302,26 @@ sabs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]]       # Intercept for each grid type
       
-      # Assess model fit: compute Bayesian p-value for using a test statisitc
-      e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
-      Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] +0.5) # Compute chi squared statistic for observed data
+      # -------------------------------------------------------------------------------------------------------------------
+      # Assess model fit: compute Bayesian p-value for using a test statisitcs
       
-      # Generate replicate count data and compute same fit stats for them
-      n_dct_new[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])                        # Draw new detentions from the same binomial
-      Chi_new[j, k] <- (n_dct_new[j, k] - e_val[j, k])^2 / (e_val[j, k] + 0.5) # Compute chi squared statistic for simulated data data
-                               
+      # Chi square statisitc for the availability portion of the model
+      e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
+      n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
+      Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
+      Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
+      
+      # Chi square statisitc for the detection portion of the model
+      e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
+      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
+      Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
+      Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
+      
     } # end loop through visits
   } # end loop through survey grids
+  
+  # --------------------------------------------------------------------------------------------------------
+  # Availability and detecability likelihood
   
   # Model for binned distance observations of every detected individual
   for(i in 1:nind){       # Loop over all detected individuals
@@ -321,12 +329,16 @@ sabs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])      # likelihood for time removal data
   } # end observation distance and time of detection loop
   
-  # Add up fit stats across sites and years
-  fit <- sum(Chi[,]) 
-  fit_new <- sum(Chi_new[,]) 
+  # --------------------------------------------------------------------------------------------
+  # Combine fit statistics
   
-  # c-hat value, should converge to ~1
-  c_hat <- fit / fit_new
+  # Add up fit stats for availability across sites and years
+  fit_pa <- sum(Chi_pa[,])
+  fit_pa_new <- sum(Chi_pa_new[,])
+  
+  # Add up fit stats for detectability across sites and years
+  fit_pd <- sum(Chi_pd[,])
+  fit_pd_new <- sum(Chi_pd_new[,])
   
 }) # end model statement
 
@@ -365,8 +377,11 @@ sabs_dat <- list(
   tint = tint,             # Time interval for each observation
   time = time,             # Scaled mean time after sunrise
   day = day,               # Scaled date
-  # Abundance level
-  n_dct = n_dct            # Number of detected individuals per site
+  # Simulated counts
+  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
+  n_dct_new = count_mat,                  # Simulated detected birds 
+  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
+  N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
 )
 # View Nimble data 
 str(sabs_dat)
@@ -379,14 +394,17 @@ sabs_dims <- list(
   pi_pd = c(ngrids, nvst, nbins),    # Detection probability in each cell
   pi_pd_c = c(ngrids, nvst, nbins),  # Proportion of total detection probability in each cell
   p_d = c(ngrids, nvst),             # Detection probability 
-  phi = c(ngrids, nvst),             # Linear combination on avalibility  
+  phi = c(ngrids, nvst),             # Linear combination on availability  
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
-  p_a= c(ngrids, nvst),              # Availability probability
-  p_cap = c(ngrids, nvst),           # Combined probability of detecting an available bird
+  p_a = c(ngrids, nvst),             # Availability probability
   lambda = c(ngrids, nvst),          # Poisson random variable
-  Chi = c(ngrids , nvst),            # Observed Chi square statistic
-  Chi_new = c(ngrids, nvst)          # Simulated Chi square statistic
+  e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
+  e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
+  Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
+  Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
+  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
+  Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
 )
 
 # View dimensions
@@ -416,9 +434,10 @@ sabs_inits <- list(
 str(sabs_inits)
 
 # Params to save
-sabs_params <- c(
-                 "fit",            # Fit statistic for observed data
-                 "fit_new",        # Fit statisitc for simulated data
+sabs_params <- c("fit_pd",          # Fit statistic for observed data
+                 "fit_pd_new",      # Fit statisitc for simulated detection  data
+                 "fit_pa",          # Fit statistic for first availability data
+                 "fit_pa_new",      # Fit statisitc for simulated avaiability data
                  "beta0_treatment",
                  "gamma0",
                  "gamma_date",
@@ -495,32 +514,6 @@ sabs_mcmcConf$addSampler(target = c(
   "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
   "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
   "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-), type = 'RW_block')
-
-# Block all presence (present) nodes together
-sabs_mcmcConf$removeSamplers(
-  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
-  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
-  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
-  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
-  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
-  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
-  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
-  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
-  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
-  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
-)
-sabs_mcmcConf$addSampler(target = c(
-  "present[1]", "present[2]", "present[3]", "present[4]", "present[5]", "present[6]", 
-  "present[7]", "present[8]", "present[9]", "present[10]", "present[11]", "present[12]",
-  "present[13]", "present[14]", "present[15]", "present[16]", "present[17]", "present[18]",
-  "present[19]", "present[20]", "present[21]", "present[22]", "present[23]", "present[24]", 
-  "present[25]", "present[26]", "present[27]", "present[28]", "present[29]", "present[30]", 
-  "present[31]", "present[32]", "present[33]", "present[34]", "present[35]", "present[36]", 
-  "present[37]", "present[38]", "present[39]", "present[40]", "present[41]", "present[42]", 
-  "present[43]", "present[44]", "present[45]", "present[46]", "present[47]", "present[48]", 
-  "present[49]", "present[50]", "present[51]", "present[52]", "present[53]", "present[54]", 
-  "present[55]", "present[56]", "present[57]", "present[58]", "present[59]", "present[60]"
 ), type = 'RW_block')
 
 # View the blocks
@@ -681,8 +674,9 @@ params_plot <- beta_dat %>%
                                Parameter == "beta.burnsev" ~ "RdNBR Burn Sevarity",
                                Parameter == "beta.south" ~ "Proportion South-Facing Slopes"),
          # Add a New column for whether or not the CRI crosses Zero
-         Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ 0,
-                                        CRI.lb * CRI.ub > 0 ~ 1))) %>% 
+         Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ "No",
+                                        CRI.lb * CRI.ub > 0 ~ "Yes"), 
+                              levels = c("No", "Yes"))) %>% 
   # Switch to a factor 
   mutate(Parameter = factor(Parameter, levels = c("Reference Below 1800m", "Reference Above 1800m",
                                                   "Burned Below 1800m","Burned Above 1800m",
@@ -703,7 +697,8 @@ params_plot <- beta_dat %>%
   # Simple theme
   theme_classic() +
   # Custom colors
-  scale_color_manual(values = c("lightsteelblue4", "navyblue")) +
+  scale_color_manual(values = c("No" = "lightsteelblue4", 
+                                "Yes" = "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
         axis.text.y = element_text(size = 16),
@@ -773,3 +768,4 @@ ggsave(plot = treatment_pred_plot,
        height = 120,
        units = "mm",
        dpi = 300)
+

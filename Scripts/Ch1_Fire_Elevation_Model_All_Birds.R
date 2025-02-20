@@ -34,11 +34,11 @@ all_species <- c(
 )
 
 # Loop over all species
-# for(s in 1:length(all_species)){ # (Comment this out) ----
+for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-# model_species <- all_species[s]
-model_species <- all_species[1]
+model_species <- all_species[s]
+# model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -128,20 +128,14 @@ fire_stats <- sobs_counts_temp2 %>%
 # Find the mean and standard deviation of the "real" burns
 mean_fyear <- mean(fire_stats$Years.Since.Fire)
 sd_fyear <- sd(fire_stats$Years.Since.Fire)
-mean_ln_fyear <- mean(fire_stats$ln.Years.Since.Fire)
-sd_ln_fyear <- sd(fire_stats$ln.Years.Since.Fire)
 mean_rdnbr <- mean(fire_stats$rdnbr.125m)
 sd_rdnbr <- sd(fire_stats$rdnbr.125m)
 
 # Scale each covariate
 sobs_counts <- sobs_counts_temp2 %>% 
-  mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
-  mutate(Elevation.scl = scale(Elevation.125m)[,1],
-         Mean.MAS.scl = scale(Mean.MAS)[,1],
+  mutate(Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1],
-         Mean.Birds.scl = scale(Mean.Birds)[,1],
          Years.Since.Fire.scl = (Years.Since.Fire - mean_fyear) / sd_fyear,
-         ln.Years.Since.Fire.scl = (ln.Years.Since.Fire - mean_ln_fyear) /sd_ln_fyear,
          rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr)
 # View
 # glimpse(sobs_counts)
@@ -186,27 +180,18 @@ glimpse(sobs_observations)
 trunc_dist <- 0.125
 
 # Matrix dimentions
-nrows <- length(unique(sobs_counts$Grid.ID.num))  # Number of survey grids
-ncols <- length(unique(sobs_counts$Visit.ID.num)) # Times each grid was visited
+nrows <- length(unique(sobs_counts$Grid.ID.num))    # Number of survey grids
+ncols <- length(unique(sobs_counts$Visit.ID.num))   # Times each grid was visited
 
-# Build a storage matrix of observations by visit
-count_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of years by visit
-year_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of survey times by visit
-time_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix of survey dates by visit
-date_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for the proportion of points visited during each survey
-area_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for who conducted each survey
-obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for observer experience 
-exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for years since fire during each survey
-fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols)
-# Build a storage matrix for how many individual birds were seen on each visit
-mean_birds_mat <- matrix(NA, nrow = nrows, ncol = ncols)
+# Storage Matrices 
+count_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix of observations by visit
+year_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix of years by visit
+time_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix of survey times by visit
+date_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix of survey dates by visit
+area_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for the proportion of points visited during each survey
+obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for who conducted each survey
+exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observer experience
+fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
 
 # Fill in the matrix
 for(y in 1:nrow(count_mat)){
@@ -223,7 +208,6 @@ for(y in 1:nrow(count_mat)){
   obsv_mat[y,] <- count_visit$Observer.ID.num
   exp_mat[y,] <- count_visit$Observer.Experience 
   fyear_mat[y,] <- count_visit$Years.Since.Fire.scl
-  mean_birds_mat[y,] <- count_visit$Mean.Birds.scl
 }
 
 # Size Objects  
@@ -246,7 +230,6 @@ obs_visit <- sobs_observations$Visit.ID.num                # During which visit 
 obs_grid <- sobs_observations$Grid.ID.num                  # In which grid did each observation take place
 dclass <- sobs_observations$Dist.Bin                       # Distance class of each observation
 delta <- trunc_dist / nbins                                # Size of distance bins
-mean_birds <- mean_birds_mat                                # Number of individual birds seen per survey
 
 # Availability date
 tint <- sobs_observations$Time.Interval                    # Time interval for each observation 
@@ -269,7 +252,6 @@ trts <- sobs_counts$Treatment[1:ngrids]                    # Grid type (Elevatio
 #########################################################################################################
 
 # 2.1) Model definition ################################################################
-# Note all distances are in units of 1km (and area in 1km2 units)
 
 # Model code
 sobs_model_code <- nimbleCode({
@@ -289,12 +271,9 @@ sobs_model_code <- nimbleCode({
   # Fixed effects on detecability
   
   # Effect of observer experience (Can't be greater than 0)
-  for(o in 1:nobsv){ # (nobsv = 17)
+  for(o in 1:nobsv){ # nobsv = 17
     alpha0_obsv[o] ~ T(dnorm(-2, sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
   } # End loop through observers
-  
-  # Single fixed effects on detection prob
-  # alpha_nbirds ~ dnorm(0, sd = 1.5)  # Effect of how many total birds were seen at the site
   
   # Parameters on the abundance component of the model ----
   
@@ -312,15 +291,15 @@ sobs_model_code <- nimbleCode({
   # Single fixed effects
   beta_burnsev ~ dnorm(0, sd = 1.5)   # Effect of initial burn severity on burned grids
   
-  # Abundance random effect hyper-parameters
-  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year 
-
-  # Random effect for each year
-  for(y in 1:nyears){ # nyears = 3
-    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
-  } # end loop over years
+  # # Abundance random effect hyper-parameters
+  # sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year 
+  # 
+  # # Random effect for each year
+  # for(y in 1:nyears){ # nyears = 3
+  #   eps_year[y] ~ dnorm(0, sd = sd_eps_year)
+  # } # end loop over years
   
-  # ----------------------------------------------------------------------------
+  # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
   # Iterate over all survey grids
@@ -355,13 +334,13 @@ sobs_model_code <- nimbleCode({
       # Rectangular integral approx. of integral that yields the detection probability
       p_d[j, k] <- sum(pi_pd[j, k, ])
       
-      # # Multiply availability with detection probability to yield total probability of capturing a bird
-      p_cap[j, k] <- p_d[j, k] * p_a[j, k]
-      
       ### Binomial portion of mixture ###
       
       # Number of individual birds detected (observations)
-      n_dct[j, k] ~ dbin(p_cap[j, k], N_indv[j, k]) 
+      n_dct[j, k] ~ dbin(p_d[j, k], n_avail[j, k]) 
+      
+      # Number of birds avaiable
+      n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
       N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j
@@ -375,29 +354,32 @@ sobs_model_code <- nimbleCode({
       
       # Detectability (sigma) Log-Linear model 
       log(sigma[j, k]) <- alpha0_obsv[observers[j, k]]   # Intercept for of observer experience on detectability
-                          # alpha_nbirds * mean_birds[j, k] # Effect of how many total birds were seen on that grid
         
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
-                           beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
-                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
+                           beta_burnsev * burn_sev[j] * burned[j]               # Effect of initial burn severity on burned grids
+                           # eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
-      # ------------------------------------------------------------------------
+      # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
       
-      # Test statistic for observed data
-      e_val[j, k] <- p_cap[j, k] * N_indv[j, k]                       # Expected value for binomial portion of the model
-      Chi[j, k] <- (n_dct[j, k] - e_val[j, k])^2 / (e_val[j, k] +0.5) # Compute chi squared statistic for observed data
+      # Chi square statisitc for the availability portion of the model
+      e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
+      n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
+      Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
+      Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
       
-      # Generate replicate count data and compute same fit stats for them
-      n_dct_new[j, k] ~ dbin(p_cap[j, k], N_indv[j, k])                        # Draw new detentions from the same binomial
-      Chi_new[j, k] <- (n_dct_new[j, k] - e_val[j, k])^2 / (e_val[j, k] + 0.5) # Compute chi squared statistic for simulated data data
+      # Chi square statisitc for the detection portion of the model
+      e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
+      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
+      Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
+      Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
       
     } # end loop through visits
   } # end loop through survey grids
   
-  # ----------------------------------------------------------------------------
+  # --------------------------------------------------------------------------------------------------------
   # Availability and detecability likelihood
   
   # Model for binned distance observations of every detected individual
@@ -406,15 +388,16 @@ sobs_model_code <- nimbleCode({
     tint[i] ~ dcat(pi_pa_c[obs_grid[i], obs_visit[i], ])      # likelihood for time removal data
   } # end observation distance and time of detection loop
   
-  # ----------------------------------------------------------------------------
+  # --------------------------------------------------------------------------------------------
   # Combine fit statistics
   
-  # Add up fit stats across sites and years
-  fit <- sum(Chi[,])
-  fit_new <- sum(Chi_new[,])
+  # Add up fit stats for availability across sites and years
+  fit_pa <- sum(Chi_pa[,])
+  fit_pa_new <- sum(Chi_pa_new[,])
   
-  # Compute over dispersion parameter (c_hat)
-  c_hat <- fit / fit_new
+  # Add up fit stats for detectability across sites and years
+  fit_pd <- sum(Chi_pd[,])
+  fit_pd_new <- sum(Chi_pd_new[,])
   
 }) # end model statement
 
@@ -436,10 +419,10 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nelv = nelv,                 # Number of elevations (2)
-  nyears = nyears,             # Number of years we surveyed (3)
+  # nyears = nyears,             # Number of years we surveyed (3)
   
   # Non-stochastic constants
-  years = years,               # Year when each survey took place
+  # years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -455,7 +438,6 @@ sobs_dat <- list(
   # Detection level data
   dclass = dclass,             # Distance category for each observation
   midpt = midpt,               # Midpoints of distance bins
-  # mean_birds = mean_birds,     # Total number of birds seen during each survey
   # Availability level data
   tint = tint,                 # Time interval for each observation
   time = time,                 # Scaled mean time after sunrise
@@ -481,12 +463,13 @@ sobs_dims <- list(
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   p_a = c(ngrids, nvst),             # Availability probability
-  p_cap = c(ngrids, nvst),           # Combined probability of detecting an available bird
   lambda = c(ngrids, nvst),          # Poisson random variable
   e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
   e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
-  Chi = c(ngrids , nvst),            # Observed Chi square statistic for availability
-  Chi_new = c(ngrids, nvst)          # Simulated Chi square statistic for availability
+  Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
+  Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
+  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
+  Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
 )
 
 # View dimensions
@@ -496,7 +479,6 @@ str(sobs_dims)
 sobs_inits <- list(
   # Detectablility
   alpha0_obsv = runif(nobsv, -2, -0.1),   # Effect of each observer on detecability
-  # alpha_nbirds = rnorm(1, 0, 0.1),       # Effect of how many total birds were seen on detection probability
   # Availability 
   gamma0 = rnorm(1, 0, 0.1),              # Intercept on availability
   gamma_date = rnorm(1, 0, 0.1),          # Effect of date on availability
@@ -507,13 +489,15 @@ sobs_inits <- list(
   beta0_treatment = rnorm(ntrts, 0, 0.1), # Intercept by grid type
   beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
   beta_burnsev = rnorm(1, 0, 0.1),        # Effect of burn severity
-  sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
-  eps_year = rnorm(nyears, 0, 0.1),        # Random noise on abundance by year
+  # sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
+  # eps_year = rnorm(nyears, 0, 0.1),        # Random noise on abundance by year
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
   present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
   # Simulated counts
+  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
+  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
   N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
 )
 # View the initial values
@@ -521,21 +505,21 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
-  "fit",             # Fit statistic for observed data
-  "fit_new",          # Fit statisitc for simulated data
-  "c_hat",           # Overdispersion parameter
+  "fit_pd",          # Fit statistic for observed data
+  "fit_pd_new",      # Fit statisitc for simulated detection  data
+  "fit_pa",          # Fit statistic for first availability data
+  "fit_pa_new",      # Fit statisitc for simulated avaiability data
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
   "beta_burnsev",    # Effect of RdNBR burn sevarity
-  "eps_year",        # Magnitude of random noise
-  "sd_eps_year",     # Random noise on abundance by year
+  # "eps_year",        # Magnitude of random noise
+  # "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
   "gamma_time",      # Effect of time of day on singing rate
   "gamma_time2",     # Quadratic e of time of day on singing rate
   "alpha0_obsv"      # Intercept for each observer on detection rate
-  # "alpha_nbirds"     # Effect of how many total birds were seen on detection probability
 )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -567,8 +551,6 @@ sobs_mcmcConf$removeSamplers(
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
   "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
-  # Effect of seeing more birds on a survey
-  # "alpha_nbirds"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Effect of each observer
@@ -576,8 +558,6 @@ sobs_mcmcConf$addSampler(target = c(
   "alpha0_obsv[5]", "alpha0_obsv[6]", "alpha0_obsv[7]", "alpha0_obsv[8]",
   "alpha0_obsv[9]", "alpha0_obsv[10]", "alpha0_obsv[11]", "alpha0_obsv[12]",
   "alpha0_obsv[13]", "alpha0_obsv[14]", "alpha0_obsv[15]", "alpha0_obsv[16]", "alpha0_obsv[17]"
-  # Effect of seeing more birds on a survey
-  # "alpha_nbirds"
   ), type = 'RW_block')
 
 # Block all abundance (beta) nodes together
@@ -587,9 +567,9 @@ sobs_mcmcConf$removeSamplers(
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
   # Effect of burn severity
-  "beta_burnsev",
+  "beta_burnsev"
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  # "eps_year[1]", "eps_year[2]", "eps_year[3]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -597,9 +577,9 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
   # Effect of burn severity
-  "beta_burnsev",
+  "beta_burnsev"
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  # "eps_year[1]", "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # Block all occupancy (psi) nodes together
@@ -644,7 +624,7 @@ cMCMC <- compileNimble(sobs_modelMCMC, project = cModel, resetFunctions = T) # c
 
 # MCMC settings for the real model. Pick one, comment out the rest 
 # nc <- 3  ;  ni <- 50  ;  nb <- 0  ;  nt <- 1        # Quick test to see if the model runs
-# nc <- 3  ;  ni <- 150000  ;  nb <- 50000;  nt <- 10  # longer test where most parameters should
+# nc <- 3  ;  ni <- 150000  ;  nb <- 50000;  nt <- 10  # longer test where some parameters should converge
 nc <- 4;  ni <- 500000;  nb <- 250000;  nt <- 25    # Run the model for real
 
 # Quick check of how many samples we'll keep in the posterior
@@ -662,7 +642,8 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
-saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+                                     model_species, "_fire_elevation_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -671,7 +652,8 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", model_species, "_fire_elevation_model.rds"))
+fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+                                       model_species, "_fire_elevation_model.rds"))
   
  # Traceplots and density graphs 
 MCMCtrace(object = fire_mcmc_out$samples,
@@ -695,20 +677,70 @@ MCMCplot(object = fire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
 
-# } # End modeling loop (Comment this out) ----
+} # End modeling loop (Comment this out) ----
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
 #####################################################################################
 
-# 4.1) Prepare and view model output ################################################
+# 4.1) Prepare data for model output ################################################
+
+# Clear environments again
+rm(list = ls())
+
+# Add the counts back in (Just using them for the dates so it doesn't matter which species, I like Brewer's Sparrow)
+sobs_counts_temp <- read.csv(paste0("Data/Outputs/BRSP_Grid_Counts.csv")) %>%
+  tibble() %>% select(-X)
+
+# Add in covariates
+covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
+  dplyr::select(-X) %>% tibble()
+
+# Add some of the data back in so we have the values to unscale parameters
+
+# Change necessary variables to scales and factors
+fire_stats <- sobs_counts_temp %>%
+  # Add covariates
+  left_join(covs, by = c("Grid.ID", "Grid.Type")) %>% 
+  # Sort the data
+  arrange(Visit.ID, Grid.ID) %>% 
+  mutate(# Numeric burned vs unburned
+    Burned = as.numeric(factor(Grid.Type, levels = c("R", "B"))) - 1,
+    # Time since Fire
+    Years.Since.Fire = case_when(Year == "Y1" ~ 2022 - Fire.Year,
+                                 Year == "Y2" ~ 2023 - Fire.Year,
+                                 Year == "Y3" ~ 2024 - Fire.Year)) %>% 
+  # Isolate the burned Grids as their own object so I can accurately scale them
+  filter(Burned == 1) %>% 
+  distinct(Grid.ID, Years.Since.Fire, rdnbr.125m) 
+
+# View
+glimpse(fire_stats)
+
+# Find the mean and standard deviation of the "real" burns
+mean_fyear <- mean(fire_stats$Years.Since.Fire)
+sd_fyear <- sd(fire_stats$Years.Since.Fire)
+mean_rdnbr <- mean(fire_stats$rdnbr.125m)
+sd_rdnbr <- sd(fire_stats$rdnbr.125m)
+
+# 4.2) Graph each species responce to fire ###############################################################
+
+# List of Species to plot 
+all_plot_species <- c(
+  "BRSP",
+  "SATH",
+  "VESP",
+  "WEME",
+  "HOLA",
+  "GTTO"
+)
 
 # Loop over all species 
-# for(s in 1:length(all_species)) { # (Comment this out) ----
+for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_species[s]
-plot_species <- all_species[1]
+plot_species <- all_plot_species[s]
+# plot_species <- all__plot_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -729,8 +761,6 @@ fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pro
 
 # View MCMC summary
 fire_mcmc_out$summary$all.chains
-
-# 4.2) Extract coefficient values ###############################################################
 
 # Extract effect sizes
 
@@ -773,7 +803,7 @@ beta_dat <- data.frame(bind_rows(beta0_ref_low,
 # View output dataframe
 head(beta_dat, n = Inf)
 
-# 4.3) Predicted values ##########################################################################
+# Predicted values 
 
 # Pick a number of samples
 n <- 1000
@@ -798,9 +828,7 @@ beta_dat_pred <- beta_dat_long %>%
 # View the new data 
 glimpse(beta_dat_pred)
 
-# 4.3) Plot each predicted value ###########################################
-
-# Parameter estimates -----------------------------------------------------------------------------------------------
+# Parameter estimate plot -------------------------------------------------------------------------
 
 # Create the plot
 params_plot <- beta_dat %>% 
@@ -829,14 +857,11 @@ params_plot <- beta_dat %>%
   geom_linerange(aes(xmin = CRI.lb, xmax = CRI.ub, color = Significant), linewidth = 1.5) +
   # Add a vertical Line at zero
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
-  # Zoom Out
-  # coord_cartesian(xlim = c(-1.5, 4.5)) +
   # Change the Labels
   labs(x = "Parameter Estimate", y = "") +
   # Simple theme
   theme_classic() +
   # Custom colors
-  
   scale_color_manual(values = c("No" = "lightsteelblue4", 
                                 "Yes" = "navyblue")) +
   # Edit theme
@@ -851,7 +876,7 @@ params_plot
 
 # Save the plot
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
                                        plot_species, "_params.png"),
        width = 200,
        height = 120,
@@ -859,7 +884,7 @@ ggsave(plot = params_plot,
        dpi = 300)
 
 
-# Burn verses Reference at different Elevations  --------------------------------------------------------------------
+# Burn verses Reference at different Elevations Plot-----------------------------------------------------------
 
 # Create the plot
 treatment_pred_plot <- beta_dat %>%
@@ -903,7 +928,7 @@ treatment_pred_plot
 
 # Save the plot
 ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
                          plot_species, "_treatment.png"),
        width = 200,
        height = 120,
@@ -913,14 +938,14 @@ ggsave(plot = treatment_pred_plot,
 # Years since fire plot -------------------------------------------------------
 
 # Find the minimum time since fire
-min_fyear <- sobs_counts %>% 
+min_fyear <- fire_stats %>% 
   filter(Years.Since.Fire < 30) %>%
   select(Years.Since.Fire) %>% 
   arrange(Years.Since.Fire) %>% 
   slice_head(n = 1)
 
 # Find the maximum time since fire
-max_fyear <- sobs_counts %>% 
+max_fyear <- fire_stats %>% 
   filter(Years.Since.Fire < 30) %>%
   select(Years.Since.Fire) %>% 
   arrange(-Years.Since.Fire) %>% 
@@ -984,7 +1009,7 @@ fyear_pred_plot
 
 # Save the plot
 ggsave(plot = fyear_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
                          plot_species, "_fyear.png"),
        width = 200,
        height = 120,
@@ -1010,7 +1035,7 @@ rdnbr_pred_plot <- beta_dat_pred %>%
   ggplot() +
   # Low elevation reference
   geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
-                color = "Low Elevation Reference"), size = 1) +
+                color = "Low Elevation Reference"), linewidth = 1) +
   geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.low.CRI.lb), 
                   ymax = exp(beta0.ref.low.CRI.ub), 
                   fill = "Low Elevation Reference"), alpha = 0.2) +
@@ -1058,7 +1083,7 @@ rdnbr_pred_plot
 
 # Save the plot
 ggsave(plot = rdnbr_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
                          plot_species, "_burnsev.png"),
        width = 200,
        height = 120,
