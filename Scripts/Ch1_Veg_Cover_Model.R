@@ -23,7 +23,7 @@ library(tmap)
 ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
 # Set a coordinate reference system (UTM Zone 12N)
-target_crs <- "EPSG:26912"
+target_crs <- "EPSG:32612"
 
 # The study region
 study_region <- st_read(paste0(ras_path, "Study_Region.shp")) %>% 
@@ -43,12 +43,15 @@ afg_cvr_rast <- rast(paste0(ras_path, "afg_cvr.tif"))
 elevation_rast <- rast(paste0(ras_path, "elevation.tif"))
 tri_rast <- rast(paste0(ras_path, "tri.tif"))
 aspect_rast <- rast(paste0(ras_path, "aspect.tif"))
-trees_rast <- rast(paste0(ras_path, "tree_patches.tif"))
+trees_rast <- rast(paste0(ras_path, "tree_cvr.tif"))
 
 # 1.2) Prepare a fishnet grid to extract covariates #############################################################
 
 # Set a rectangle size (meters)
 cell_size <- 1000 
+
+# Number of cells to keep
+n_cells <- 300
 
 # Build a fishnet grid
 fishnet <- st_make_grid(x = study_region,
@@ -62,11 +65,29 @@ fishnet <- st_make_grid(x = study_region,
 
 # Calculate Area
 fishnet$Area = as.numeric(st_area(fishnet))
-  
-# Switch area to n
 
 # # Remove the cells that are only partially in the fires
 full_cells <- fishnet[which(fishnet$Area >= 900000),]
+
+# Project tree cover
+trees_prj <- project(x = trees_rast, y = target_crs)
+
+# Extract tree cover
+mean_trees <- terra::extract(x = trees_prj,
+                             y = full_cells,
+                             fun = function(x) mean(x, na.rm = TRUE)) 
+full_cells$Tree.Cover <- mean_trees[, 2]
+
+
+# Subset the cells
+model_cells <- full_cells %>% 
+  # Remove the cells with trees
+  filter(Tree.Cover < 20) %>% 
+  # Subset some number of rows to remove spatial autocorrelation 
+  slice_sample(n = n_cells) 
+
+# View the cells
+glimpse(model_cells)
 
 # Tmap mode
 tmap_mode("view")
@@ -76,11 +97,11 @@ tm_shape(study_region) +
   tm_polygons() +
   tm_shape(fire_perms) +
   tm_polygons(alpha = 0.3, col = "red3") +
-  tm_shape(full_cells) +
+  tm_shape(model_cells) +
   tm_polygons(alpha = 0.1, col = "gray87")
 
 # Create a data frame or tibble from the fishnet
-burn_dat <- tibble(full_cells) %>% 
+burn_dat <- tibble(model_cells) %>% 
   mutate(
     # Temporarty storage object covariates
     rdnbr.tmp = NA,
@@ -88,58 +109,52 @@ burn_dat <- tibble(full_cells) %>%
     rdnbr = 0,
     Fire.Year = 1800)
 
+# Remove cells that have too many trees and then subset
+
+
 # 2) Extract covariates #############################################################
 
 # 2.1) # Extract constant covariates ################################################
 
 # Extract Shrub cover
 mean_shrub <-  terra::extract(x = shrub_cvr_rast,
-                                  y = full_cells,
+                                  y = model_cells,
                                   fun = function(x) mean(x, na.rm = TRUE)) 
 burn_dat$Shrub.Cover <- mean_shrub[, 2]
 
 # Extract perennial cover
 mean_pfg <-  terra::extract(x = pfg_cvr_rast,
-                              y = full_cells,
+                              y = model_cells,
                               fun = function(x) mean(x, na.rm = TRUE)) 
 burn_dat$PFG.Cover <- mean_pfg[, 2]
 
 # Extract annual grass cover
 mean_afg <-  terra::extract(x = afg_cvr_rast,
-                            y = full_cells,
+                            y = model_cells,
                             fun = function(x) mean(x, na.rm = TRUE)) 
 burn_dat$AFG.Cover <- mean_afg[, 2]
 
 # Extract Elevation 
 mean_elevation <- terra::extract(x = elevation_rast,
-                                  y = full_cells,
+                                  y = model_cells,
                                   fun = function(x) mean(x, na.rm = TRUE)) 
 burn_dat$Elevation <- mean_elevation[, 2]
 
 # Extract Ruggedness
 mean_tri <- terra::extract(x = tri_rast,
-                                  y = full_cells,
+                                  y = model_cells,
                                   fun = function(x) mean(x, na.rm = TRUE)) 
 burn_dat$TRI <- mean_tri[, 2]
 
 # Extract Aspect 
 mode_aspect <- terra::extract(x = aspect_rast,
-                                  y = full_cells,
+                                  y = model_cells,
                                   fun = function(x) modal(x, na.rm = TRUE)) 
 burn_dat$Aspect <- mode_aspect[, 2]
 
-# Extract tree cover
-trees_count <- terra::extract(x = trees_rast,
-                             y = full_cells,
-                             fun = function(x) sum(x, na.rm = TRUE)) 
-burn_dat$Trees.Count <- trees_count[, 2]
-
-# View the data
-glimpse(burn_dat)
-
 # 2.2) Extract burn covariates ######################################################
 
-# File path for burn sevarity data
+# File path for brn sevarity data
 mtbs_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\mtbs_cleaned\\"
 
 # Define which years for which I have fire data
@@ -173,8 +188,11 @@ for(i in 1:(nyears-1)){ # Skip 2022. For some reason it doesn't work
   # replace negative values
   rdnbr_ras[rdnbr_ras < 0] <- NA
   
+  # Project raster
+  rdnbr_prj <- project(rdnbr_ras, y = target_crs)
+  
   # reset a temporary points object for the mean rdnbr at the 125m scale
-  rdnbr.tmp <- terra::extract(x = rdnbr_ras, y = full_cells, fun = function(x) mean(x, na.rm = TRUE))
+  rdnbr.tmp <- terra::extract(x = rdnbr_prj, y = model_cells, fun = function(x) mean(x, na.rm = TRUE))
   burn_dat$rdnbr.tmp <- rdnbr.tmp[,2]
   
   # Pull out the values where there were fires at the point for that year
@@ -213,10 +231,6 @@ burn_dat_final <- burn_dat %>%
   mutate(X = coords$X, Y = coords$Y) %>%
   # Remove the temporary attributes
   dplyr::select(-rdnbr.tmp) %>%
-  # Remove Grids with too much tree cover
-  filter(Trees.Count < 300) %>% 
-  # Subset some number of rows to remove spatial autocorrelation (Play around with n)
-  slice_sample(n = 300) %>% 
   # Remove the extra column
   select(-x) %>% 
   # Add in fire year for the grid that does have info
@@ -242,8 +256,10 @@ write.csv(burn_dat_final, "Data\\Outputs\\Fishnet_Grid_Covs.csv")
 # Add packages
 library(tidyverse)
 library(ggcorrplot)
+library(gridExtra)
 library(DHARMa)
 library(glmmTMB)
+library(AICcmodavg)
 
 # Read the data back in
 burn_dat_clean <- read.csv("Data\\Outputs\\Fishnet_Grid_Covs.csv") %>% 
@@ -303,6 +319,8 @@ burn_dat_clean %>%
 burn_dat_model <- burn_dat_clean %>% 
   mutate(Years.Since.Fire = 2023 - Fire.Year) %>% 
   select(Shrub.Cover, PFG.Cover, AFG.Cover, Years.Since.Fire, Elevation, rdnbr, X, Y) %>% 
+  # Remove outlier rdnbr and fir year  
+  filter(rdnbr < 2200 & Years.Since.Fire < 30) %>% 
   mutate(Years.Since.Fire2 = Years.Since.Fire^2,
          Elevation2 = Elevation^2) %>% 
   mutate(Elevation = scale(Elevation)[,1],
@@ -321,192 +339,231 @@ glimpse(burn_dat_model)
 # View the data again
 glimpse(burn_dat_model)
 
-# Gaussian model with interactions
-shrub_model_out_full <- glmmTMB(data = burn_dat_model,
-                                formula = Shrub.Cover ~ Years.Since.Fire +          # Effect of time since fire
-                                                        Years.Since.Fire2 +         # Effect of time since fire (Quadratic)
-                                                        Elevation +                 # Effect of elevation
-                                                     Elevation2 +                   # Effect of elevation (Quadratic)
-                                                        rdnbr +                     # Effect of RdNBR burn severity
-                                                     Elevation * Years.Since.Fire + # Effect of interaction between elevation and time
-                                                     rdnbr * Years.Since.Fire +     # Effect of interaction between burn sevarity and time
-                                                     X +                            # Explain extra variation with X coord
-                                                     Y)                             # Explain extra variation with X coord
+# Plot shrub cover against elevation
+ggplot(burn_dat_model, aes(x = Elevation, y = Shrub.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove the burn sevarity time interaction
-shrub_model_out2 <- glmmTMB(data = burn_dat_model,
-                                  formula = Shrub.Cover ~ Years.Since.Fire +  # Effect of time since fire
-                                           Years.Since.Fire2 +                # Effect of time since fire (Quadratic)
-                                           Elevation +                        # Effect of elevation
-                                           Elevation2 +                       # Effect of elevation (Quadratic)
-                                           rdnbr +                            # Effect of RdNBR burn severity
-                                           Elevation * Years.Since.Fire +     # Effect of interaction between elevation and time
-                                           X +                                # Explain extra variation with X coord
-                                           Y)                                 # Explain extra variation with X coords
+# Plot shrub cover against fire year
+ggplot(burn_dat_model, aes(x = Years.Since.Fire, y = Shrub.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
+# Plot shrub cover against burn severity
+ggplot(burn_dat_model, aes(x = rdnbr, y = Shrub.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove X and Y
-shrub_model_out3 <- glmmTMB(data = burn_dat_model,
-                           formula = Shrub.Cover ~ Years.Since.Fire +            # Effect of time since fire
-                                                   Years.Since.Fire2 +           # Effect of time since fire (Quadratic)
-                                                   Elevation +                   # Effect of elevation
-                                                   Elevation2 +                  # Effect of elevation (Quadratic)
-                                                   rdnbr +                       # Effect of RdNBR burn severity
-                                                   Elevation * Years.Since.Fire) # Effect of interaction between elevation and time
+# Plot shrub cover against X coord
+ggplot(burn_dat_model, aes(x = X, y = Shrub.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove Quadratic effect from elevation
-shrub_model_out4 <- glmmTMB(data = burn_dat_model,
-                            formula = Shrub.Cover ~ Years.Since.Fire +            # Effect of time since fire
-                              Years.Since.Fire2 +           # Effect of time since fire (Quadratic)
-                              Elevation +                   # Effect of elevation
-                              rdnbr +                       # Effect of RdNBR burn severity
-                              Elevation * Years.Since.Fire) # Effect of interaction between elevation and time
+# Plot shrub cover against X coord
+ggplot(burn_dat_model, aes(x = Y, y = Shrub.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove quadratic effect from time since fire
-shrub_model_out5 <- glmmTMB(data = burn_dat_model,
-                            formula = Shrub.Cover ~ Years.Since.Fire + # Effect of time since fire
-                              Elevation +                              # Effect of elevation
-                              Elevation2 +                             # Effect of elevation (Quadratic)
-                              rdnbr +                                  # Effect of RdNBR burn severity
-                              Elevation * Years.Since.Fire)            # Effect of interaction between elevation and time
-
-# Remove quadratic effect from time since fire and remove quadratic elevation
-shrub_model_out6 <- glmmTMB(data = burn_dat_model,
-                            formula = Shrub.Cover ~ Years.Since.Fire + # Effect of time since fire
-                                      rdnbr +                          # Effect of RdNBR burn severity        
-                                      Elevation +                      # Effect of elevation
-                                      Elevation * Years.Since.Fire)    # Effect of interaction between elevation and time
-
-# Remove RdNBR
-shrub_model_out7 <- glmmTMB(data = burn_dat_model,
-                             formula = Shrub.Cover ~ Years.Since.Fire + # Effect of time since fire
-                               Elevation +                      # Effect of elevation
-                               Elevation * Years.Since.Fire)    # Effect of interaction between elevation and time
-
-
-# View model summarys
-summary(shrub_model_out_full)
-summary(shrub_model_out2)
-summary(shrub_model_out3)
-summary(shrub_model_out4)
-summary(shrub_model_out5)
-summary(shrub_model_out6)
-summary(shrub_model_out7)
-
-# Best model
-# Try model 6
-shrub_model_best <- shrub_model_out7
-
-# Summary of the best model
-summary(shrub_model_best)
-
-# Test Dispersion
-# testDispersion(shrub_model_best)
-
+# Gaussian model with interactions --------------------------------------------------------------
+shrub_model_out1 <- lm(data = burn_dat_model,
+                       formula = Shrub.Cover ~ Years.Since.Fire + 
+                         Elevation + rdnbr + Elevation * Years.Since.Fire + 
+                         rdnbr * Years.Since.Fire + X + Y)                             
+# Explain extra variation with X coord
+# Summary
+summary(shrub_model_out1)
 # Simulate Residuals
-sim_out <- simulateResiduals(fittedModel = shrub_model_best, plot = F)
-
+shrub_sim_out1 <- simulateResiduals(fittedModel = shrub_model_out1, plot = F)
 # View residuals in a plot
-plot(sim_out)
+plot(shrub_sim_out1)
 
-# 2.3) Candidate models for shrub cover #############################################################
+# Remove Interaction with rdnbr  -------------------------------------------------------------
+shrub_model_out2 <- lm(data = burn_dat_model,
+                       formula = Shrub.Cover ~ Years.Since.Fire + 
+                         Elevation + rdnbr + Elevation * Years.Since.Fire + X + Y)                             
 
-# View plot of PFG cover against a covariate
-burn_dat_model %>% 
-  ggplot(aes(x = rdnbr, y = PFG.Cover)) +
-  geom_point() +
-  geom_smooth(method = "lm")
+# Summary
+summary(shrub_model_out2)
+# Simulate Residuals
+shrub_sim_out2 <- simulateResiduals(fittedModel = shrub_model_out2, plot = F)
+# View residuals in a plot
+plot(shrub_sim_out2)
+
+# Remove rdnbr -------------------------------------------------------------
+shrub_model_out3 <- lm(data = burn_dat_model,
+                       formula = Shrub.Cover ~ Years.Since.Fire + 
+                         Elevation + Elevation * Years.Since.Fire + X + Y)                              
+
+# Summary
+summary(shrub_model_out3)
+# Simulate Residuals
+shrub_sim_out3 <- simulateResiduals(fittedModel = shrub_model_out3, plot = F)
+# View residuals in a plot
+plot(shrub_sim_out3)
+
+# Remove X  -------------------------------------------------------------
+shrub_model_out4 <- lm(data = burn_dat_model,
+                       formula = Shrub.Cover ~ Years.Since.Fire + 
+                         Elevation + Elevation * Years.Since.Fire + Y)                             
+
+# Summary
+summary(shrub_model_out4)
+# Simulate Residuals
+shrub_sim_out4 <- simulateResiduals(fittedModel = shrub_model_out4, plot = F)
+# View residuals in a plot
+plot(shrub_sim_out4)
+
+# Remove  X and Y -------------------------------------------------------------
+shrub_model_out5 <- lm(data = burn_dat_model,
+                      formula = Shrub.Cover ~ Years.Since.Fire + 
+                        Elevation + Elevation * Years.Since.Fire)                           
+
+# Summary
+summary(shrub_model_out5)
+# Simulate Residuals
+shrub_sim_out5 <- simulateResiduals(fittedModel = shrub_model_out5, plot = F)
+# View residuals in a plot
+plot(shrub_sim_out5)
+
+#--------------------------------------------------------------
+# Combine all models
+mod_list_shrub <- list(shrub_model_out1,
+shrub_model_out2,
+shrub_model_out3,
+shrub_model_out4, 
+shrub_model_out5)
+
+# View model AIC Rankings
+aictab(mod_list_shrub)
+
+# Define the best model
+shrub_model_best <- shrub_model_out3
+
+
+# 2.3) Candidate models for perennial cover #############################################################
+
+# Subset the data further to prevent spatial autocorrelation
+pfg_dat_model <- burn_dat_model %>% 
+  slice_sample(n = 150)
 
 # View the data again
-glimpse(burn_dat_model)
+glimpse(pfg_dat_model)
 
-# Gaussian model with interactions
-pfg_model_out_full <- glmmTMB(data = burn_dat_model,
-                                formula = PFG.Cover ~ Years.Since.Fire + # Effect of time since fire
-                                  Years.Since.Fire2 +                  # Effect of time since fire (Quadratic)
-                                  Elevation +                 # Effect of elevation
-                                  Elevation2 +                   # Effect of elevation (Quadratic)
-                                  rdnbr +                     # Effect of RdNBR burn severity
-                                  Elevation * Years.Since.Fire + # Effect of interaction between elevation and time
-                                  rdnbr * Years.Since.Fire +     # Effect of interaction between burn sevarity and time
-                                  X +                            # Explain extra variation with X coord
-                                  Y)                             # Explain extra variation with X coord
+# Plot pfg cover against elevation
+ggplot(pfg_dat_model, aes(x = Elevation, y = PFG.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Drop X and Y
-pfg_model_out2<- glmmTMB(data = burn_dat_model,
-                              formula = PFG.Cover ~ Years.Since.Fire +          # Effect of time since fire
-                                Years.Since.Fire2 +         # Effect of time since fire (Quadratic)
-                                Elevation +                 # Effect of elevation
-                                Elevation2 +                   # Effect of elevation (Quadratic)
-                                rdnbr +                     # Effect of RdNBR burn severity
-                                Elevation * Years.Since.Fire + # Effect of interaction between elevation and time
-                                rdnbr * Years.Since.Fire       # Effect of interaction between burn sevarity and time
-)
+# Plot PFG cover against fire year
+ggplot(pfg_dat_model, aes(x = Years.Since.Fire, y = PFG.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove quadratic terms
-pfg_model_out3 <- glmmTMB(data = burn_dat_model,
-                         formula = PFG.Cover ~ Years.Since.Fire +          # Effect of time since fire
-                           Elevation +                 # Effect of elevation
-                           rdnbr +                     # Effect of RdNBR burn severity
-                           Elevation * Years.Since.Fire + # Effect of interaction between elevation and time
-                           rdnbr * Years.Since.Fire       # Effect of interaction between burn sevarity and time
-)
+# Plot PFG cover against burn severity
+ggplot(pfg_dat_model, aes(x = rdnbr, y = PFG.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove elv fyear interaction 
-pfg_model_out4 <- glmmTMB(data = burn_dat_model,
-                          formula = PFG.Cover ~ Years.Since.Fire +          # Effect of time since fire
-                            Elevation +                 # Effect of elevation
-                            rdnbr +                     # Effect of RdNBR burn severity
-                            rdnbr * Years.Since.Fire       # Effect of interaction between burn sevarity and time
-)
+# Plot PFG cover against X coord
+ggplot(pfg_dat_model, aes(x = X, y = PFG.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
-# Remove rdnbr fyear interaction 
-pfg_model_out5 <- glmmTMB(data = burn_dat_model,
-                          formula = PFG.Cover ~ Years.Since.Fire +          # Effect of time since fire
-                            Elevation +                 # Effect of elevation
-                            rdnbr                      # Effect of RdNBR burn severity
-)
+# Plot PFG cover against X coord
+ggplot(pfg_dat_model, aes(x = Y, y = PFG.Cover)) +
+  geom_smooth(method = "lm") +
+  geom_point()
 
+# Gaussian model with interactions ----------------------------------------------------------------------------
+pfg_model_out1 <- lm(data = pfg_dat_model,
+                     formula = PFG.Cover ~ Years.Since.Fire + 
+                       Elevation + rdnbr + Elevation * Years.Since.Fire + 
+                       rdnbr * Years.Since.Fire + X + Y)                         
+# View model summarys
+summary(pfg_model_out1)
+# Simulate Residuals
+pfg_sim_out1 <- simulateResiduals(fittedModel = pfg_model_out1, plot = F)
+# View residuals in a plot
+plot(pfg_sim_out1)
+
+# Remove X ----------------------------------------------------------------------------
+pfg_model_out2 <- lm(data = pfg_dat_model,
+                     formula = PFG.Cover ~ Years.Since.Fire +
+                       Elevation + rdnbr + Elevation * Years.Since.Fire +
+                       rdnbr * Years.Since.Fire + Y) 
 
 # View model summarys
-summary(pfg_model_out_full)
 summary(pfg_model_out2)
-summary(pfg_model_out3)
-summary(pfg_model_out4)
-summary(pfg_model_out5)
-# summary(pfg_model_out6)
-# summary(pfg_model_out7)
-# summary(pfg_model_out8)
+# Simulate Residuals
+pfg_sim_out2 <- simulateResiduals(fittedModel = pfg_model_out2, plot = F)
+# View residuals in a plot
+plot(pfg_sim_out2)
 
-# Best model
-# Try model 4
+# Remove both interactions ----------------------------------------------------------------------------
+pfg_model_out3 <- lm(data = pfg_dat_model,
+                     formula = PFG.Cover ~ Years.Since.Fire +
+                       Elevation + rdnbr + Y)     
+
+# View model summarys
+summary(pfg_model_out3)
+# Simulate Residuals
+pfg_sim_out3 <- simulateResiduals(fittedModel = pfg_model_out3, plot = F)
+# View residuals in a plot
+plot(pfg_sim_out3)
+
+# Remove years since fire ---------------------------------------------------------------------------
+pfg_model_out4 <- lm(data = pfg_dat_model,
+                     formula = PFG.Cover ~ Elevation + rdnbr + Y)     
+
+# View model summarys
+summary(pfg_model_out4)
+# Simulate Residuals
+pfg_sim_out4 <- simulateResiduals(fittedModel = pfg_model_out4, plot = F)
+# View residuals in a plot
+plot(pfg_sim_out4)
+
+# Remove Y ---------------------------------------------------------------------------
+pfg_model_out5 <- lm(data = pfg_dat_model,
+                     formula = PFG.Cover ~ Elevation + rdnbr)     
+
+# View model summary
+summary(pfg_model_out5)
+# Simulate Residuals
+pfg_sim_out5 <- simulateResiduals(fittedModel = pfg_model_out5, plot = F)
+# View residuals in a plot
+plot(pfg_sim_out5)
+
+
+# AIC Ranking ----------------------------------------------------------------------
+
+# Combine models into a list
+mode_list_pfg <- list(pfg_model_out1, 
+                      pfg_model_out2,
+                      pfg_model_out3,
+                      pfg_model_out4,
+                      pfg_model_out5) 
+
+# View AIC Ranking
+aictab(mode_list_pfg)
+
+# Define the best model
 pfg_model_best <- pfg_model_out4
 
-# Summary of the best model
-summary(pfg_model_best)
-
-# Test Dispersion
-# testDispersion(shrub_model_best)
-
-# Simulate Residuals
-pfg_sim_out <- simulateResiduals(fittedModel = shrub_model_best, plot = F)
-
-# View residuals in a plot
-plot(pfg_sim_out)
-
-# 2.5) Plot Shrub model output #########################################################
+# 2.4) Plot Shrub model output #########################################################
 
 # Extract the model coefficients
 shrub_summary <- summary(shrub_model_best)
 shrub_summary
-shrub_coefs <- shrub_summary$coefficients$cond
+shrub_coefs <- shrub_summary$coefficients
 shrub_coefs
 shrub_coefs_tibble <- tibble(Parameter= c("Intercept", 
-                                        "Years Since Fire",
-                                        "Elevation (m)", 
-                                        "Elevation * Years Since Fire"),
-                           Value = as.numeric(shrub_coefs[,1]),
-                           Std.Error = shrub_coefs[,2]) 
+                                          "Years Since Fire",
+                                          "Elevation (m)",
+                                          "Latitude",
+                                          "Longitude",
+                                          "Elevation * Years Since Fire"),
+                             Value = as.numeric(shrub_coefs[,1]),
+                             Std.Error = shrub_coefs[,2]) 
 
 # and View
 head(shrub_coefs_tibble, n = 10)
@@ -516,7 +573,9 @@ shrub_params_plot <- shrub_coefs_tibble %>%
   # Switch to a factor 
   mutate(Parameter = factor(Parameter, levels = c(
     "Elevation * Years Since Fire",
-    "Elevation (m)", 
+    "Elevation (m)",
+    "Longitude",
+    "Latitude",
     "Years Since Fire", 
     "Intercept"
   )),
@@ -533,7 +592,7 @@ shrub_params_plot <- shrub_coefs_tibble %>%
   # Change the Labels
   labs(x = "Parameter Estimate", 
        y = "",
-       title = "Effect on Percent Shrub Cover") +
+       title = "Shrub Cover") +
   # Simple theme
   theme_classic() +
   # Edit theme
@@ -555,19 +614,17 @@ ggsave(plot = shrub_params_plot,
        units = "mm",
        dpi = 300)
 
-
 # 2.5) Plot PFG model output #########################################################
 
 # Extract the model coefficients
 pfg_summary <- summary(pfg_model_best)
 pfg_summary
-pfg_coefs <- pfg_summary$coefficients$cond
+pfg_coefs <- pfg_summary$coefficients
 pfg_coefs
 pfg_coefs_tibble <- tibble(Parameter= c("Intercept", 
-                                    "Years Since Fire",
                                     "Elevation (m)", 
                                     "RdNBR Burn Sevarity",
-                                    "RdNBR * Years Since Fire"),
+                                    "Latitude"),
                        Value = as.numeric(pfg_coefs[,1]),
                        Std.Error = pfg_coefs[,2]) 
 
@@ -577,11 +634,9 @@ head(pfg_coefs_tibble, n = 10)
 # Create the plot
 pfg_params_plot <- pfg_coefs_tibble %>% 
   # Switch to a factor 
-  mutate(Parameter = factor(Parameter, levels = c(
-                                                  "RdNBR * Years Since Fire", 
+  mutate(Parameter = factor(Parameter, levels = c("Latitude",
                                                   "RdNBR Burn Sevarity",
                                                   "Elevation (m)", 
-                                                  "Years Since Fire", 
                                                   "Intercept"
                                                   )),
          CI.lb = Value - Std.Error,
@@ -597,7 +652,7 @@ pfg_params_plot <- pfg_coefs_tibble %>%
   # Change the Labels
   labs(x = "Parameter Estimate", 
        y = "",
-       title = "Effect on Percent Perennial Cover") +
+       title = "Perennial Cover") +
   # Simple theme
   theme_classic() +
   # Edit theme
@@ -615,6 +670,26 @@ pfg_params_plot
 ggsave(plot = pfg_params_plot,
        file = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\pfg_fire_output.png",
        width = 200,
+       height = 120,
+       units = "mm",
+       dpi = 300)
+
+# 2.6) Plot shrub and PFG model parameters together ###################################
+
+# Load the two plots back in
+shrub_params_plot <- load("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\shrub_fire_output.png")
+pfg_params_plot <- load("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\pfg_fire_output.png")
+
+# Two plots together
+double_plot <- grid.arrange(shrub_params_plot, pfg_params_plot, nrow = 1, ncol = 2)
+
+# View the plot
+double_plot
+
+# Save the plot
+ggsave(plot = double_plot,
+       file = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\veg_cvr_params_plot.png",
+       width = 300,
        height = 120,
        units = "mm",
        dpi = 300)

@@ -693,7 +693,7 @@ params_plot <- beta_dat %>%
   # Zoom Out
   # coord_cartesian(xlim = c(-1.5, 4.5)) +
   # Change the Labels
-  labs(x = "Parameter Estimate", k = "") +
+  labs(x = "", k = "", title = species_name) + # "Parameter Estimate"
   # Simple theme
   theme_classic() +
   # Custom colors
@@ -701,6 +701,7 @@ params_plot <- beta_dat %>%
                                 "Yes" = "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
+        plot.title = element_text(size = 20, hjust = 0.5),
         axis.text.y = element_text(size = 16),
         axis.title.y = element_blank(),
         axis.title.x = element_text(size = 16),
@@ -710,13 +711,17 @@ params_plot <- beta_dat %>%
 # View the plot
 params_plot
 
-# Save the plot
+# Save the plot as a png
 ggsave(plot = params_plot,
        paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_params.png"),
        width = 200,
        height = 120,
        units = "mm",
        dpi = 300)
+
+# save the plot as an RDS
+saveRDS(object = params_plot, 
+        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_params.rds"))
 
 
 # Burn verses Reference at different Elevations  --------------------------------------------------------------------
@@ -746,7 +751,8 @@ treatment_pred_plot <- beta_dat %>%
                                 ),
                      name = "") +
   labs(x = "Grid Type", 
-       y = paste0(species_name, "s per km^2")) +
+       y = "Birds per km^2",
+       title = species_name) +
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(
@@ -755,17 +761,23 @@ treatment_pred_plot <- beta_dat %>%
     axis.title.x = element_text(size = 16),
     axis.text.x = element_blank(),
     legend.text = element_text(size = 16),
+    plot.title = element_text(size = 20, hjust = 0.5),
+    legend.position = "none",
     legend.title = element_text(size = 16)
   )
 
 # Display the plot
 treatment_pred_plot
 
-# Save the plot
+# Save the plot as a png
 ggsave(plot = treatment_pred_plot,
        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.png"),
        width = 200,
        height = 120,
        units = "mm",
        dpi = 300)
+
+# save the plot as an RDS
+saveRDS(object = treatment_pred_plot, 
+        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.rds"))
 

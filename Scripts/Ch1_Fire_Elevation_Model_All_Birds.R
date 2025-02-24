@@ -194,20 +194,20 @@ exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observe
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
 
 # Fill in the matrix
-for(y in 1:nrow(count_mat)){
+for(j in 1:nrow(count_mat)){
   # Filter for a specific grid
   count_visit <- sobs_counts %>% 
     arrange(Visit.ID.num) %>% 
-    filter(Grid.ID.num == y)
+    filter(Grid.ID.num == j)
   # Assign values to each row
-  count_mat[y,] <- count_visit$Count
-  year_mat[y,] <- count_visit$Year
-  time_mat[y,] <- count_visit$Mean.MAS.scl
-  date_mat[y,] <- count_visit$Ord.Date.scl
-  area_mat[y,] <- pi * count_visit$n.Points * trunc_dist^2  # Area surveyed in km^2
-  obsv_mat[y,] <- count_visit$Observer.ID.num
-  exp_mat[y,] <- count_visit$Observer.Experience 
-  fyear_mat[y,] <- count_visit$Years.Since.Fire.scl
+  count_mat[j,] <- count_visit$Count
+  year_mat[j,] <- count_visit$Year
+  time_mat[j,] <- count_visit$Mean.MAS.scl
+  date_mat[j,] <- count_visit$Ord.Date.scl
+  area_mat[j,] <- pi * count_visit$n.Points * trunc_dist^2  # Area surveyed in km^2
+  obsv_mat[j,] <- count_visit$Observer.ID.num
+  exp_mat[j,] <- count_visit$Observer.Experience 
+  fyear_mat[j,] <- count_visit$Years.Since.Fire.scl
 }
 
 # Size Objects  
@@ -409,7 +409,6 @@ sobs_const <- list (
   area = area,                 # Number of points surveyed per grid per visit
   delta = delta,               # Bin width
   trunc_dist = trunc_dist,     # Truncation distance
-  
   # For loop sizes
   ngrids = ngrids,             # Number of survey grids
   ntrts = ntrts,               # Number of treatments
@@ -420,7 +419,6 @@ sobs_const <- list (
   nints = nints,               # Number of time intervals
   nelv = nelv,                 # Number of elevations (2)
   # nyears = nyears,             # Number of years we surveyed (3)
-  
   # Non-stochastic constants
   # years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
@@ -688,6 +686,11 @@ MCMCplot(object = fire_mcmc_out$samples,
 # Clear environments again
 rm(list = ls())
 
+# Add packages again
+library(tidyverse)
+library(gridExtra)
+library(ggpubr)
+
 # Add the counts back in (Just using them for the dates so it doesn't matter which species, I like Brewer's Sparrow)
 sobs_counts_temp <- read.csv(paste0("Data/Outputs/BRSP_Grid_Counts.csv")) %>%
   tibble() %>% select(-X)
@@ -723,7 +726,58 @@ sd_fyear <- sd(fire_stats$Years.Since.Fire)
 mean_rdnbr <- mean(fire_stats$rdnbr.125m)
 sd_rdnbr <- sd(fire_stats$rdnbr.125m)
 
-# 4.2) Graph each species responce to fire ###############################################################
+# Make a random plot for its legend ----------------------------------------------------------
+
+# Simulated data sizes
+set.seed(111)
+n <- 100
+x <- seq(1, 10, length.out = n)
+
+# Simulate data
+data <- data.frame(
+  x = x,
+  low_ref_mean = 5 + 0.1 * x + rnorm(n, 0, 0.5),
+  low_ref_lower = 4 + 0.08 * x + rnorm(n, 0, 0.3),
+  low_ref_upper = 6 + 0.12 * x + rnorm(n, 0, 0.3),
+  high_ref_mean = 8 + 0.05 * x + rnorm(n, 0, 0.5),
+  high_ref_lower = 7 + 0.03 * x + rnorm(n, 0, 0.3),
+  high_ref_upper = 9 + 0.07 * x + rnorm(n, 0, 0.3),
+  low_burn_mean = 3 + 0.2 * x + rnorm(n, 0, 0.5),
+  low_burn_lower = 2 + 0.18 * x + rnorm(n, 0, 0.3),
+  low_burn_upper = 4 + 0.22 * x + rnorm(n, 0, 0.3),
+  high_burn_mean = 6 + 0.15 * x + rnorm(n, 0, 0.5),
+  high_burn_lower = 5 + 0.13 * x + rnorm(n, 0, 0.3),
+  high_burn_upper = 7 + 0.17 * x + rnorm(n, 0, 0.3)
+)
+
+# Example plot (using the plot from the previous example)
+plot <- ggplot(data, aes(x = x)) +
+  geom_line(aes(y = low_ref_mean, color = "Low Elevation Reference"), linewidth = 1) +
+  geom_ribbon(aes(ymin = low_ref_lower, ymax = low_ref_upper, color = "Low Elevation Reference"), alpha = 0.2, fill = "mediumseagreen") +
+  geom_line(aes(y = high_ref_mean, color = "High Elevation Reference"), linewidth = 1) +
+  geom_ribbon(aes(ymin = high_ref_lower, ymax = high_ref_upper, color = "High Elevation Reference"), alpha = 0.2, fill = "darkslategray4") +
+  geom_line(aes(y = low_burn_mean, color = "Low Elevation Burn"), linewidth = 1) +
+  geom_ribbon(aes(ymin = low_burn_lower, ymax = low_burn_upper, color = "Low Elevation Burn"), alpha = 0.2, fill = "red3") +
+  geom_line(aes(y = high_burn_mean, color = "High Elevation Burn"), linewidth = 1) +
+  geom_ribbon(aes(ymin = high_burn_lower, ymax = high_burn_upper, color = "High Elevation Burn"), alpha = 0.2, fill = "orange2") +
+  scale_color_manual(values = c("Low Elevation Reference" = "mediumseagreen",
+                                "High Elevation Reference" = "darkslategray4",
+                                "Low Elevation Burn" = "red3",
+                                "High Elevation Burn" = "orange2"),
+                     name = "") +
+  labs(x = "X Variable", y = "Y Variable") +
+  theme_classic() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 16)) +
+  guides(fill = "none", color = guide_legend(nrow = 2))
+
+# Extract the legend
+legend <- ggpubr::get_legend(plot)
+
+# Display the legend
+plot(legend)
+
+# 4.2) Graph each species response to fire ###############################################################
 
 # List of Species to plot 
 all_plot_species <- c(
@@ -731,8 +785,7 @@ all_plot_species <- c(
   "SATH",
   "VESP",
   "WEME",
-  "HOLA",
-  "GTTO"
+  "HOLA"
 )
 
 # Loop over all species 
@@ -740,14 +793,13 @@ for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
 plot_species <- all_plot_species[s]
-# plot_species <- all__plot_species[1]
+# plot_species <- all_plot_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
   mutate(Species.Name = case_when(Species.Code == "SATH" ~ "Sage Thrasher",
                                   Species.Code == "BRSP" ~ "Brewer's Sparrow", 
                                   Species.Code == "SABS" ~ "Sagebrush Sparrow",
-                                  Species.Code == "GTTO" ~ "Green-Tailed Towhee",
                                   Species.Code == "VESP" ~ "Vesper Sparrow",
                                   Species.Code == "WEME" ~ "Western Meadowlark",
                                   Species.Code == "HOLA" ~ "Horned Lark"))
@@ -858,7 +910,7 @@ params_plot <- beta_dat %>%
   # Add a vertical Line at zero
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
   # Change the Labels
-  labs(x = "Parameter Estimate", y = "") +
+  labs(x = "", y = "Parameter Estimate", title = species_name) + 
   # Simple theme
   theme_classic() +
   # Custom colors
@@ -866,6 +918,7 @@ params_plot <- beta_dat %>%
                                 "Yes" = "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
+        plot.title = element_text(size = 20),
         axis.text.y = element_text(size = 16),
         axis.title.x = element_text(size = 16),
         axis.text.x = element_text(size = 16)) 
@@ -874,14 +927,19 @@ params_plot <- beta_dat %>%
 # View the plot
 params_plot
 
-# Save the plot
-ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
-                                       plot_species, "_params.png"),
-       width = 200,
-       height = 120,
-       units = "mm",
-       dpi = 300)
+# # Save the plot as a png
+# ggsave(plot = params_plot,
+#        paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                        plot_species, "_params.png"),
+#        width = 200,
+#        height = 120,
+#        units = "mm",
+#        dpi = 300)
+# 
+# # save the plot as an RDS
+# saveRDS(object = params_plot, 
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                       plot_species, "_params.rds"))
 
 
 # Burn verses Reference at different Elevations Plot-----------------------------------------------------------
@@ -915,25 +973,32 @@ treatment_pred_plot <- beta_dat %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(
+    plot.title = element_text(size = 22, hjust = 0.4),
     axis.title.y = element_text(size = 16),
     axis.text.y = element_text(size = 16),
     axis.title.x = element_text(size = 16),
     axis.text.x = element_blank(),
     legend.text = element_text(size = 16),
+    legend.position = "none", 
     legend.title = element_text(size = 16)
   )
 
 # Display the plot
 treatment_pred_plot
 
-# Save the plot
-ggsave(plot = treatment_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
-                         plot_species, "_treatment.png"),
-       width = 200,
-       height = 120,
-       units = "mm",
-       dpi = 300)
+# # Save the plot as a png
+# ggsave(plot = treatment_pred_plot,
+#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                          plot_species, "_treatment.png"),
+#        width = 200,
+#        height = 120,
+#        units = "mm",
+#        dpi = 300)
+# 
+# # save the plot as an RDS
+# saveRDS(object = treatment_pred_plot, 
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                       plot_species, "_treatment.rds"))
 
 # Years since fire plot -------------------------------------------------------
 
@@ -998,23 +1063,31 @@ fyear_pred_plot <- beta_dat_pred %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(
-    axis.title = element_text(size = 16),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    # axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
+    legend.position = "none",
     legend.title = element_text(size = 16)
   )
 
-# Display the plot
+# Display the plot as a png
 fyear_pred_plot
 
-# Save the plot
-ggsave(plot = fyear_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
-                         plot_species, "_fyear.png"),
-       width = 200,
-       height = 120,
-       units = "mm",
-       dpi = 300)
+# # Save the plot
+# ggsave(plot = fyear_pred_plot,
+#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                          plot_species, "_fyear.png"),
+#        width = 200,
+#        height = 120,
+#        units = "mm",
+#        dpi = 300)
+# 
+# # save the plot as an RDS
+# saveRDS(object = fyear_pred_plot, 
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                       plot_species, "_fyear.rds"))
 
 # Burn Severity plot -------------------------------------------------------
 
@@ -1072,23 +1145,98 @@ rdnbr_pred_plot <- beta_dat_pred %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(
-    axis.title = element_text(size = 16),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    # axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
+    legend.position = "none",
     legend.title = element_text(size = 16)
   )
 
 # Display the plot
 rdnbr_pred_plot
 
-# Save the plot
-ggsave(plot = rdnbr_pred_plot,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred",
-                         plot_species, "_burnsev.png"),
-       width = 200,
-       height = 120,
+# # Save the plot as a png
+# ggsave(plot = rdnbr_pred_plot,
+#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                          plot_species, "_burnsev.png"),
+#        width = 200,
+#        height = 120,
+#        units = "mm",
+#        dpi = 300)
+# 
+# # save the plot as an RDS
+# saveRDS(object = rdnbr_pred_plot, 
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                plot_species, "_burnsev.rds"))
+
+# Plot all parameters -------------------------------------------------------------------------
+
+# Combine all three plots 
+full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot, fyear_pred_plot, rdnbr_pred_plot,
+                               nrow = 1, ncol = 3)
+
+# Add the legend
+full_fire_elv_pred_plot_legend <- grid.arrange(full_fire_elv_pred_plot, legend,
+                                      nrow = 2, heights = c(0.9, 0.1))
+
+# Save the plot as a png
+ggsave(plot = full_fire_elv_pred_plot_legend,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\full_pred._",
+                         plot_species, ".png"),
+       width = 300,
+       height = 150,
        units = "mm",
        dpi = 300)
 
 } # End plotting loop over all species (Comment this out) ----
 
+# 4.3) Plot groups of species together #######################################
+
+# Sagebrush species plots ---------------------------------------------------------------------------------------------
+
+# Read in the sagebrush obligate parameter plots
+sath_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                               "SATH", "_params.rds"))
+brsp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                               "BRSP", "_params.rds"))
+sabs_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                               "SABS", "_params.rds"))
+
+
+# Plot the sagebrush parameter estimate plots together
+sage_species_params <- grid.arrange(sath_param_plot, brsp_param_plot, sabs_param_plot,
+                                   nrow = 1, ncol = 3)
+
+# Save the plot as a png
+ggsave(plot = sage_species_params,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
+                         "sage_species", "_params.png"),
+       width = 500,
+       height = 150,
+       units = "mm",
+       dpi = 300)
+
+# Grassland species plots ---------------------------------------------------------------------------------------------
+
+# Read in the grassland assoicated species plots
+vesp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                                  "VESP", "_params.rds"))
+weme_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                                  "WEME", "_params.rds"))
+hola_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                                  "HOLA", "_params.rds"))
+
+# Plot the grassland parameter estimate plots together
+grass_species_params <- grid.arrange(vesp_param_plot, weme_param_plot, hola_param_plot,
+                                     nrow = 1, ncol = 3)
+
+# Save the plot as a png
+ggsave(plot = grass_species_params,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
+                         "grass_species", "_params.png"),
+       width = 500,
+       height = 150,
+       units = "mm",
+       dpi = 300)

@@ -27,7 +27,6 @@ rm(list = ls())
 # List of Species 
 all_species <- c("BRSP", 
                  "SATH", 
-                 "SABS", 
                  "GTTO",
                  "VESP", 
                  "WEME", 
@@ -203,20 +202,20 @@ exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observe
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
 
 # Fill in the matrix
-for(y in 1:nrow(count_mat)){
+for(j in 1:nrow(count_mat)){
   # Filter for a specific grid
   count_visit <- sobs_counts %>% 
     arrange(Visit.ID.num) %>% 
-    filter(Grid.ID.num == y)
+    filter(Grid.ID.num == j)
   # Assign values to each row
-  count_mat[y,] <- count_visit$Count
-  year_mat[y,] <- count_visit$Year
-  time_mat[y,] <- count_visit$Mean.MAS
-  date_mat[y,] <- count_visit$Ord.Date
+  count_mat[j,] <- count_visit$Count
+  year_mat[j,] <- count_visit$Year
+  time_mat[j,] <- count_visit$Mean.MAS
+  date_mat[j,] <- count_visit$Ord.Date
   # Area surveyd din km^2
-  area[y,] <- pi * count_visit$n.Points * trunc_dist^2 
-  obsv_mat[y,] <- count_visit$Observer.ID.num
-  fyear_mat[y,] <- count_visit$Years.Since.Fire
+  area_mat[j,] <- pi * count_visit$n.Points * trunc_dist^2  # Area surveyed in km^2
+  obsv_mat[j,] <- count_visit$Observer.ID.num
+  fyear_mat[j,] <- count_visit$Years.Since.Fire
 }
 
 # Loop sizes 
@@ -242,6 +241,7 @@ time <- time_mat                                           # Matrix of scaled ti
 day <- date_mat                                            # Matrix of scaled dates
 
 # Grid level data
+area <- area_mat                                           # Proportion of points surveyed       
 n_dct <- count_mat                                         # Matrix of the number of detected individuals per grid per survey 
 years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
@@ -252,8 +252,6 @@ fire_year <- fyear_mat                                     # How long since the 
 shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]          # Percent shrub cover
 pfg_cvr <- sobs_counts$PFG.Cover.PF[1:ngrids]              # Percent perennial forb and grass cover
 afg_cvr <- sobs_counts$ln.AFG.Cover.PF[1:ngrids]           # Percent annual grass cover
-tree_cvr <- sobs_counts$ln.Tree.Cover.PF[1:ngrids]         # Percent tree cover 
-bg_cvr <- sobs_counts$BG.Cover.PF[1:ngrids]                # Percent perennial bare ground cover
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -290,8 +288,6 @@ sobs_model_code <- nimbleCode({
   beta_shrub ~ dnorm(0, sd = 1.5)      # Effect of shrub cover
   beta_pfg ~ dnorm(0, sd = 1.5)        # Effect of Perennial Cover
   beta_afg ~ dnorm(0, sd = 1.5)        # Effect of annual grass cover
-  beta_tree ~ dnorm(0, sd = 1.5)       # Effect of tree cover
-  beta_bg ~ dnorm(0, sd = 1.5)         # Effect of bare ground cover
   
   # # Sd in yearly abundance hyperparameter 
   # sd_eps_year ~  T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
@@ -364,9 +360,7 @@ sobs_model_code <- nimbleCode({
                            beta_fyear * fire_year[j, k] * burned[j] + # Effect of years since fire on burned grids
                            beta_shrub * shrub_cvr[j] * burned[j] +    # Effect of shrub cover
                            beta_pfg *  pfg_cvr[j] * burned[j] +       # Effect of Perennial Cover
-                           beta_afg * afg_cvr[j] * burned[j] +        # Effect of annual grass
-                           beta_tree * tree_cvr[j] * burned[j] +      # Effect of tree cover
-                           beta_bg * bg_cvr[j] * burned[j]            # Effect of bare ground cover
+                           beta_afg * afg_cvr[j] * burned[j] +        # Effect of annual grass cover
                            # eps_year[years[j, k]]                     # Random noise by year
                            
       # -------------------------------------------------------------------------------------------------------------------
@@ -449,9 +443,7 @@ sobs_dat <- list(
   burned = burned,        # Whether or not each grid burned
   shrub_cvr = shrub_cvr,  # Percent shrub cover
   pfg_cvr = pfg_cvr,      # Percent perennial forb and grass cover
-  afg_cvr = afg_cvr,      # Percent annual grass cover
-  tree_cvr = tree_cvr,    # Percent tree cover
-  bg_cvr = bg_cvr         # Percent bare ground cover
+  afg_cvr = afg_cvr       # Percent annual grass cover
 )
 # View Nimble data 
 str(sobs_dat)
@@ -499,8 +491,6 @@ sobs_inits <- list(
   beta_shrub = rnorm(1, 0, 0.1),         # Effect of pre fire shrub cover
   beta_pfg = rnorm(1, 0, 0.1),           # Effect of pre fire perennial forb and grass cover
   beta_afg = rnorm(1, 0, 0.1),           # Effect of pre fire annual grass cover
-  beta_tree = rnorm(1, 0, 0.1),          # Effect of pre fire tree cover
-  beta_bg = rnorm(1, 0, 0.1),            # Effect of pre fire bare ground cover
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
   present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
@@ -526,8 +516,6 @@ sobs_params <- c(
                  "beta_shrub",      # Effect of pre fire shrub cover
                  "beta_pfg",        # Effect of pre fire perennial forb and grass cover
                  "beta_afg",        # Effect of pre fire annual grass cover
-                 "beta_tree",       # Effect of pre fire tree cover
-                 "beta_bg",         # Effect of pre fire bare ground cover
                  # "sd_eps_year",   # Random Noise by year
                  "gamma0",          # Intercept on availability
                  "gamma_date",      # Effect of date on singing rate
@@ -573,12 +561,12 @@ sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_
 
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers("beta0", "beta_elv", "beta_burn", "beta_fyear", 
-                             "beta_shrub","beta_pfg", "beta_afg", "beta_tree", "beta_bg"
+                             "beta_shrub","beta_pfg", "beta_afg"
                              # "eps_year[1]", "eps_year[2]", "eps_year[3]"
                              )
 
 sobs_mcmcConf$addSampler(target = c("beta0", "beta_elv", "beta_burn", "beta_fyear", 
-                                    "beta_shrub","beta_pfg", "beta_afg", "beta_tree", "beta_bg"
+                                    "beta_shrub","beta_pfg", "beta_afg"
                                     # "eps_year[1]", "eps_year[2]", "eps_year[3]"
                                     ),
                          type = 'RW_block')
@@ -658,7 +646,7 @@ saveRDS(PreFire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_P
 
 # Load the output back in
 PreFire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                          plot_species, "_PreFire_model_out.rds"))
+                                          model_species, "_PreFire_model.rds"))
 
 # Traceplots and density graphs 
 MCMCtrace(object = PreFire_mcmc_out$samples,
@@ -693,6 +681,9 @@ MCMCplot(object = PreFire_mcmc_out$samples,
 # Clear environments again
 rm(list = ls())
 
+# Add packages
+library(tidyverse)
+library(gridExtra)
 
 # 4.2) Graph each species responce to fire ###############################################################
 
@@ -707,11 +698,11 @@ all_plot_species <- c(
 )
 
 # Loop over all species 
-# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+for(s in 1:length(all_plot_species)) { # (Comment this out) ----
   
 # Name the species to model again
-# plot_species <- all_plot_species[s]
-plot_species <- all_plot_species[1]
+plot_species <- all_plot_species[s]
+# plot_species <- all_plot_species[1]
   
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -728,21 +719,19 @@ species_name
   
 # Load the output back in
 PreFire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
-                                        plot_species, "_PreFire_model_out.rds"))
+                                        plot_species, "_PreFire_model.rds"))
   
 # View MCMC summary
 PreFire_mcmc_out$summary$all.chains
   
 # Extract effect sizes
 beta0 <- PreFire_mcmc_out$summary$all.chains[18,]
-beta_burned <- PreFire_mcmc_out$summary$all.chains[21,]
-beta_elv <- PreFire_mcmc_out$summary$all.chains[22,]
-beta_fyear <- PreFire_mcmc_out$summary$all.chains[23,] 
-beta_shrub <- PreFire_mcmc_out$summary$all.chains[25,] 
-beta_pfg <- PreFire_mcmc_out$summary$all.chains[24,]
+beta_burned <- PreFire_mcmc_out$summary$all.chains[20,]
+beta_elv <- PreFire_mcmc_out$summary$all.chains[21,]
+beta_fyear <- PreFire_mcmc_out$summary$all.chains[22,] 
+beta_shrub <- PreFire_mcmc_out$summary$all.chains[24,] 
+beta_pfg <- PreFire_mcmc_out$summary$all.chains[23,]
 beta_afg <- PreFire_mcmc_out$summary$all.chains[19,]
-beya_tree <- PreFire_mcmc_out$summary$all.chains[26,]
-beta_bg <- PreFire_mcmc_out$summary$all.chains[20,]
   
 # Combine everything into a dataframe
 beta_dat <- data.frame(bind_rows(beta0,
@@ -751,11 +740,9 @@ beta_dat <- data.frame(bind_rows(beta0,
                                  beta_fyear,
                                  beta_shrub,
                                  beta_pfg,
-                                 beta_afg,
-                                 beya_tree,
-                                 beta_bg)) %>% 
+                                 beta_afg)) %>% 
     mutate(Parameter = c("beta0", "beta.burned", "beta.elvation", "beta.fyear", 
-                         "beta.shrub", "beta.pfg", "beta.afg", "beta.tree", "beta.bg")) %>% 
+                         "beta.shrub", "beta.pfg", "beta.afg")) %>% 
     relocate(Parameter, .before = Mean) %>% 
     rename(CRI.lb = X95.CI_low,
            CRI.ub = X95.CI_upp)
@@ -801,14 +788,15 @@ mutate(Parameter = case_when(Parameter == "beta0" ~ "Intercept",
     # Add a vertical Line at zero
     geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
     # Change the Labels
-    labs(x = "Parameter Estimate", y = "") +
+    labs(x = "Parameter Estimate", y = "", title = species_name) +
     # Simple theme
     theme_classic() +
     # Custom colors
     scale_color_manual(values = c("No" = "lightsteelblue4", 
                                   "Yes" = "navyblue")) +
     # Edit theme
-    theme(legend.position = "none",
+    theme(plot.title = element_text(size = 22, hjust = 0.4),
+          legend.position = "none",
           axis.text.y = element_text(size = 16),
           axis.title.x = element_text(size = 16),
           axis.text.x = element_text(size = 16)) 
@@ -817,7 +805,7 @@ mutate(Parameter = case_when(Parameter == "beta0" ~ "Intercept",
 # View the plot
 params_plot
   
-# Save the plot
+# Save the plot as a png
 ggsave(plot = params_plot,
        paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
               plot_species, "_params.png"),
@@ -825,5 +813,63 @@ ggsave(plot = params_plot,
        height = 120,
        units = "mm",
        dpi = 300)
+
+# # save the plot as an RDS
+saveRDS(object = params_plot,
+        file =  paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                       plot_species, "_params.rds"))
   
 } # End plotting loop over all species (Comment this out) ----
+
+
+# All sagebrush species plots together ---------------------------------------------------------------
+
+# Add sagebrush obligate plots back in
+sath_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                                     "SATH", "_params.rds"))
+brsp_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                                     "BRSP", "_params.rds"))
+gtto_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                                     "GTTO", "_params.rds"))
+
+# Combine these plots
+sage_sp_prefire_params <- grid.arrange(sath_prefire_params, brsp_prefire_params, gtto_prefire_params,
+                                       nrow = 1, ncol = 3)
+
+# View the combined plot
+sage_sp_prefire_params
+
+# Save the plot as a png
+ggsave(plot = sage_sp_prefire_params,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\pre_fire_",
+                         "sage_species", "_params.png"),
+       width = 500,
+       height = 150,
+       units = "mm",
+       dpi = 300)
+
+# All grassland species plots together ---------------------------------------------------------------
+
+# Add grassland associated species plots back in
+vesp_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                                     "VESP", "_params.rds"))
+weme_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                                     "WEME", "_params.rds"))
+hola_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+                                     "HOLA", "_params.rds"))
+
+# Combine these plots
+grass_sp_prefire_params <- grid.arrange(vesp_prefire_params, weme_prefire_params, hola_prefire_params,
+                                        nrow = 1, ncol = 3)
+
+# View the combined plot
+grass_sp_prefire_params
+
+# Save the plot as a png
+ggsave(plot = grass_sp_prefire_params,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\pre_fire_",
+                         "grass_species", "_params.png"),
+       width = 500,
+       height = 150,
+       units = "mm",
+       dpi = 300)
