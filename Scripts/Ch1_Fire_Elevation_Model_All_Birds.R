@@ -292,12 +292,12 @@ sobs_model_code <- nimbleCode({
   beta_burnsev ~ dnorm(0, sd = 1.5)   # Effect of initial burn severity on burned grids
   
   # # Abundance random effect hyper-parameters
-  # sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year 
-  # 
-  # # Random effect for each year
-  # for(y in 1:nyears){ # nyears = 3
-  #   eps_year[y] ~ dnorm(0, sd = sd_eps_year)
-  # } # end loop over years
+  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
+
+  # Random effect for each year
+  for(y in 1:nyears){ # nyears = 3
+    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
+  } # end loop over years
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -358,8 +358,8 @@ sobs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
-                           beta_burnsev * burn_sev[j] * burned[j]               # Effect of initial burn severity on burned grids
-                           # eps_year[years[j, k]]                                # Unexplained noise on abundance by year
+                           beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
+                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
@@ -418,9 +418,9 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nelv = nelv,                 # Number of elevations (2)
-  # nyears = nyears,             # Number of years we surveyed (3)
+  nyears = nyears,             # Number of years we surveyed (3)
   # Non-stochastic constants
-  # years = years,               # Year when each survey took place
+  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -487,8 +487,8 @@ sobs_inits <- list(
   beta0_treatment = rnorm(ntrts, 0, 0.1), # Intercept by grid type
   beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
   beta_burnsev = rnorm(1, 0, 0.1),        # Effect of burn severity
-  # sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
-  # eps_year = rnorm(nyears, 0, 0.1),        # Random noise on abundance by year
+  sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
+  eps_year = rnorm(nyears, 0, 0.1),       # Random noise on abundance by year
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
   present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
@@ -510,8 +510,8 @@ sobs_params <- c(
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
   "beta_burnsev",    # Effect of RdNBR burn sevarity
-  # "eps_year",        # Magnitude of random noise
-  # "sd_eps_year",     # Random noise on abundance by year
+  "eps_year",        # Magnitude of random noise
+  "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
@@ -565,9 +565,9 @@ sobs_mcmcConf$removeSamplers(
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
   # Effect of burn severity
-  "beta_burnsev"
+  "beta_burnsev",
   # Random noise by year
-  # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "eps_year[1]", "eps_year[2]", "eps_year[3]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -575,9 +575,9 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
   # Effect of burn severity
-  "beta_burnsev"
+  "beta_burnsev",
   # Random noise by year
-  # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "eps_year[1]", "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # Block all occupancy (psi) nodes together
@@ -910,7 +910,7 @@ params_plot <- beta_dat %>%
   # Add a vertical Line at zero
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
   # Change the Labels
-  labs(x = "", y = "Parameter Estimate", title = species_name) + 
+  labs(x = "Parameter Estimate", y = "", title = species_name) + 
   # Simple theme
   theme_classic() +
   # Custom colors
@@ -936,10 +936,10 @@ params_plot
 #        units = "mm",
 #        dpi = 300)
 # 
-# # save the plot as an RDS
-# saveRDS(object = params_plot, 
-#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                       plot_species, "_params.rds"))
+# save the plot as an RDS
+saveRDS(object = params_plot,
+        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                      plot_species, "_params.rds"))
 
 
 # Burn verses Reference at different Elevations Plot-----------------------------------------------------------
@@ -996,9 +996,9 @@ treatment_pred_plot
 #        dpi = 300)
 # 
 # # save the plot as an RDS
-# saveRDS(object = treatment_pred_plot, 
-#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                       plot_species, "_treatment.rds"))
+saveRDS(object = treatment_pred_plot,
+        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                      plot_species, "_treatment.rds"))
 
 # Years since fire plot -------------------------------------------------------
 
@@ -1064,8 +1064,8 @@ fyear_pred_plot <- beta_dat_pred %>%
   scale_y_continuous(limits = c(0, NA)) +
   theme(
     axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    # axis.title.y = element_blank(),
+    # axis.title.y = element_text(size = 16),
+    axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
     legend.position = "none",
@@ -1084,10 +1084,10 @@ fyear_pred_plot
 #        units = "mm",
 #        dpi = 300)
 # 
-# # save the plot as an RDS
-# saveRDS(object = fyear_pred_plot, 
-#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                       plot_species, "_fyear.rds"))
+# save the plot as an RDS
+saveRDS(object = fyear_pred_plot,
+        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+                      plot_species, "_fyear.rds"))
 
 # Burn Severity plot -------------------------------------------------------
 
@@ -1146,8 +1146,8 @@ rdnbr_pred_plot <- beta_dat_pred %>%
   scale_y_continuous(limits = c(0, NA)) +
   theme(
     axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    # axis.title.y = element_blank(),
+    # axis.title.y = element_text(size = 16),
+    axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
     legend.position = "none",
@@ -1166,10 +1166,10 @@ rdnbr_pred_plot
 #        units = "mm",
 #        dpi = 300)
 # 
-# # save the plot as an RDS
-# saveRDS(object = rdnbr_pred_plot, 
-#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                plot_species, "_burnsev.rds"))
+# save the plot as an RDS
+saveRDS(object = rdnbr_pred_plot,
+        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+               plot_species, "_burnsev.rds"))
 
 # Plot all parameters -------------------------------------------------------------------------
 

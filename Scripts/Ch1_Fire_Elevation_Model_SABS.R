@@ -693,7 +693,7 @@ params_plot <- beta_dat %>%
   # Zoom Out
   # coord_cartesian(xlim = c(-1.5, 4.5)) +
   # Change the Labels
-  labs(x = "", k = "", title = species_name) + # "Parameter Estimate"
+  labs(x = "Parameter Estimate", y = "", title = species_name) + 
   # Simple theme
   theme_classic() +
   # Custom colors
@@ -751,8 +751,7 @@ treatment_pred_plot <- beta_dat %>%
                                 ),
                      name = "") +
   labs(x = "Grid Type", 
-       y = "Birds per km^2",
-       title = species_name) +
+       y = paste0(species_name, "s per km^2")) +
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(

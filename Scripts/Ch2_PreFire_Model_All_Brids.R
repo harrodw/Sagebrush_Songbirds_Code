@@ -288,14 +288,14 @@ sobs_model_code <- nimbleCode({
   beta_shrub ~ dnorm(0, sd = 1.5)      # Effect of shrub cover
   beta_pfg ~ dnorm(0, sd = 1.5)        # Effect of Perennial Cover
   beta_afg ~ dnorm(0, sd = 1.5)        # Effect of annual grass cover
-  
-  # # Sd in yearly abundance hyperparameter 
-  # sd_eps_year ~  T(dgamma(shape = 0.5, scale = 0.5),0 , 1) # Random effect on abundance hyperparameter for each year 
-  # 
-  # # Random effect on abundance
-  # for(y in 1:nyears){
-  #   eps_year[y] ~ dnorm(0, sd_beta0)
-  # }
+
+  # Sd in yearly abundance hyperparameter
+  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
+
+  # Random effect on abundance
+  for(y in 1:nyears){
+    eps_year[y] ~ dnorm(0, sd_beta0)
+  }
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -361,7 +361,7 @@ sobs_model_code <- nimbleCode({
                            beta_shrub * shrub_cvr[j] * burned[j] +    # Effect of shrub cover
                            beta_pfg *  pfg_cvr[j] * burned[j] +       # Effect of Perennial Cover
                            beta_afg * afg_cvr[j] * burned[j] +        # Effect of annual grass cover
-                           # eps_year[years[j, k]]                     # Random noise by year
+                           eps_year[years[j, k]]                      # Random noise by year
                            
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
@@ -402,7 +402,7 @@ sobs_model_code <- nimbleCode({
   
 })
 
-# 2.2) Cpoints_mat# 2.2) Constants, data, Initial values, and dimensions #############################################
+# 2.2) Constants, data, Initial values, and dimensions #############################################
 
 # Constants to be fed into Nimble
 sobs_const <- list (
@@ -417,9 +417,9 @@ sobs_const <- list (
   nvst = nvst,             # Number of times each grid was surveyed (6)
   nbins = nbins,           # Number of distance bins
   nints = nints,           # Number of time intervals
-  # nyears = nyears,          # Number of years we surveyed
+  nyears = nyears,          # Number of years we surveyed
   # Non-stochastic constants
-  # years = years,          # Year when each survey took place
+  years = years,          # Year when each survey took place
   obs_visit  = obs_visit,  # Visit when each observation took place
   obs_grid  = obs_grid,    # Grid of each observation 
   observers = observers    # Effect of observer associated with each survey
@@ -511,12 +511,13 @@ sobs_params <- c(
                  "fit_pa_new",      # Fit statistic for simulated availability data
                  "beta0",           # Intercept
                  "beta_burn",       # Effect of Fire
-                 "beta_elv",       # Effect of elevation
+                 "beta_elv",        # Effect of elevation
                  "beta_fyear",      # Effect of time since fire on burned grids
                  "beta_shrub",      # Effect of pre fire shrub cover
                  "beta_pfg",        # Effect of pre fire perennial forb and grass cover
                  "beta_afg",        # Effect of pre fire annual grass cover
-                 # "sd_eps_year",   # Random Noise by year
+                 "eps_year",        # Magnitude of random noise
+                 "sd_eps_year",     # Random noise on abundance by year
                  "gamma0",          # Intercept on availability
                  "gamma_date",      # Effect of date on singing rate
                  "gamma_date2",     # Quadratic effect of date on singing rate
@@ -561,13 +562,13 @@ sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_
 
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers("beta0", "beta_elv", "beta_burn", "beta_fyear", 
-                             "beta_shrub","beta_pfg", "beta_afg"
-                             # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+                             "beta_shrub","beta_pfg", "beta_afg",
+                             "eps_year[1]", "eps_year[2]", "eps_year[3]"
                              )
 
 sobs_mcmcConf$addSampler(target = c("beta0", "beta_elv", "beta_burn", "beta_fyear", 
-                                    "beta_shrub","beta_pfg", "beta_afg"
-                                    # "eps_year[1]", "eps_year[2]", "eps_year[3]"
+                                    "beta_shrub","beta_pfg", "beta_afg",
+                                    "eps_year[1]", "eps_year[2]", "eps_year[3]"
                                     ),
                          type = 'RW_block')
 
@@ -825,11 +826,11 @@ saveRDS(object = params_plot,
 # All sagebrush species plots together ---------------------------------------------------------------
 
 # Add sagebrush obligate plots back in
-sath_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+sath_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                                      "SATH", "_params.rds"))
-brsp_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+brsp_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                                      "BRSP", "_params.rds"))
-gtto_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+gtto_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                                      "GTTO", "_params.rds"))
 
 # Combine these plots
@@ -851,11 +852,11 @@ ggsave(plot = sage_sp_prefire_params,
 # All grassland species plots together ---------------------------------------------------------------
 
 # Add grassland associated species plots back in
-vesp_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+vesp_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                                      "VESP", "_params.rds"))
-weme_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+weme_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                                      "WEME", "_params.rds"))
-hola_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+hola_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                                      "HOLA", "_params.rds"))
 
 # Combine these plots
