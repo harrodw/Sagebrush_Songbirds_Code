@@ -294,8 +294,8 @@ sobs_model_code <- nimbleCode({
   # # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
 
-  # Random effect for each year
-  for(y in 1:nyears){ # nyears = 3
+  # Random noise among the other years
+  for(y in 2:nyears){ # nyears = 3, force the first year (2022) to be the intercept
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
@@ -488,7 +488,7 @@ sobs_inits <- list(
   beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
   beta_burnsev = rnorm(1, 0, 0.1),        # Effect of burn severity
   sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
-  eps_year = rnorm(nyears, 0, 0.1),       # Random noise on abundance by year
+  eps_year = rep(0, nyears),              # Random noise on abundance by year
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
   present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
@@ -510,7 +510,6 @@ sobs_params <- c(
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
   "beta_burnsev",    # Effect of RdNBR burn sevarity
-  "eps_year",        # Magnitude of random noise
   "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
@@ -567,7 +566,7 @@ sobs_mcmcConf$removeSamplers(
   # Effect of burn severity
   "beta_burnsev",
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "eps_year[2]", "eps_year[3]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -577,7 +576,7 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of burn severity
   "beta_burnsev",
   # Random noise by year
-  "eps_year[1]", "eps_year[2]", "eps_year[3]"
+  "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # Block all occupancy (psi) nodes together

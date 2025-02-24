@@ -33,11 +33,11 @@ all_species <- c("BRSP",
                  "HOLA")
 
 # Loop over all species 
-for(s in 1:length(all_species)){
+# for(s in 1:length(all_species)){
 
 # Pick a species to model
-model_species <- all_species[s]
-# model_species <- all_species[1]
+# model_species <- all_species[s]
+model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -292,10 +292,10 @@ sobs_model_code <- nimbleCode({
   # Sd in yearly abundance hyperparameter
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
 
-  # Random effect on abundance
-  for(y in 1:nyears){
-    eps_year[y] ~ dnorm(0, sd_beta0)
-  }
+  # Random noise among the other years
+  for(y in 2:nyears){ # nyears = 3. Force the first year (2022) to be the intercept
+    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
+  } # end loop over years
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -482,8 +482,8 @@ sobs_inits <- list(
   gamma_date2 = rnorm(1, 0, 0.1),        # Effect of date on availability (quadratic)
   gamma_time2 = rnorm(1, 0, 0.1),        # Effect of time of day on availability (quadratic)
   # Abundance 
-  # sd_eps_year = runif(1, 0, 0.5),       # Mangitude of random effect
-  # eps_year = runif(nyears, 0, 1),       # Random effect of year
+  sd_eps_year = runif(1, 0, 0.5),        # Magnitude of random effect
+  eps_year = rep(0, nyears),             # Random effect of year
   beta0 = rnorm(1, 0, 0.1),              # Intercept
   beta_burn = rnorm(1, 0, 0.1),          # Effect of Fire
   beta_elv = rnorm(1, 0, 0.1),           # Effect of elevation
@@ -516,7 +516,6 @@ sobs_params <- c(
                  "beta_shrub",      # Effect of pre fire shrub cover
                  "beta_pfg",        # Effect of pre fire perennial forb and grass cover
                  "beta_afg",        # Effect of pre fire annual grass cover
-                 "eps_year",        # Magnitude of random noise
                  "sd_eps_year",     # Random noise on abundance by year
                  "gamma0",          # Intercept on availability
                  "gamma_date",      # Effect of date on singing rate
@@ -563,12 +562,12 @@ sobs_mcmcConf$addSampler(target = c("alpha0_obsv[1]", "alpha0_obsv[2]", "alpha0_
 # Block all abundance (beta) nodes together
 sobs_mcmcConf$removeSamplers("beta0", "beta_elv", "beta_burn", "beta_fyear", 
                              "beta_shrub","beta_pfg", "beta_afg",
-                             "eps_year[1]", "eps_year[2]", "eps_year[3]"
+                             "eps_year[2]", "eps_year[3]"
                              )
 
 sobs_mcmcConf$addSampler(target = c("beta0", "beta_elv", "beta_burn", "beta_fyear", 
                                     "beta_shrub","beta_pfg", "beta_afg",
-                                    "eps_year[1]", "eps_year[2]", "eps_year[3]"
+                                    "eps_year[2]", "eps_year[3]"
                                     ),
                          type = 'RW_block')
 
@@ -671,7 +670,7 @@ MCMCplot(object = PreFire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
 
-} # End the loop over species
+# } # End the loop over species
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
