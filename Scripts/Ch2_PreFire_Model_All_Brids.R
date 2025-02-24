@@ -25,19 +25,20 @@ rm(list = ls())
 # 1.1) Read in data ############################################################
 
 # List of Species 
-all_species <- c("BRSP", 
-                 "SATH", 
+all_species <- c( 
+                 "SATH",
+                 "BRSP",
                  "GTTO",
                  "VESP", 
                  "WEME", 
                  "HOLA")
 
 # Loop over all species 
-# for(s in 1:length(all_species)){
+for(s in 1:length(all_species)){
 
 # Pick a species to model
-# model_species <- all_species[s]
-model_species <- all_species[1]
+model_species <- all_species[s]
+# model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -173,14 +174,14 @@ glimpse(sobs_counts)
 glimpse(sobs_observations)
 
 # Plot counts against a covaariate
-# sobs_counts %>%
-#   filter(Burned == 1) %>%
-#   ggplot(aes(x = AFG.Cover.PF, y = Count)) +
-#   # geom_boxplot()
-#   geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
-#   geom_jitter(col = "aquamarine4") +
-#   # geom_histogram(col = "aquamarine4", fill = "aquamarine3") +
-#   theme_bw()
+sobs_counts %>%
+  filter(Burned == 1) %>%
+  ggplot(aes(x = AFG.Cover.PF, y = Count)) +
+  # geom_boxplot()
+  geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
+  geom_jitter(col = "aquamarine4") +
+  # geom_histogram(col = "aquamarine4", fill = "aquamarine3") +
+  theme_bw()
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -246,8 +247,8 @@ n_dct <- count_mat                                         # Matrix of the numbe
 years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 elevation <- sobs_counts$Elevation.scl[1:ngrids]           # Elevation on each grid
-shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover on each grid
-pern_cvr <- sobs_counts$Perennial.Cover.scl[1:ngrids]      # Percent perennial cover on each grid
+shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]         # Percent shrub cover on each grid
+pern_cvr <- sobs_counts$Perennial.Cover.PF[1:ngrids]      # Percent perennial cover on each grid
 fire_year <- fyear_mat                                     # How long since the most recent fire in each grid
 shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]          # Percent shrub cover
 pfg_cvr <- sobs_counts$PFG.Cover.PF[1:ngrids]              # Percent perennial forb and grass cover
@@ -293,7 +294,8 @@ sobs_model_code <- nimbleCode({
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
 
   # Random noise among the other years
-  for(y in 2:nyears){ # nyears = 3. Force the first year (2022) to be the intercept
+  for(y in 2:nyears){ # nyears = 3
+    # Force the first year (2022) to be the intercept
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
@@ -670,7 +672,7 @@ MCMCplot(object = PreFire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
 
-# } # End the loop over species
+} # End the loop over species
 
 #####################################################################################
 # 4) Posterior Inference ############################################################

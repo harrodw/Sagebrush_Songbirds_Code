@@ -295,7 +295,8 @@ sobs_model_code <- nimbleCode({
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
 
   # Random noise among the other years
-  for(y in 2:nyears){ # nyears = 3, force the first year (2022) to be the intercept
+  for(y in 2:nyears){ # nyears = 3
+    # Force the first year (2022) to be the intercept
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
