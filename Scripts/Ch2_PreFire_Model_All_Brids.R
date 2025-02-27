@@ -13,6 +13,7 @@
 library(nimble)
 library(tidyverse)
 library(MCMCvis)
+library(ggcorrplot)
 
 #clear environments
 rm(list = ls())
@@ -38,7 +39,7 @@ for(s in 1:length(all_species)){
 
 # Pick a species to model
 model_species <- all_species[s]
-# model_species <- all_species[1]
+# model_species <- all_species[2]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -88,7 +89,12 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
   mutate(Burned = case_when(Grid.Type == "R" ~ 0,
                             Grid.Type == "B" ~ 1)) %>% 
   # Remove columns that are no longer needed
-  dplyr::select(-Grid.Type) 
+  dplyr::select(-Grid.Type) %>% 
+  # make a column for the binary time since fire (20 years is the cutoff)
+  mutate(Old.Fire = case_when(Years.Since.Fire >= 20 & Burned == 1 ~ 3,
+                              Years.Since.Fire < 20 & Burned == 1 ~ 2,
+                              Burned == 0 ~ 1,
+                              TRUE ~ NA))  
 
 
 #...and view
@@ -96,7 +102,7 @@ glimpse(sobs_counts_temp2)
 
 # Isolate the grids with pre fire data
 fire_covs <- sobs_counts_temp2 %>% 
-  # filter(Burned == 1) %>% 
+  filter(Burned == 1) %>%
   select(Grid.ID, Burned, Years.Since.Fire, Shrub.Cover.PF, PFG.Cover.PF,
          ln.AFG.Cover.PF, ln.Tree.Cover.PF, BG.Cover.PF) %>% 
   distinct(Grid.ID, Burned, Years.Since.Fire, Shrub.Cover.PF, PFG.Cover.PF,
@@ -126,12 +132,12 @@ sd_bg_cvr <- sd(fire_covs$BG.Cover.PF)
 sobs_counts <- sobs_counts_temp2 %>%
   mutate(
     # Manually scale pre-fire covariates
-    Years.Since.Fire =(Years.Since.Fire - mean_fyear) / sd_fyear,
-    Shrub.Cover.PF = (Shrub.Cover.PF - mean_shrub_cvr) / sd_shrub_cvr,
-    PFG.Cover.PF = (PFG.Cover.PF - mean_pfg_cvr) / sd_pfg_cvr,
-    ln.AFG.Cover.PF = (ln.AFG.Cover.PF - mean_afg_cvr) / sd_afg_cvr,
-    ln.Tree.Cover.PF = (ln.Tree.Cover.PF - mean_tree_cvr) / sd_tree_cvr,
-    BG.Cover.PF = (BG.Cover.PF - mean_bg_cvr) / sd_bg_cvr, 
+    Years.Since.Fire.scl =(Years.Since.Fire - mean_fyear) / sd_fyear,
+    Shrub.Cover.scl = (Shrub.Cover.PF - mean_shrub_cvr) / sd_shrub_cvr,
+    PFG.Cover..scl = (PFG.Cover.PF - mean_pfg_cvr) / sd_pfg_cvr,
+    ln.AFG.Cover.scl = (ln.AFG.Cover.PF - mean_afg_cvr) / sd_afg_cvr,
+    ln.Tree.Cover.scl = (ln.Tree.Cover.PF - mean_tree_cvr) / sd_tree_cvr,
+    BG.Cover.scl = (BG.Cover.PF - mean_bg_cvr) / sd_bg_cvr, 
     # Automatically scale others
     Elevation.scl = scale(Elevation)[,1],
     Mean.MAS = scale(Mean.MAS)[,1],   
@@ -174,14 +180,43 @@ glimpse(sobs_counts)
 glimpse(sobs_observations)
 
 # Plot counts against a covaariate
-sobs_counts %>%
-  filter(Burned == 1) %>%
-  ggplot(aes(x = AFG.Cover.PF, y = Count)) +
-  # geom_boxplot()
-  geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
-  geom_jitter(col = "aquamarine4") +
+# sobs_counts %>%
+#   filter(Burned == 1) %>%
+#   ggplot(aes(x = AFG.Cover.PF, y = Count)) +
+#   # geom_boxplot()
+#   geom_smooth(method = "lm", col = "aquamarine4", fill = "aquamarine3") +
+#   geom_jitter(col = "aquamarine4") 
   # geom_histogram(col = "aquamarine4", fill = "aquamarine3") +
-  theme_bw()
+  
+# # Select variables for the model
+# sobs_cor <- sobs_counts %>%
+#   filter(Burned == 1) %>%
+#   select(Elevation, Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Old.Fire) %>%
+#   distinct() %>%
+#   cor()
+# 
+# # P-value correlations
+# p_mat <- cor_pmat(sobs_cor)
+# p_mat
+# 
+# # Plot correlations
+# ggcorrplot(sobs_cor,
+#            title = "Correlation Matrix for Pre-Fire Vegetation Data",
+#            lab = TRUE,
+#            lab_size = 4,
+#            tl.cex = 10,
+#            p.mat = p_mat,
+#            type = "lower",
+#            method = "square",
+#            sig.level = 0.05,
+#            colors = c("red", "white", "blue")) +
+#   theme_minimal() +
+#   theme(
+#     plot.title = element_text(hjust = 0.5, face = "bold"),
+#     axis.title = element_blank(),
+#     axis.text.x = element_text(angle = 45, hjust = 1),
+#     axis.text.y = element_text(angle = 0, hjust = 1)
+  # )
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -201,6 +236,7 @@ area_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for the pro
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for who conducted each survey
 exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observer experience
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
+grid_type_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for ygrid type (Reference, old fire, new fire)
 
 # Fill in the matrix
 for(j in 1:nrow(count_mat)){
@@ -217,6 +253,7 @@ for(j in 1:nrow(count_mat)){
   area_mat[j,] <- pi * count_visit$n.Points * trunc_dist^2  # Area surveyed in km^2
   obsv_mat[j,] <- count_visit$Observer.ID.num
   fyear_mat[j,] <- count_visit$Years.Since.Fire
+  grid_type_mat[j, ] <- count_visit$Old.Fire 
 }
 
 # Loop sizes 
@@ -227,6 +264,7 @@ nbins <- length(unique(sobs_observations$Dist.Bin))        # Number of distance 
 nints <- length(unique(sobs_observations$Time.Interval))   # Number of time intervals
 nvst <- length(unique(sobs_counts$Visit.ID))               # Number of visits in each year
 nyears <- length(unique(sobs_counts$Year.num))             # Number of years we surveyed
+ntrts <- length(unique(sobs_counts$Old.Fire))              # Number of grid types 
 
 # Observation Level data 
 midpt <- sort(unique(sobs_observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
@@ -247,12 +285,13 @@ n_dct <- count_mat                                         # Matrix of the numbe
 years <- year_mat                                          # Matrix of year numbers
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 elevation <- sobs_counts$Elevation.scl[1:ngrids]           # Elevation on each grid
-shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]         # Percent shrub cover on each grid
-pern_cvr <- sobs_counts$Perennial.Cover.PF[1:ngrids]      # Percent perennial cover on each grid
+shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover on each grid
+pern_cvr <- sobs_counts$Perennial.Cover.scl[1:ngrids]      # Percent perennial cover on each grid
 fire_year <- fyear_mat                                     # How long since the most recent fire in each grid
-shrub_cvr <- sobs_counts$Shrub.Cover.PF[1:ngrids]          # Percent shrub cover
-pfg_cvr <- sobs_counts$PFG.Cover.PF[1:ngrids]              # Percent perennial forb and grass cover
-afg_cvr <- sobs_counts$ln.AFG.Cover.PF[1:ngrids]           # Percent annual grass cover
+shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Percent shrub cover
+pfg_cvr <- sobs_counts$PFG.Cover.scl[1:ngrids]             # Percent perennial forb and grass cover
+afg_cvr <- sobs_counts$ln.AFG.Cover.scl[1:ngrids]          # Percent annual grass cover
+grid_type <- grid_type_mat                                 # Grid type (reference, old burn, new burn) 
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -282,6 +321,8 @@ sobs_model_code <- nimbleCode({
   # Parameters on the abundance component of the model
 
   # Fixed effects on abundance
+  
+  # Inttercept by grid type 
   beta0 ~ dnorm(0, sd = 3)             # Abundance intercept
   beta_burn ~ dnorm(0, sd = 3)         # Effect of fire
   beta_elv ~  dnorm(0, sd = 1.5)       # Effect of elevation
@@ -358,7 +399,7 @@ sobs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0  +                                   # Intercept on abundance
                            beta_burn * burned[j] +                    # Effect of fire 
-                           beta_elv* elevation[j] +                   # Effect of elevation
+                           beta_elv * elevation[j] +                  # Effect of elevation
                            beta_fyear * fire_year[j, k] * burned[j] + # Effect of years since fire on burned grids
                            beta_shrub * shrub_cvr[j] * burned[j] +    # Effect of shrub cover
                            beta_pfg *  pfg_cvr[j] * burned[j] +       # Effect of Perennial Cover
@@ -634,7 +675,7 @@ difftime(Sys.time(), start)                             # End time for the sampl
 
 # Save model output to local drive
 saveRDS(PreFire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                     study_species, "_PreFire_model.rds"))
+                                     study_species, "_PreFire_model_est.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -691,12 +732,12 @@ library(gridExtra)
 
 # List of Species to plot 
 all_plot_species <- c(
-  "BRSP",
   "SATH",
+  "BRSP",
+  "GTTO",
   "VESP",
   "WEME",
-  "HOLA",
-  "GTTO"
+  "HOLA"
 )
 
 # Loop over all species 
@@ -727,7 +768,7 @@ PreFire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS
 PreFire_mcmc_out$summary$all.chains
   
 # Extract effect sizes
-beta0 <- PreFire_mcmc_out$summary$all.chains[18,]
+# beta0 <- PreFire_mcmc_out$summary$all.chains[18,]
 beta_burned <- PreFire_mcmc_out$summary$all.chains[20,]
 beta_elv <- PreFire_mcmc_out$summary$all.chains[21,]
 beta_fyear <- PreFire_mcmc_out$summary$all.chains[22,] 
@@ -736,15 +777,23 @@ beta_pfg <- PreFire_mcmc_out$summary$all.chains[23,]
 beta_afg <- PreFire_mcmc_out$summary$all.chains[19,]
   
 # Combine everything into a dataframe
-beta_dat <- data.frame(bind_rows(beta0,
+beta_dat <- data.frame(bind_rows(
+                                 # beta0,
                                  beta_burned,
                                  beta_elv,
                                  beta_fyear,
                                  beta_shrub,
                                  beta_pfg,
-                                 beta_afg)) %>% 
-    mutate(Parameter = c("beta0", "beta.burned", "beta.elvation", "beta.fyear", 
-                         "beta.shrub", "beta.pfg", "beta.afg")) %>% 
+                                 beta_afg
+                                 )) %>% 
+    mutate(Parameter = c(
+                         # "beta0", 
+                         "beta.burned", 
+                         "beta.elvation", 
+                         "beta.fyear", 
+                         "beta.shrub", 
+                         "beta.pfg", 
+                         "beta.afg")) %>% 
     relocate(Parameter, .before = Mean) %>% 
     rename(CRI.lb = X95.CI_low,
            CRI.ub = X95.CI_upp)
@@ -757,7 +806,8 @@ head(beta_dat, n = Inf)
 # Create the plot
 params_plot <- beta_dat %>% 
 # Rename Parameters
-mutate(Parameter = case_when(Parameter == "beta0" ~ "Intercept",
+mutate(Parameter = case_when(
+                                 # Parameter == "beta0" ~ "Intercept",
                                  Parameter == "beta.burned" ~ "Burned",
                                  Parameter == "beta.elvation" ~ "Elevation (m)",
                                  Parameter == "beta.fyear" ~ "Years Since Fire",
@@ -778,8 +828,8 @@ mutate(Parameter = case_when(Parameter == "beta0" ~ "Intercept",
                                                     "Pre-Fire Shrub Cover",
                                                     "Years Since Fire",
                                                     "Elevation (m)",
-                                                    "Burned",
-                                                    "Intercept"
+                                                    "Burned"
+                                                    # "Intercept"
                                                     ))) %>% 
     # Open the plot
     ggplot(aes(y = Parameter)) +
@@ -809,7 +859,7 @@ params_plot
   
 # Save the plot as a png
 ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
               plot_species, "_params.png"),
        width = 200,
        height = 120,
@@ -818,11 +868,10 @@ ggsave(plot = params_plot,
 
 # # save the plot as an RDS
 saveRDS(object = params_plot,
-        file =  paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred",
+        file =  paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\PreFire_pred_",
                        plot_species, "_params.rds"))
   
 } # End plotting loop over all species (Comment this out) ----
-
 
 # All sagebrush species plots together ---------------------------------------------------------------
 
@@ -835,8 +884,11 @@ gtto_prefire_params <-readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Proj
                                      "GTTO", "_params.rds"))
 
 # Combine these plots
-sage_sp_prefire_params <- grid.arrange(sath_prefire_params, brsp_prefire_params, gtto_prefire_params,
-                                       nrow = 1, ncol = 3)
+sage_sp_prefire_params <- grid.arrange(
+  # sath_prefire_params,
+  brsp_prefire_params, 
+  gtto_prefire_params,
+                                       nrow = 1, ncol = 2)
 
 # View the combined plot
 sage_sp_prefire_params
@@ -875,3 +927,54 @@ ggsave(plot = grass_sp_prefire_params,
        height = 150,
        units = "mm",
        dpi = 300)
+
+
+# Plot of reference grids by SOBs abundance and annual cover -----------------------------------------------------------------
+
+# Add in the full dataset
+full_dat <-  tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
+  dplyr::select(-X) #Remove the column that excel generated
+#and view the data
+glimpse(full_dat)
+
+# Add the current covariates
+covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
+  dplyr::select(-X) %>%
+  tibble()
+
+# List of species we care about
+important_species <- c("BRSP", "GTTO", "VESP", "WEME")
+
+# Group the data to pull out counts
+sobs_dat1 <- full_dat %>% 
+  filter(Species %in% important_species) %>% 
+  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  group_by(Grid.ID, Visit.ID, Species) %>% 
+  reframe(Grid.ID, Visit.ID, Species, Count = n()) %>% 
+  distinct() %>% 
+  left_join(covs, by = "Grid.ID")
+# View
+glimpse(sobs_dat1)
+
+# Make a table of all possible species visit combinations so we get the zero counts
+visit_count <- full_dat %>% 
+  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
+  filter(Species %in% important_species) %>% 
+  expand(nesting(Grid.ID, Visit.ID), Species) %>% 
+  group_by(Grid.ID, Species, Visit.ID) %>% 
+  reframe(Grid.ID, Species, Visit.ID) %>% 
+  distinct()
+
+# Make sure all of the grids are included
+sobs_dat <- visit_count %>% 
+  left_join(sobs_dat1, by = c("Grid.ID", "Visit.ID", "Species")) %>% 
+  mutate(Count = replace_na(Count, 0))
+
+# Arrange by counts
+sobs_dat %>% 
+  ggplot() +
+  geom_smooth(aes(x = Annual.Cover.125m, y = Count),
+              method = "glm",
+              method.args = list(family = "quasipoisson")) +
+  geom_point(aes(x = Annual.Cover.125m, y = Count)) +
+  facet_wrap(~Species)

@@ -575,6 +575,7 @@ ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geopr
 # Add in the elevation and current shrub cover rasters
 elevation_rast <- rast(paste0(ras_path, "elevation.tif"))
 shrub_rast <- rast(paste0(ras_path, "shrub_cvr.tif"))
+pfg_rast <- rast(paste0(ras_path, "pfg_cvr.tif"))
 
 # Summarize elevation
 elevation_mean <- terra::extract(x = elevation_rast,

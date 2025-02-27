@@ -35,7 +35,10 @@ important_species <- c(
                        "GTTO",
                        "WEME",
                        "HOLA",
-                       "VESP"
+                       "VESP",
+                       "ROWR",
+                       "GRFL",
+                       "LASP"
                        )
 
 #Truncate observations beyond a cirtain distance
@@ -225,6 +228,7 @@ sobs %>%
 
 #Average number of observations between burned and unburned plots 
 sobs_count %>% 
+  filter(Species == "ROWR") %>% 
   mutate(Grid.Type = case_when(Grid.Type == "B" ~ "Burn",
                                 Grid.Type == "R" ~ "Reference")) %>% 
   mutate(Species = case_when(Species == "BRSP" ~ "Brewer's Sparrow",
@@ -236,6 +240,8 @@ sobs_count %>%
                              Species == "HOLA" ~ "Horned Lark",
                              Species == "GRFL" ~ "Gray Flycatcher",
                              Species == "LASP" ~ "Lark Sparrow",
+                             Species == "ROWR" ~ "Rock Wren",
+                             Species == "GRFL" ~ "Gray Flycatcher",
                              TRUE ~ NA)) %>% 
   mutate(Year = case_when(Year == "Y1" ~ "Year 1",
                           Year == "Y2" ~ "Year 2",
@@ -256,14 +262,15 @@ sobs_count %>%
         axis.title.y = element_text(size = 12, family = "sans"),
         legend.title = element_blank(),
         legend.text = element_text(size = 12, family = "sans"),
-        strip.text = element_text(size= 12, family = "sans"),
-        legend.position = c(0.48, 0.17)) +
-  ylim(0, 75) +
+        strip.text = element_text(size= 12, family = "sans")
+        # legend.position = c(0.78, 0.17)
+        ) +
+  # ylim(0, 75) +
   facet_wrap(~factor(Species, levels = c("Brewer's Sparrow", "Sage Thrasher", 
                                          "Sagebrush Sparrow", "Green-Tailed Towhee",
                                          "Gray Flycatcher","Western Meadowlark",
                                          "Vesper Sparrow", "Horned Lark", 
-                                         "Lark Sparrow"
+                                         "Lark Sparrow", "Rock Wren"
                                          )))
 
 #Total number of observations between burned and unburned plots ----------------------------
