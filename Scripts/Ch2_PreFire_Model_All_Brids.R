@@ -347,8 +347,8 @@ sobs_model_code <- nimbleCode({
   for(j in 1:ngrids){
     
     # Zero-inflation component on abundance
-    psi[j] ~ dunif(0.0001, 0.9999)                                    # Occupancy probability
-    present[j] ~ dbern(psi[j])                                        # Number of grids where that individual can be present
+    psi[j] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
+    present[j] ~ dbern(psi[j])                             # Number of grids where that individual can be present
 
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 

@@ -34,11 +34,11 @@ all_species <- c(
 )
 
 # Loop over all species
-for(s in 1:length(all_species)){ # (Comment this out) ----
+# for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-model_species <- all_species[s]
-# model_species <- all_species[1]
+# model_species <- all_species[s]
+model_species <- all_species[3]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -173,6 +173,15 @@ glimpse(sobs_counts)
 # View observations
 glimpse(sobs_observations)
 
+# Plot speciess counts against a covariate
+sobs_counts %>% 
+  filter(Burned == 1) %>% 
+ggplot(aes(x = Years.Since.Fire, y = Count, color = factor(Treatment))) +
+geom_jitter() +
+  geom_smooth( 
+              method = "glm", 
+              method.args = list(family = "quasipoisson"),
+              se = TRUE) 
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
