@@ -249,12 +249,14 @@ sabs_model_code <- nimbleCode({
   # Iterate over all survey grids
   for(j in 1:ngrids){
     
-    # Zero-inflation component on abundance
+    # Probability of no individuals at each site
     psi[j] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
-    present[j] ~ dbern(psi[j])                             # Number of grids where that individual can be present
     
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
+      
+      # Whether or not individuals are present at each visit to each siite (Zero-Inflation)
+      present[j, k] ~ dbern(psi[j])      
       
       ### Imperfect availability portion of the model ###
       
@@ -287,7 +289,7 @@ sabs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site s in year y
+      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j, k] + 0.0001) * area[j, k])   # ZIP true abundance at site s in year y
         
       # Availability (avail) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                        # Intercept on availability
@@ -424,7 +426,7 @@ sabs_inits <- list(
   beta0_treatment = rnorm(ntrts, 0, 0.1),
   # Presence 
   psi = runif(ngrids, 0.4, 0.6),
-  present = rbinom(ngrids, 1, 0.5),
+  present = matrix(rbinom(ngrids*nvst, 1, 0.5), ngrids, nvst),
   # Simulated counts
   n_dct_new = count_mat,
   N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
@@ -583,7 +585,7 @@ MCMCsummary(object = sabs_mcmc_out$samples,
 
 # View MCMC plot
 MCMCplot(object = sabs_mcmc_out$samples,
-         excl = c("fit", "fit_new"),
+         excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new"),
          guide_lines = TRUE,
          params = sabs_params)
 
