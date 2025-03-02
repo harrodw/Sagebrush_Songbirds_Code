@@ -677,7 +677,7 @@ difftime(Sys.time(), start)                             # End time for the sampl
 
 # Save model output to local drive
 saveRDS(PreFire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                     study_species, "_PreFire_model_est.rds"))
+                                        model_species, "_PreFire_model_est.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################

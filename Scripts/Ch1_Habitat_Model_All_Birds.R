@@ -257,6 +257,32 @@ shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Shrub cover
 pfg_cvr <- sobs_counts$PFG.Cover.scl[1:ngrids]             # Perennial forb and grass cover
 tri <- sobs_counts$TRI.scl[1:ngrids]                       # topographic ruggedness
 
+# n <- nrow(sobs_counts)
+# size1 <- 5
+# size2 <- 10
+# size3 <- 20
+# p1 <- 0.1
+# 
+# data.frame(nb1 = rnbinom(n = n, size = size1, p = p1),
+#            nb2 = rnbinom(n = n, size = size2, p = p1),
+#            nb3 = rnbinom(n = n, size = size3, p = p1),
+#            pois = rpois(n = n, lambda = size1),
+#            counts = sobs_counts$Count) %>%
+#   ggplot() +
+#   geom_histogram(aes(x = pois), fill = "red", alpha = 0.6) +
+#   geom_histogram(aes(x = nb1), fill = "lightblue", alpha = 0.6) +
+#   geom_histogram(aes(x = nb2), fill = "purple", alpha = 0.6) +
+#   geom_histogram(aes(x = nb3), fill = "yellow", alpha = 0.6) +
+#   geom_histogram(aes(x = counts) , fill = "green", alpha = 0.6)
+# 
+# data.frame(b1 = rbeta(n = n, shape1 = 1.3, shape2 = 1.3),
+#            b2 = rbeta(n = n, shape1 = 0.7, shape2 = 1),
+#            b3 = rbeta(n = n, shape1 = 0.9, shape2 = 1.3)) %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = b1), fill = "red", alpha = 0.6) +
+#   geom_histogram(aes(x = b2), fill = "lightblue", alpha = 0.6) +
+#   geom_histogram(aes(x = b3) , fill = "green", alpha = 0.6)
+
 #########################################################################################################
 # 2) Build and run the model ############################################################################
 #########################################################################################################
@@ -268,6 +294,9 @@ sobs_model_code <- nimbleCode({
  
   # ------------------------------------------------------------------
   # Priors for all parameters 
+  
+  # Negative Binomial hyperparameter (distribution pulled slightly towards the lower end)
+  nb_prob ~ dbeta(shape1 = 0.9, shape2 = 1.3)
   
   # Parameters in the availability component of the detection model ----
   # Fixed effects on avaiablility
@@ -309,14 +338,13 @@ sobs_model_code <- nimbleCode({
   for(j in 1:ngrids){
    
     # Probability of no individuals at each site
-    psi[j] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
-    
+    # psi[j] ~ dbeta(shape1 = 1.3, shape2 = 1.3) # Occupancy probability can't be exactly zero
     
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
       
-      # Whether or not individuals are present at each visit to each siite (Zero-Inflation)
-      present[j, k] ~ dbern(psi[j])             
+      # Whether or not individuals are present at each visit to each site (Zero-Inflation)
+      # present[j, k] ~ dbern(psi[j])             
       
       ### Imperfect availability portion of the model ###
       
@@ -349,7 +377,8 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j, k] + 0.0001) * area[j, k])   # ZIP true abundance at site j during visit k
+      N_indv[j, k] ~ dnbinom(prob = nb_prob, size = lambda[j, k] * area[j, k]) # ZIP true abundance at site j during visit k
+      # * (present[j, k] + 0.0001)
       
       # Availability (phi) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                       # Intercept on availability
@@ -493,9 +522,10 @@ sobs_inits <- list(
   beta_tri = rnorm(1, 0, 0.1),            # Effect of ruggedness
   sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
   eps_year = rep(0, nyears),              # Random noise on abundance by year
+  nb_prob = runif(1, 0.1, 0.4),           # Negetive binomial hyperparameter
   # Presence 
-  psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
-  present = matrix(rbinom(ngrids*nvst, 1, 0.5), ngrids, nvst),       # Binary presence absence for zero-inflation
+  # psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
+  # present = matrix(rbinom(ngrids*nvst, 1, 0.5), ngrids, nvst),       # Binary presence absence for zero-inflation
   # Simulated counts
   n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
@@ -507,6 +537,7 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
+  "nb_prob",         # Negetive binomial probability hyperparameter 
   "fit_pd",          # Fit statistic for observed data
   "fit_pd_new",      # Fit statisitc for simulated detection  data
   "fit_pa",          # Fit statistic for first availability data
@@ -576,31 +607,31 @@ sobs_mcmcConf$addSampler(target = c(
   "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
-# Block all occupancy (psi) nodes together
-sobs_mcmcConf$removeSamplers(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-), type = 'RW_block')
+# # Block all occupancy (psi) nodes together
+# sobs_mcmcConf$removeSamplers(
+#   "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+#   "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+#   "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+#   "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+#   "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+#   "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+#   "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+#   "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+#   "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+#   "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+# )
+# sobs_mcmcConf$addSampler(target = c(
+#   "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
+#   "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
+#   "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
+#   "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
+#   "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
+#   "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
+#   "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
+#   "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
+#   "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
+#   "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+# ), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
@@ -671,7 +702,7 @@ MCMCplot(object = fire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
 
-# } # End modeling loop (Comment this out) ----
+} # End modeling loop (Comment this out) ----
 
 #####################################################################################
 # 4) Posterior Inference ############################################################
@@ -700,11 +731,11 @@ all_plot_species <- c(
 )
 
 # Loop over all species 
-for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-plot_species <- all_plot_species[s]
-# plot_species <- all_plot_species[1]
+# plot_species <- all_plot_species[s]
+plot_species <- all_plot_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -786,7 +817,7 @@ params_plot <- beta_dat %>%
 
 
 # View the plot
-# params_plot
+params_plot
 
 # Save the plot as a png
 ggsave(plot = params_plot,
@@ -803,7 +834,7 @@ saveRDS(object = params_plot,
                       plot_species, "_params.rds"))
 
 
-} # End plotting loop over all species (Comment this out) ----
+# } # End plotting loop over all species (Comment this out) ----
 
 # 4.3) Plot groups of species together #######################################
 
