@@ -1,6 +1,7 @@
 # Add packages
 library(terra)
 library(sf)
+library(tidyverse)
 
 # File path for burn sevarity data
 mtbs_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\mtbs_cleaned\\"
@@ -33,9 +34,6 @@ plot(gc_rdnbr)
 
 # Remove negative values
 gc_rdnbr[gc_rdnbr < 0] <- NA
-
-# Primary file path for rasters
-ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
 # Add in shrub cover
 shrub_rast <- rast(paste0(ras_path, "shrub_cvr.tif"))
@@ -132,12 +130,22 @@ dat
 plot(dat)
 
 # View model correlations
-rdnbr_lm <- lm(data = dat,
-               formula = Shrub.cvr ~ scale(RdNBR) + scale(Elevation))
+rdnbr_lm_low <- dat %>% 
+  filter(Elevation < 1800) %>% 
+  lm(formula = Shrub.cvr ~ RdNBR)
 
 # Model summary
-rdnbr_lm_sum <- summary(rdnbr_lm)
-rdnbr_lm_sum
+rdnbr_lm_low_sum <- summary(rdnbr_lm_low)
+rdnbr_lm_low_sum
+
+# View model correlations at high elevation
+rdnbr_lm_high <- dat %>% 
+  filter(Elevation >= 1800) %>% 
+  lm(formula = Shrub.cvr ~ RdNBR)
+
+# Model summary at high elevation
+rdnbr_lm_high_sum <- summary(rdnbr_lm_high)
+rdnbr_lm_high_sum
 
 # Plot correlations 
 dat %>% 

@@ -242,6 +242,11 @@ sabs_model_code <- nimbleCode({
     # Allow the intercept to vary for each treatment group
     beta0_treatment[l] ~ dnorm(0, sd = 3)
   } # End loop over treatments
+  
+  # Occupancy probability by grid type (Burned x Elevation) for zero inflation
+  for(l in 1:ntrts){
+    psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
+  } # end loop over treatments
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -249,14 +254,11 @@ sabs_model_code <- nimbleCode({
   # Iterate over all survey grids
   for(j in 1:ngrids){
     
-    # Probability of no individuals at each site
-    psi[j] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
-    
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
       
-      # Whether or not individuals are present at each visit to each siite (Zero-Inflation)
-      present[j, k] ~ dbern(psi[j])      
+      # Whether or not individuals are present at each visit to each site (Zero-Inflation)
+      present[j, k] ~ dbern(psi_trt[trts[j]])      
       
       ### Imperfect availability portion of the model ###
       
@@ -425,8 +427,8 @@ sabs_inits <- list(
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
   # Presence 
-  psi = runif(ngrids, 0.4, 0.6),
-  present = matrix(rbinom(ngrids*nvst, 1, 0.5), ngrids, nvst),
+  psi_trt = runif(ntrts, 0.4, 0.6),
+  present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst),
   # Simulated counts
   n_dct_new = count_mat,
   N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
@@ -436,11 +438,13 @@ sabs_inits <- list(
 str(sabs_inits)
 
 # Params to save
-sabs_params <- c("fit_pd",          # Fit statistic for observed data
+sabs_params <- c(
+                 "fit_pd",          # Fit statistic for observed data
                  "fit_pd_new",      # Fit statisitc for simulated detection  data
                  "fit_pa",          # Fit statistic for first availability data
                  "fit_pa_new",      # Fit statisitc for simulated avaiability data
-                 "beta0_treatment",
+                 "beta0_treatment", # Mean abundance by grid type
+                 "psi_trt",         # Occupanci probability by grid type    
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
@@ -494,28 +498,10 @@ sabs_mcmcConf$addSampler(target = c(
 
 # Block all occupancy (psi) nodes together
 sabs_mcmcConf$removeSamplers(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+  "psi_trt[1]", "psi[2]_trt", "psi_trt[3]", "psi_trt[4]"
 )
 sabs_mcmcConf$addSampler(target = c(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
+  "psi_trt[1]", "psi[2]_trt", "psi_trt[3]", "psi_trt[4]"
 ), type = 'RW_block')
 
 # View the blocks
@@ -607,12 +593,17 @@ sabs_mcmc_out$summary$all.chains
 
 # 4.2) Extract coefficient values ###############################################################
 
-
-# Treatment intercepts
+# Treatment abundance intercepts
 beta0_ref_low <- sabs_mcmc_out$summary$all.chains[2,] 
 beta0_ref_high <- sabs_mcmc_out$summary$all.chains[3,]
 beta0_burn_low <- sabs_mcmc_out$summary$all.chains[4,]
 beta0_burn_high <- sabs_mcmc_out$summary$all.chains[5,]
+
+# Treatment ocupancy intercepts
+psi_ref_low <- sabs_mcmc_out$summary$all.chains[,] 
+psi_ref_high <- sabs_mcmc_out$summary$all.chains[],]
+psi_burn_low <- sabs_mcmc_out$summary$all.chains[,]
+psi_burn_high <- sabs_mcmc_out$summary$all.chains[,]
 
 # View Betas
 bind_rows(beta0_ref_low,

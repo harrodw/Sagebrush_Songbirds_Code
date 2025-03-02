@@ -29,10 +29,10 @@ all_species <- c(
   "SATH",
   "BRSP",
   "SABS",
+  # "GTTO",
   "VESP",
   "WEME",
-  "HOLA",
-  "GTTO"
+  "HOLA"
 )
 
 # Loop over all species
@@ -234,6 +234,7 @@ nbins <- length(unique(sobs_observations$Dist.Bin))        # Number of distance 
 nints <- length(unique(sobs_observations$Time.Interval))   # Number of time intervals
 nvst <- length(unique(sobs_counts$Visit.ID))               # Number of visits in each year
 nyears <- length(unique(sobs_counts$Year.num))             # Number of years we surveyed
+ntrts <- length(unique(sobs_counts$Treatment))             # Number of grid types
 
 # Observation Level data 
 midpt <- sort(unique(sobs_observations$Dist.Bin.Midpoint)) # Midpoints of distance bins (n = 5)
@@ -255,7 +256,8 @@ years <- year_mat                                          # Matrix of year numb
 grids <- sobs_counts$Grid.ID.num[1:ngrids]                 # Grid where each survey took place
 shrub_cvr <- sobs_counts$Shrub.Cover.scl[1:ngrids]         # Shrub cover 
 pfg_cvr <- sobs_counts$PFG.Cover.scl[1:ngrids]             # Perennial forb and grass cover
-tri <- sobs_counts$TRI.scl[1:ngrids]                       # topographic ruggedness
+tri <- sobs_counts$TRI.scl[1:ngrids]                       # Topographic ruggedness
+trts <- sobs_counts$Treatment[1:ngrids]                    # Treatment type of each grid 
 
 # n <- nrow(sobs_counts)
 # size1 <- 5
@@ -295,8 +297,13 @@ sobs_model_code <- nimbleCode({
   # ------------------------------------------------------------------
   # Priors for all parameters 
   
-  # Negative Binomial hyperparameter (distribution pulled slightly towards the lower end)
-  nb_prob ~ dbeta(shape1 = 0.9, shape2 = 1.3)
+  # Parameters in the detection portion of the model ----
+  # Fixed effects on detecability
+  
+  # Effect of observer experience (Can't be greater than 0)
+  for(o in 1:nobsv){ # nobsv = 17
+    alpha0_obsv[o] ~ T(dnorm(-2, sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
+  } # End loop through observers
   
   # Parameters in the availability component of the detection model ----
   # Fixed effects on avaiablility
@@ -306,17 +313,9 @@ sobs_model_code <- nimbleCode({
   gamma_time ~ dnorm(0, sd = 1.5)     # Effect of time of day on singing rate
   gamma_time2 ~ dnorm(0, sd = 1.5)    # Effect of time of day on singing rate (quadratic)
   
-  # Parameters in the detection portion of the model ----
-  # Fixed effects on detecability
-  
-  # Effect of observer experience (Can't be greater than 0)
-  for(o in 1:nobsv){ # nobsv = 17
-    alpha0_obsv[o] ~ T(dnorm(-2, sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
-  } # End loop through observers
-  
   # Parameters on the abundance component of the model ----
   
-  # Single fixed effects
+  # Single fixed effects on abundance 
   beta0 ~ dnorm(0, sd = 3)
   beta_shrub ~ dnorm(0, sd = 1.5) # Effect of shrub cover
   beta_pfg ~ dnorm(0, sd = 1.5)   # Effect of perennial forb and grass
@@ -331,30 +330,22 @@ sobs_model_code <- nimbleCode({
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
+  # Occupancy probability by grid type (Burned x Elevation) for zero inflation
+  for(l in 1:ntrts){
+    psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
+  } # end loop over treatments
+  
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
   # Iterate over all survey grids
   for(j in 1:ngrids){
    
-    # Probability of no individuals at each site
-    # psi[j] ~ dbeta(shape1 = 1.3, shape2 = 1.3) # Occupancy probability can't be exactly zero
-    
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
       
       # Whether or not individuals are present at each visit to each site (Zero-Inflation)
-      # present[j, k] ~ dbern(psi[j])             
-      
-      ### Imperfect availability portion of the model ###
-      
-      # Construction of the cell probabilities for the nints time intervals
-      for (t in 1:nints){
-        pi_pa[j, k, t] <- phi[j, k] * (1 - phi[j, k])^(t - 1)  # Availability cell probability
-        pi_pa_c[j, k, t] <- pi_pa[j, k, t] / p_a[j, k]         # Proportion of availability probability in each time interval class
-      }
-      # Rectangular integral approx. of integral that yields the Pr(available)
-      p_a[j, k] <- sum(pi_pa[j, k, ])
+      present[j, k] ~ dbern(psi_trt[trts[j]])
       
       ### Imperfect detection portion of the model ###
       
@@ -368,6 +359,16 @@ sobs_model_code <- nimbleCode({
       # Rectangular integral approx. of integral that yields the detection probability
       p_d[j, k] <- sum(pi_pd[j, k, ])
       
+      ### Imperfect availability portion of the model ###
+      
+      # Construction of the cell probabilities for the nints time intervals
+      for (t in 1:nints){
+        pi_pa[j, k, t] <- phi[j, k] * (1 - phi[j, k])^(t - 1)  # Availability cell probability
+        pi_pa_c[j, k, t] <- pi_pa[j, k, t] / p_a[j, k]         # Proportion of availability probability in each time interval class
+      }
+      # Rectangular integral approx. of integral that yields the Pr(available)
+      p_a[j, k] <- sum(pi_pa[j, k, ])
+      
       ### Binomial portion of mixture ###
       
       # Number of individual birds detected (observations)
@@ -377,7 +378,8 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dnbinom(prob = nb_prob, size = lambda[j, k] * area[j, k]) # ZIP true abundance at site j during visit k
+      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k]) # ZIP true abundance at site j during visit k
+      
       # * (present[j, k] + 0.0001)
       
       # Availability (phi) Logit-linear model for availability
@@ -453,7 +455,9 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nyears = nyears,             # Number of years we surveyed (3)
+  ntrts = ntrts,               # Number of grid types (elevation x burned)
   # Non-stochastic constants
+  trts = trts,                 # Type of grid 
   years = years,               # Year when each survey took place
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -524,8 +528,8 @@ sobs_inits <- list(
   eps_year = rep(0, nyears),              # Random noise on abundance by year
   nb_prob = runif(1, 0.1, 0.4),           # Negetive binomial hyperparameter
   # Presence 
-  # psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
-  # present = matrix(rbinom(ngrids*nvst, 1, 0.5), ngrids, nvst),       # Binary presence absence for zero-inflation
+  psi_trt = runif(ntrts, 0.4, 0.6),       # Probability of each grid being occupied for zero inflation
+  present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst), # Binary presence absence for zero-inflation
   # Simulated counts
   n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
@@ -537,7 +541,6 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
-  "nb_prob",         # Negetive binomial probability hyperparameter 
   "fit_pd",          # Fit statistic for observed data
   "fit_pd_new",      # Fit statisitc for simulated detection  data
   "fit_pa",          # Fit statistic for first availability data
@@ -546,6 +549,7 @@ sobs_params <- c(
   "beta_shrub",      # Effect of shrub cover
   "beta_pfg",        # Effect of perennial cover
   "beta_tri",        # Effect of ruggedness
+  "psi_trt",         # Occupanci probability by grid type    
   "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
@@ -607,31 +611,15 @@ sobs_mcmcConf$addSampler(target = c(
   "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
-# # Block all occupancy (psi) nodes together
-# sobs_mcmcConf$removeSamplers(
-#   "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-#   "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-#   "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-#   "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-#   "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-#   "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-#   "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-#   "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-#   "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-#   "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-# )
-# sobs_mcmcConf$addSampler(target = c(
-#   "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-#   "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-#   "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-#   "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-#   "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-#   "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-#   "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-#   "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-#   "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-#   "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-# ), type = 'RW_block')
+# Block all occupancy (psi) nodes together
+sobs_mcmcConf$removeSamplers(
+  # Occupancy prob by grid type
+  "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
+)
+sobs_mcmcConf$addSampler(target = c(
+  # Occupancy prob by grid type
+  "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
+), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
@@ -735,7 +723,7 @@ all_plot_species <- c(
 
 # Name the species to model again
 # plot_species <- all_plot_species[s]
-plot_species <- all_plot_species[1]
+plot_species <- all_plot_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 

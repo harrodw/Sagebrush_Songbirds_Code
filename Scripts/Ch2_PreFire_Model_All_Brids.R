@@ -313,16 +313,15 @@ sobs_model_code <- nimbleCode({
   gamma_time ~ dnorm(0, sd = 1.5)      # Effect of time of day on singing rate
   gamma_time2 ~ dnorm(0, sd = 1.5)     # Effect of time of day on singing rate (quadratic)
   
-  # Effect of observer experience (Can't be greater than 0)
+  # Parameters for the detecability portion of the model
   for(o in 1:nobsv){ # (nobsv = 17)
+    # Effect of observer experience (Can't be greater than 0)
     alpha0_obsv[o] ~ T(dnorm(-2, sd = 3), -9, 0) # Prior mean centered on approximately sigma = exp(-2) = 0.125km
   } # End loop through observers
   
-  # Parameters on the abundance component of the model
+  # Parameters on the abundance component of the model ---
 
   # Fixed effects on abundance
-  
-  # Inttercept by grid type 
   beta0 ~ dnorm(0, sd = 3)             # Abundance intercept
   beta_burn ~ dnorm(0, sd = 3)         # Effect of fire
   beta_elv ~  dnorm(0, sd = 1.5)       # Effect of elevation
@@ -346,14 +345,8 @@ sobs_model_code <- nimbleCode({
   # Iterate over all survey grids
   for(j in 1:ngrids){
     
-    # Probability of no individuals at each site
-    psi[j] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
-    
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
-      
-      # Whether or not individuals are present at each visit to each siite (Zero-Inflation)
-      present[j, k] ~ dbern(psi[j])             
       
       ### Imperfect availability portion of the model ###
       
@@ -386,7 +379,7 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j, k] + 0.0001) * area[j, k])   # ZIP true abundance at site j during visit k
+      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k])   # ZIP true abundance at site j during visit k
       
       # Detectability (sigma) Log-Linear model 
       log(sigma[j, k]) <- alpha0_obsv[observers[j, k]]                # Effect of each observer on detectability
@@ -536,9 +529,6 @@ sobs_inits <- list(
   beta_shrub = rnorm(1, 0, 0.1),         # Effect of pre fire shrub cover
   beta_pfg = rnorm(1, 0, 0.1),           # Effect of pre fire perennial forb and grass cover
   beta_afg = rnorm(1, 0, 0.1),           # Effect of pre fire annual grass cover
-  # Presence 
-  psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
-  present = matrix(rbinom(ngrids*nvst, 1, 0.5), ngrids, nvst),       # Binary presence absence for zero-inflation
   # Simulated counts
   n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
@@ -615,32 +605,6 @@ sobs_mcmcConf$addSampler(target = c("beta0", "beta_elv", "beta_burn", "beta_fyea
                                     "eps_year[2]", "eps_year[3]"
                                     ),
                          type = 'RW_block')
-
-# Block all occupancy (psi) nodes together
-sobs_mcmcConf$removeSamplers(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers() # print samplers being used 

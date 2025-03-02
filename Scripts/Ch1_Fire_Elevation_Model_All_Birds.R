@@ -29,16 +29,15 @@ all_species <- c(
   "SATH",
   "VESP",
   "WEME",
-  "HOLA",
-  "GTTO"
+  "HOLA"
 )
 
 # Loop over all species
-# for(s in 1:length(all_species)){ # (Comment this out) ----
+for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-# model_species <- all_species[s]
-model_species <- all_species[3]
+model_species <- all_species[s]
+# model_species <- all_species[3]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -297,9 +296,6 @@ sobs_model_code <- nimbleCode({
     beta_fyear[e] ~ dnorm(0, sd = 1.5)
   } # End loop over burned elevations
   
-  # Single fixed effects
-  beta_burnsev ~ dnorm(0, sd = 1.5)   # Effect of initial burn severity on burned grids
-  
   # # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
 
@@ -314,10 +310,6 @@ sobs_model_code <- nimbleCode({
 
   # Iterate over all survey grids
   for(j in 1:ngrids){
-   
-    # Zero-inflation component on abundance
-    psi[j] ~ T(dbeta(shape1 = 1.3, shape2 = 1.3), 0.001, ) # Occupancy probability can't be exactly zero
-    present[j] ~ dbern(psi[j])                             # Number of grids where that individual can be present
     
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
@@ -353,7 +345,7 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j] + 0.0001) * area[j, k])   # ZIP true abundance at site j during visit k
+      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k])   # ZIP true abundance at site j during visit k
       
       # Availability (phi) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                       # Intercept on availability
@@ -368,7 +360,6 @@ sobs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
-                           beta_burnsev * burn_sev[j] * burned[j] +             # Effect of initial burn severity on burned grids
                            eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
       # -------------------------------------------------------------------------------------------------------------------
@@ -453,7 +444,6 @@ sobs_dat <- list(
   # Abundance level
   n_dct = n_dct,               # Number of detected individuals per site
   fyear = fyear,               # How long since the most recent fire in each grid
-  burn_sev = burn_sev,         # Burn severity from the most recent fire
   burned = burned              # Whether or not each grid burned
 )
 # View Nimble data 
@@ -496,12 +486,8 @@ sobs_inits <- list(
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1), # Intercept by grid type
   beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
-  beta_burnsev = rnorm(1, 0, 0.1),        # Effect of burn severity
   sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
   eps_year = rep(0, nyears),              # Random noise on abundance by year
-  # Presence 
-  psi = runif(ngrids, 0.4, 0.6),          # Probability of each grid being occupied for zero inflation
-  present = rbinom(ngrids, 1, 0.5),       # Binary presence absence for zero-inflation
   # Simulated counts
   n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
@@ -519,7 +505,6 @@ sobs_params <- c(
   "fit_pa_new",      # Fit statisitc for simulated avaiability data
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
-  "beta_burnsev",    # Effect of RdNBR burn sevarity
   "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
@@ -573,8 +558,6 @@ sobs_mcmcConf$removeSamplers(
   "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
-  # Effect of burn severity
-  "beta_burnsev",
   # Random noise by year
   "eps_year[2]", "eps_year[3]"
   )
@@ -583,37 +566,9 @@ sobs_mcmcConf$addSampler(target = c(
   "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
-  # Effect of burn severity
-  "beta_burnsev",
   # Random noise by year
   "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
-
-# Block all occupancy (psi) nodes together
-sobs_mcmcConf$removeSamplers(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  "psi[1]", "psi[2]", "psi[3]", "psi[4]", "psi[5]", "psi[6]",
-  "psi[7]", "psi[8]", "psi[9]", "psi[10]", "psi[11]", "psi[12]",
-  "psi[13]", "psi[14]", "psi[15]", "psi[16]", "psi[17]", "psi[18]",
-  "psi[19]", "psi[20]", "psi[21]", "psi[22]", "psi[23]", "psi[24]",
-  "psi[25]", "psi[26]", "psi[27]", "psi[28]", "psi[29]", "psi[30]",
-  "psi[31]", "psi[32]", "psi[33]", "psi[34]", "psi[35]", "psi[36]",
-  "psi[37]", "psi[38]", "psi[39]", "psi[40]", "psi[41]", "psi[42]",
-  "psi[43]", "psi[44]", "psi[45]", "psi[46]", "psi[47]", "psi[48]",
-  "psi[49]", "psi[50]", "psi[51]", "psi[52]", "psi[53]", "psi[54]",
-  "psi[55]", "psi[56]", "psi[57]", "psi[58]", "psi[59]", "psi[60]"
-), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
@@ -842,8 +797,7 @@ bind_rows(beta0_ref_low,
           beta0_burn_low,
           beta0_burn_high,
           beta_fyear_low,
-          beta_fyear_high,
-          beta_burnsev)
+          beta_fyear_high)
 
 # Combine everything into a dataframe
 beta_dat <- data.frame(bind_rows(beta0_ref_low,
@@ -851,11 +805,10 @@ beta_dat <- data.frame(bind_rows(beta0_ref_low,
                                  beta0_burn_low,
                                  beta0_burn_high,
                                  beta_fyear_low,
-                                 beta_fyear_high,
-                                 beta_burnsev
+                                 beta_fyear_high
                                  )) %>% 
   mutate(Parameter = c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high",
-                       "beta.fyear.low", "beta.fyear.high", "beta.burnsev"
+                       "beta.fyear.low", "beta.fyear.high"
                        )) %>% 
   relocate(Parameter, .before = Mean) %>% 
   rename(CRI.lb = X95.CI_low,
@@ -899,8 +852,7 @@ params_plot <- beta_dat %>%
                                Parameter == "beta0.burn.low" ~ "Burned Below 1800m",
                                Parameter == "beta0.burn.high" ~ "Burned Above 1800m",
                                Parameter == "beta.fyear.low" ~ "Years Since Fire  Below 1800m",
-                               Parameter == "beta.fyear.high" ~ "Years Since Fire Above 1800m",
-                               Parameter == "beta.burnsev" ~ "RdNBR Burn Sevarity"),
+                               Parameter == "beta.fyear.high" ~ "Years Since Fire Above 1800m"),
          # Add a New column for whether or not the CRI crosses Zero
          Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ "No",
                                         CRI.lb * CRI.ub > 0 ~ "Yes"), 
@@ -908,8 +860,7 @@ params_plot <- beta_dat %>%
   # Switch to a factor 
   mutate(Parameter = factor(Parameter, levels = c("Reference Below 1800m", "Reference Above 1800m",
                                                   "Burned Below 1800m","Burned Above 1800m",
-                                                  "Years Since Fire  Below 1800m", "Years Since Fire Above 1800m",
-                                                  "RdNBR Burn Sevarity"))) %>% 
+                                                  "Years Since Fire  Below 1800m", "Years Since Fire Above 1800m"))) %>% 
   # Open the plot
   ggplot(aes(y = Parameter)) +
   # Add points at the mean values for each parameters
@@ -1098,93 +1049,11 @@ saveRDS(object = fyear_pred_plot,
         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
                       plot_species, "_fyear.rds"))
 
-# Burn Severity plot -------------------------------------------------------
-
-# View predictive data
-glimpse(beta_dat_pred)
-
-# Find the minimum burn severity
-min_rdnbr <- covs %>%
-  filter(Grid.Type == "B") %>% 
-  select(Grid.ID, rdnbr.125m) %>% 
-  arrange(rdnbr.125m) %>% 
-  slice_head(n = 1)
-
-# Plot predicted responce to Burn Sevarity
-rdnbr_pred_plot <- beta_dat_pred %>% 
-  mutate(Pred.Naive = Pred * sd_rdnbr + mean_rdnbr) %>% 
-  filter(Pred.Naive >= min_rdnbr$rdnbr.125m[1]) %>%
-  ggplot() +
-  # Low elevation reference
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
-                color = "Low Elevation Reference"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.low.CRI.lb), 
-                  ymax = exp(beta0.ref.low.CRI.ub), 
-                  fill = "Low Elevation Reference"), alpha = 0.2) +
-  # High elevation reference
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.high.Mean), 
-                color = "High Elevation Reference"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.high.CRI.lb), 
-                  ymax = exp(beta0.ref.high.CRI.ub), 
-                  fill = "High Elevation Reference"), alpha = 0.2) +
-  # Low elevation burn severity
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.low.Mean + beta.burnsev.Mean * Pred), 
-                color = "Low Elevation Burn"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.burn.low.CRI.lb + beta.burnsev.CRI.lb * Pred), 
-                  ymax = exp(beta0.burn.low.CRI.ub + beta.burnsev.CRI.ub * Pred 
-                  ), 
-                  fill = "Low Elevation Burn"), alpha = 0.2) +
-  # High elevation burn severity
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.high.Mean + beta.burnsev.Mean * Pred), 
-                color = "High Elevation Burn"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.burn.high.CRI.lb + beta.burnsev.CRI.lb * Pred), 
-                  ymax = exp(beta0.burn.high.CRI.ub + beta.burnsev.CRI.ub * Pred), 
-                  fill = "High Elevation Burn"), alpha = 0.2) +
-  # Customize scales and labels
-  scale_color_manual(values = c("Low Elevation Reference" = "mediumseagreen",
-                                "High Elevation Reference" = "darkslategray4",
-                                "Low Elevation Burn" = "red3",
-                                "High Elevation Burn" = "orange2"), name = "") +
-  scale_fill_manual(values = c("Low Elevation Reference" = "mediumseagreen",
-                               "High Elevation Reference" = "darkslategray4",
-                               "Low Elevation Burn" = "red3",
-                               "High Elevation Burn" = "orange2"), name = "") +
-  labs(x = "RdNBR Burn Severity", 
-       y = paste0(species_name, "s per km^2")) +
-  theme_classic() +
-  scale_y_continuous(limits = c(0, NA)) +
-  theme(
-    axis.title.x = element_text(size = 16),
-    # axis.title.y = element_text(size = 16),
-    axis.title.y = element_blank(),
-    axis.text = element_text(size = 16),
-    legend.text = element_text(size = 16),
-    legend.position = "none",
-    legend.title = element_text(size = 16)
-  )
-
-# Display the plot
-rdnbr_pred_plot
-
-# # Save the plot as a png
-# ggsave(plot = rdnbr_pred_plot,
-#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                          plot_species, "_burnsev.png"),
-#        width = 200,
-#        height = 120,
-#        units = "mm",
-#        dpi = 300)
-# 
-# save the plot as an RDS
-saveRDS(object = rdnbr_pred_plot,
-        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-               plot_species, "_burnsev.rds"))
-
 # Plot all parameters -------------------------------------------------------------------------
 
 # Combine all three plots 
-full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot, fyear_pred_plot, rdnbr_pred_plot,
-                               nrow = 1, ncol = 3)
+full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot, fyear_pred_plot,
+                               nrow = 1, ncol = 2)
 
 # Add the legend
 full_fire_elv_pred_plot_legend <- grid.arrange(full_fire_elv_pred_plot, legend,
