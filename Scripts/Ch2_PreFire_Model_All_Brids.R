@@ -35,11 +35,11 @@ all_species <- c(
                  "HOLA")
 
 # Loop over all species 
-for(s in 1:length(all_species)){
+# for(s in 1:length(all_species)){
 
 # Pick a species to model
-model_species <- all_species[s]
-# model_species <- all_species[2]
+# model_species <- all_species[s]
+model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey
@@ -379,7 +379,7 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k])   # ZIP true abundance at site j during visit k
+      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k])                 # Abundance at site j during visit k
       
       # Detectability (sigma) Log-Linear model 
       log(sigma[j, k]) <- alpha0_obsv[observers[j, k]]                # Effect of each observer on detectability

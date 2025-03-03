@@ -330,10 +330,10 @@ sobs_model_code <- nimbleCode({
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
-  # Occupancy probability by grid type (Burned x Elevation) for zero inflation
-  for(l in 1:ntrts){
-    psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
-  } # end loop over treatments
+  # # Occupancy probability by grid type (Burned x Elevation) for zero inflation
+  # for(l in 1:ntrts){
+  #   psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
+  # } # end loop over treatments
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -344,8 +344,8 @@ sobs_model_code <- nimbleCode({
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
       
-      # Whether or not individuals are present at each visit to each site (Zero-Inflation)
-      present[j, k] ~ dbern(psi_trt[trts[j]])
+      # # Whether or not individuals are present at each visit to each site (Zero-Inflation)
+      # present[j, k] ~ dbern(psi_trt[trts[j]])
       
       ### Imperfect detection portion of the model ###
       
@@ -379,7 +379,6 @@ sobs_model_code <- nimbleCode({
       
       # Poisson abundance portion of mixture
       N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k]) # ZIP true abundance at site j during visit k
-      
       # * (present[j, k] + 0.0001)
       
       # Availability (phi) Logit-linear model for availability
@@ -455,9 +454,9 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nyears = nyears,             # Number of years we surveyed (3)
-  ntrts = ntrts,               # Number of grid types (elevation x burned)
+  # ntrts = ntrts,               # Number of grid types (elevation x burned)
   # Non-stochastic constants
-  trts = trts,                 # Type of grid 
+  # trts = trts,                 # Type of grid 
   years = years,               # Year when each survey took place
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -526,10 +525,9 @@ sobs_inits <- list(
   beta_tri = rnorm(1, 0, 0.1),            # Effect of ruggedness
   sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
   eps_year = rep(0, nyears),              # Random noise on abundance by year
-  nb_prob = runif(1, 0.1, 0.4),           # Negetive binomial hyperparameter
   # Presence 
-  psi_trt = runif(ntrts, 0.4, 0.6),       # Probability of each grid being occupied for zero inflation
-  present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst), # Binary presence absence for zero-inflation
+  # psi_trt = runif(ntrts, 0.4, 0.6),       # Probability of each grid being occupied for zero inflation
+  # present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst), # Binary presence absence for zero-inflation
   # Simulated counts
   n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
   n_dct_new = count_mat,                  # Simulated detected birds 
@@ -549,7 +547,7 @@ sobs_params <- c(
   "beta_shrub",      # Effect of shrub cover
   "beta_pfg",        # Effect of perennial cover
   "beta_tri",        # Effect of ruggedness
-  "psi_trt",         # Occupanci probability by grid type    
+  # "psi_trt",         # Occupanci probability by grid type    
   "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
@@ -611,15 +609,15 @@ sobs_mcmcConf$addSampler(target = c(
   "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
-# Block all occupancy (psi) nodes together
-sobs_mcmcConf$removeSamplers(
-  # Occupancy prob by grid type
-  "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
-)
-sobs_mcmcConf$addSampler(target = c(
-  # Occupancy prob by grid type
-  "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
-), type = 'RW_block')
+# # Block all occupancy (psi) nodes together
+# sobs_mcmcConf$removeSamplers(
+#   # Occupancy prob by grid type
+#   "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
+# )
+# sobs_mcmcConf$addSampler(target = c(
+#   # Occupancy prob by grid type
+#   "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
+# ), type = 'RW_block')
 
 # View the blocks
 sobs_mcmcConf$printSamplers()     # Print samplers being used 
@@ -645,7 +643,7 @@ message(paste((ni - nb) / nt), " samples will be kept from the posterior")
 
 # Run the sampler
 start <- Sys.time() %>%  print()          # Start time for the sampler
-fire_mcmc_out<- runMCMC(cMCMC,
+hab_mcmc_out<- runMCMC(cMCMC,
                   niter = ni, 
                   nburnin = nb, 
                   thin = nt, 
@@ -655,7 +653,7 @@ fire_mcmc_out<- runMCMC(cMCMC,
 difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
-saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+saveRDS(hab_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                      model_species, "_habitat_model.rds"))
 
 ################################################################################
@@ -665,11 +663,11 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 # 3.1) View model output
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
+hab_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
                                        model_species, "_habitat_model.rds"))
   
 # Traceplots and density graphs 
-MCMCtrace(object = fire_mcmc_out$samples,
+MCMCtrace(object = hab_mcmc_out$samples,
           params = sobs_params,
           pdf = TRUE,
           open_pdf = TRUE,
@@ -680,12 +678,12 @@ MCMCtrace(object = fire_mcmc_out$samples,
           type = 'both')
 
 # View MCMC summary
-MCMCsummary(object = fire_mcmc_out$samples, 
+MCMCsummary(object = hab_mcmc_out$samples, 
             params = sobs_params,
             round = 2)
 
 # View MCMC plot
-MCMCplot(object = fire_mcmc_out$samples,
+MCMCplot(object = hab_mcmc_out$samples,
          excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new", "beta0"),
          guide_lines = TRUE,
          params = sobs_params)
@@ -705,6 +703,7 @@ rm(list = ls())
 library(tidyverse)
 library(gridExtra)
 library(ggpubr)
+library(grid)
 
 # 4.2) Graph each species response to fire ###############################################################
 
@@ -718,36 +717,62 @@ all_plot_species <- c(
   "HOLA"
 )
 
+# Add veg covariates
+covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
+  dplyr::select(-X) %>%
+  tibble()
+# View covariates
+glimpse(covs)
+
+# Calculate covariate means and sd's
+shrub_mean <- mean(covs$Shrub.Cover.125m)
+shrub_sd <- sd(covs$Shrub.Cover.125m)
+pfg_mean <- mean(covs$Perennial.Cover.125m)
+pfg_sd <- sd(covs$Perennial.Cover.125m)
+tri_mean <- mean(covs$TRI.125m)
+tri_sd <- sd(covs$TRI.125m)
+
 # Loop over all species 
-# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_plot_species[s]
-plot_species <- all_plot_species[2]
+plot_species <- all_plot_species[s]
+# plot_species <- all_plot_species[3]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
-  mutate(Species.Name = case_when(Species.Code == "SATH" ~ "(A) Sage Thrasher",
+  mutate(Species.ID = case_when(Species.Code == "SATH" ~ "(A) Sage Thrasher",
                                   Species.Code == "BRSP" ~ "(B) Brewer's Sparrow", 
                                   Species.Code == "SABS" ~ "(C) Sagebrush Sparrow",
                                   Species.Code == "VESP" ~ "(D) Vesper Sparrow",
                                   Species.Code == "WEME" ~ "(E) Western Meadowlark",
-                                  Species.Code == "HOLA" ~ "(F) Horned Lark"))
+                                  Species.Code == "HOLA" ~ "(F) Horned Lark"),
+         Species.Name = case_when(Species.Code == "SATH" ~ "Sage Thrasher",
+                                Species.Code == "BRSP" ~ "Brewer's Sparrow", 
+                                Species.Code == "SABS" ~ "Sagebrush Sparrow",
+                                Species.Code == "VESP" ~ "Vesper Sparrow",
+                                Species.Code == "WEME" ~ "Western Meadowlark",
+                                Species.Code == "HOLA" ~ "Horned Lark")
+         )
+# Extract names
+species_id <- plot_species_df$Species.ID
 species_name <- plot_species_df$Species.Name
+
 # View
+species_id
 species_name
 
 # Load the output back in
-fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
+hab_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
                                        plot_species, "_habitat_model.rds"))
 
 # View MCMC summary
-fire_mcmc_out$summary$all.chains
+hab_mcmc_out$summary$all.chains
 
 # Extract effect sizes
-beta_shrub <- fire_mcmc_out$summary$all.chains[20,]
-beta_pfg <- fire_mcmc_out$summary$all.chains[19,]
-beta_tri <- fire_mcmc_out$summary$all.chains[21,]
+beta_shrub <- hab_mcmc_out$summary$all.chains[20,]
+beta_pfg <- hab_mcmc_out$summary$all.chains[19,]
+beta_tri <- hab_mcmc_out$summary$all.chains[21,]
 
 # View Betas
 bind_rows(beta_shrub,
@@ -790,7 +815,7 @@ params_plot <- beta_dat %>%
   # Add a vertical Line at zero
   geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
   # Change the Labels
-  labs(x = "Parameter Estimate", y = "", title = species_name) + 
+  labs(x = "Parameter Estimate", y = "", title = species_id) + 
   # Simple theme
   theme_classic() +
   # Custom colors
@@ -805,7 +830,7 @@ params_plot <- beta_dat %>%
 
 
 # View the plot
-params_plot
+# params_plot
 
 # Save the plot as a png
 ggsave(plot = params_plot,
@@ -821,8 +846,198 @@ saveRDS(object = params_plot,
         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\habitat_",
                       plot_species, "_params.rds"))
 
+# Predicted abundance #######################################################################################
 
-# } # End plotting loop over all species (Comment this out) ----
+# Extract the intercept
+beta0 <- hab_mcmc_out$summary$all.chains[18,]
+
+# Pick a number of samples to predict over
+n_samples <- 1000
+
+# Make a new dataframe for the prediction pots
+preds <- tibble(Pred = seq(from = -2, to = 2., length.out = n_samples),
+                # Intercept
+                Beta0.mean = rep(beta0[1], n_samples), 
+                Beta0.lb = rep(beta0[4], n_samples), 
+                Beta0.ub = rep(beta0[5], n_samples),
+                # Effect of shrub cover
+                Beta.Shrub.mean = rep(beta_shrub[1], n_samples), 
+                Beta.Shrub.lb = rep(beta_shrub[4], n_samples),
+                Beta.Shrub.ub = rep(beta_shrub[5], n_samples),
+                # Effect of perennial cover
+                Beta.PFG.mean = rep(beta_pfg[1], n_samples), 
+                Beta.PFG.lb = rep(beta_pfg[4], n_samples), 
+                Beta.PFG.ub = rep(beta_pfg[5], n_samples),
+                # Effect of ruggedness
+                Beta.TRI.mean = rep(beta_tri[1], n_samples), 
+                Beta.TRI.lb = rep(beta_tri[4], n_samples), 
+                Beta.TRI.ub = rep(beta_tri[5], n_samples))
+# View
+# glimpse(preds) 
+
+# Maximum of based on shrub
+min_shrub <- exp(beta0[5] + beta_shrub[4]*-2)
+max_shrub <- exp(beta0[5] + beta_shrub[5]*2)
+# Maximum of based on pfg
+min_pfg <- exp(beta0[5] + beta_pfg[4]*-2)
+max_pfg <- exp(beta0[5] + beta_pfg[5]*2)
+# Maximum of based on tri
+min_tri <- exp(beta0[5] + beta_tri[4]*-2)
+max_tri <- exp(beta0[5] + beta_tri[5]*2)
+
+# Maximum number of possible birds for that species
+max_birds <- max(c(min_shrub, max_shrub,
+                   min_pfg, max_pfg,
+                   min_tri, max_tri))
+
+# Shrub cover predictive plot --------------------------------------------------------------------------
+shrub_pred_plot <- preds %>% 
+  # Unscale the predictor 
+  mutate(Pred.Naive = Pred * shrub_sd + shrub_mean) %>% 
+  ggplot() +
+  # Predicted mean and 95% CI abundance 
+  geom_line(aes(x = Pred.Naive, y = exp(Beta0.mean + Beta.Shrub.mean * Pred)), 
+            col = "navyblue", linewidth = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(Beta0.lb + Beta.Shrub.lb * Pred), 
+                  ymax = exp(Beta0.ub + Beta.Shrub.ub * Pred)),
+              fill = "navyblue", alpha = 0.2) +
+  # Labels
+  labs(x = "Shrub cover", 
+       y = paste0(species_name, "s per km^2")) +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, max_birds)) +
+  theme(
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    # axis.title.y = element_blank(),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "none",
+    legend.title = element_text(size = 16)
+  ) +
+  # Add percent symbols
+  scale_x_continuous(labels = function(x) paste0(x, "%"))
+
+# View the predicted response to shrub cover
+# shrub_pred_plot 
+
+# Perennial cover predictive plot ------------------------------------------------------------------------------------
+pfg_pred_plot <- preds %>% 
+  # Unscale the predictor 
+  mutate(Pred.Naive = Pred * pfg_sd + pfg_mean) %>% 
+  ggplot() +
+  # Predicted mean and 95% CI abundance 
+  geom_line(aes(x = Pred.Naive, y = exp(Beta0.mean + Beta.PFG.mean * Pred)), 
+            col = "navyblue", linewidth = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(Beta0.lb + Beta.PFG.lb * Pred), 
+                  ymax = exp(Beta0.ub + Beta.PFG.ub * Pred)),
+              fill = "navyblue", alpha = 0.2) +
+  # Labels
+  labs(x = "Perennial cover", 
+       y = paste0(species_name, "s per km^2")) +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, max_birds)) +
+  theme(
+    axis.title.x = element_text(size = 16),
+    # axis.title.y = element_text(size = 16),
+    axis.title.y = element_blank(),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "none",
+    legend.title = element_text(size = 16)
+  ) +
+  # Add percent symbols
+  scale_x_continuous(labels = function(x) paste0(x, "%"))
+
+# View the predicted response to perennial cover
+# pfg_pred_plot 
+
+# Ruggedness predictive plot ----------------------------------------------------------------------------------------
+tri_pred_plot <- preds %>% 
+  # Unscale the predictor 
+  mutate(Pred.Naive = Pred * tri_sd + tri_mean) %>% 
+  # No such thing as negetive ruggedness
+  filter(Pred.Naive >= 0) %>% 
+  ggplot() +
+  # Predicted mean and 95% CI abundance 
+  geom_line(aes(x = Pred.Naive, y = exp(Beta0.mean + Beta.TRI.mean * Pred)), 
+             col = "navyblue", linewidth = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(Beta0.lb + Beta.TRI.lb * Pred), 
+                  ymax = exp(Beta0.ub + Beta.TRI.ub * Pred)),
+              fill = "navyblue", alpha = 0.2) +
+  # Labels
+  labs(x = "Topographic Ruggedness", 
+       y = paste0(species_name, "s per km^2")) +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, max_birds)) +
+  theme(
+    axis.title.x = element_text(size = 16),
+    # axis.title.y = element_text(size = 16),
+    axis.title.y = element_blank(),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "none",
+    legend.title = element_text(size = 16)
+  ) 
+# View the predicted response to ruggedness
+# tri_pred_plot 
+
+# Combine predictive plots ---------------------------------------------------------------------------
+
+# Define a legend label
+lngd_lbl <- paste("Predicted", species_name, "Abundance")
+
+# Make a plot for its legend
+legend_plot <- preds %>%
+  mutate(Pred.Naive = Pred * shrub_sd + shrub_mean) %>%
+  ggplot() +
+  geom_line(aes(x = Pred.Naive, y = exp(Beta0.mean + Beta.Shrub.mean * Pred), color = lngd_lbl), linewidth = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(Beta0.lb + Beta.Shrub.lb * Pred),
+                  ymax = exp(Beta0.ub + Beta.Shrub.ub * Pred), fill = lngd_lbl), alpha = 0.2) +
+  labs(x = "Shrub cover",
+       y = paste0(species_name, "s per km^2")) +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, max_birds)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 16),
+        legend.key.size = unit(1, "cm")) +
+  scale_x_continuous(labels = function(x) paste0(x, "%")) +
+  scale_color_manual(values = setNames(c("navyblue"), lngd_lbl)) +
+  scale_fill_manual(values = setNames(c("navyblue"), lngd_lbl))
+
+# Pull out the legend
+legend <- ggpubr::get_legend(legend_plot)
+
+# Create a title
+plot_title <- textGrob(species_name, 
+                       gp = gpar(fontsize = 20, fontface = "bold"))
+
+
+# Combine the three predictive plots
+comb_hab_pred_plots <- grid.arrange(shrub_pred_plot, pfg_pred_plot, tri_pred_plot,
+                                nrow = 1, ncol = 3)
+
+# Add the legend
+comb_hab_pred_plots_lgnd <- grid.arrange(plot_title, 
+                                     comb_hab_pred_plots, 
+                                     legend,
+                                     nrow = 3, 
+                                     heights = c(0.1, 0.8, 0.1))
+
+# View the co,bined plots
+# comb_pred_plots_lgnd
+
+# Save the plot as a png
+ggsave(plot = comb_hab_pred_plots_lgnd,
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\habitat_pred_plot_",
+                         plot_species, ".png"),
+       width = 300,
+       height = 150,
+       units = "mm",
+       dpi = 300)
+
+} # End plotting loop over all species (Comment this out) ----
 
 # 4.3) Plot groups of species together #######################################
 

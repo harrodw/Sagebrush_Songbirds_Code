@@ -27,17 +27,18 @@ rm(list = ls())
 all_species <- c(
   "BRSP",
   "SATH",
+  "SABS",
   "VESP",
   "WEME",
   "HOLA"
 )
 
 # Loop over all species
-for(s in 1:length(all_species)){ # (Comment this out) ----
+# for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-model_species <- all_species[s]
-# model_species <- all_species[3]
+# model_species <- all_species[s]
+model_species <- all_species[3]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -107,11 +108,7 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
                                Burned == 0 & High.Elevation == 2 ~ 2,
                                Burned == 1 & High.Elevation == 1 ~ 3,
                                Burned == 1 & High.Elevation == 2 ~ 4,
-                               TRUE ~ NA)) %>% 
-  # Make a unique column for whether or not each grid was in each of the treatments
-  mutate(High.Reference = case_when(Treatment == 2 ~ 1, TRUE ~ 0),
-         Low.Burned = case_when(Treatment == 3 ~ 1, TRUE ~ 0),
-         High.Burned = case_when(Treatment == 4 ~ 1, TRUE ~ 0)) 
+                               TRUE ~ NA))
   
 
 #...and view
@@ -345,7 +342,7 @@ sobs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k])   # ZIP true abundance at site j during visit k
+      N_indv[j, k] ~ dpois(lambda[j, k] * area[j, k])    # ZIP true abundance at site j during visit k
       
       # Availability (phi) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                       # Intercept on availability
@@ -654,6 +651,7 @@ rm(list = ls())
 library(tidyverse)
 library(gridExtra)
 library(ggpubr)
+library(grid)
 
 # Add the counts back in (Just using them for the dates so it doesn't matter which species, I like Brewer's Sparrow)
 sobs_counts_temp <- read.csv(paste0("Data/Outputs/BRSP_Grid_Counts.csv")) %>%
@@ -745,8 +743,8 @@ plot(legend)
 
 # List of Species to plot 
 all_plot_species <- c(
-  "BRSP",
   "SATH",
+  "BRSP",
   "VESP",
   "WEME",
   "HOLA"
@@ -786,10 +784,8 @@ beta0_ref_high <- fire_mcmc_out$summary$all.chains[19,]
 beta0_burn_low <- fire_mcmc_out$summary$all.chains[20,]
 beta0_burn_high <- fire_mcmc_out$summary$all.chains[21,]
 # Fire Year
-beta_fyear_low <- fire_mcmc_out$summary$all.chains[23,]
-beta_fyear_high <- fire_mcmc_out$summary$all.chains[24,]
-# Burn Sevarity
-beta_burnsev <- fire_mcmc_out$summary$all.chains[22,]
+beta_fyear_low <- fire_mcmc_out$summary$all.chains[22,]
+beta_fyear_high <- fire_mcmc_out$summary$all.chains[23,]
 
 # View Betas
 bind_rows(beta0_ref_low,
@@ -842,64 +838,27 @@ beta_dat_pred <- beta_dat_long %>%
 # View the new data 
 glimpse(beta_dat_pred)
 
-# Parameter estimate plot -------------------------------------------------------------------------
+# Maximum of based on low ref
+max_low_ref <- exp(beta0_ref_low[5])
+# Maximum of based on high ref
+max_high_ref <- exp(beta0_ref_high[5])
+# Maximum of based on low burns
+max_low_burn <- exp(beta0_burn_low[5])
+# Maximum of based on high burns
+max_high_burn <- exp(beta0_burn_high[5])
+# Maximum of based on low time since fire
+min_low_fyear <- exp(beta0_burn_low[5] + beta_fyear_low[5]*-2)
+max_low_fyear <- exp(beta0_burn_low[5]+ beta_fyear_low[5]*2)
+# Maximum of based on high time since fire
+min_high_fyear <- exp(beta0_burn_high[5] + beta_fyear_high[5]*-2)
+max_high_fyear <- exp(beta0_burn_high[5]+ beta_fyear_high[5]*2)
 
-# Create the plot
-params_plot <- beta_dat %>% 
-  # Rename Parameters
-  mutate(Parameter = case_when(Parameter == "beta0.ref.low" ~ "Reference Below 1800m",
-                               Parameter == "beta0.ref.high" ~ "Reference Above 1800m",
-                               Parameter == "beta0.burn.low" ~ "Burned Below 1800m",
-                               Parameter == "beta0.burn.high" ~ "Burned Above 1800m",
-                               Parameter == "beta.fyear.low" ~ "Years Since Fire  Below 1800m",
-                               Parameter == "beta.fyear.high" ~ "Years Since Fire Above 1800m"),
-         # Add a New column for whether or not the CRI crosses Zero
-         Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ "No",
-                                        CRI.lb * CRI.ub > 0 ~ "Yes"), 
-                              levels = c("No", "Yes"))) %>% 
-  # Switch to a factor 
-  mutate(Parameter = factor(Parameter, levels = c("Reference Below 1800m", "Reference Above 1800m",
-                                                  "Burned Below 1800m","Burned Above 1800m",
-                                                  "Years Since Fire  Below 1800m", "Years Since Fire Above 1800m"))) %>% 
-  # Open the plot
-  ggplot(aes(y = Parameter)) +
-  # Add points at the mean values for each parameters
-  geom_point(aes(x = Mean, color = Significant), shape = 15, size = 4) +
-  # Add whiskers for 95% Bayesian Credible intervals
-  geom_linerange(aes(xmin = CRI.lb, xmax = CRI.ub, color = Significant), linewidth = 1.5) +
-  # Add a vertical Line at zero
-  geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
-  # Change the Labels
-  labs(x = "Parameter Estimate", y = "", title = species_name) + 
-  # Simple theme
-  theme_classic() +
-  # Custom colors
-  scale_color_manual(values = c("No" = "lightsteelblue4", 
-                                "Yes" = "navyblue")) +
-  # Edit theme
-  theme(legend.position = "none",
-        plot.title = element_text(size = 20),
-        axis.text.y = element_text(size = 16),
-        axis.title.x = element_text(size = 16),
-        axis.text.x = element_text(size = 16)) 
-
-
-# View the plot
-params_plot
-
-# Save the plot as a png
-ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                       plot_species, "_params.png"),
-       width = 200,
-       height = 120,
-       units = "mm",
-       dpi = 300)
-
-# save the plot as an RDS
-saveRDS(object = params_plot,
-        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                      plot_species, "_params.rds"))
+# Maximum number of possible birds for that species
+max_birds <- max(c(max_low_ref, max_high_ref,
+                   max_low_burn, max_high_burn,
+                   min_low_fyear, max_low_fyear,
+                   min_high_fyear, max_high_fyear 
+                 ))
 
 
 # Burn verses Reference at different Elevations Plot-----------------------------------------------------------
@@ -931,7 +890,7 @@ treatment_pred_plot <- beta_dat %>%
   labs(x = "Grid Type", 
        y = paste0(species_name, "s per km^2")) +
   theme_classic() +
-  scale_y_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, max_birds)) +
   theme(
     plot.title = element_text(size = 22, hjust = 0.4),
     axis.title.y = element_text(size = 16),
@@ -954,11 +913,11 @@ treatment_pred_plot
 #        height = 120,
 #        units = "mm",
 #        dpi = 300)
-# 
-# # save the plot as an RDS
-saveRDS(object = treatment_pred_plot,
-        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                      plot_species, "_treatment.rds"))
+
+# # # save the plot as an RDS
+# saveRDS(object = treatment_pred_plot,
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                       plot_species, "_treatment.rds"))
 
 # Years since fire plot -------------------------------------------------------
 
@@ -1021,7 +980,7 @@ fyear_pred_plot <- beta_dat_pred %>%
   labs(x = "Years Since Fire", 
        y = paste0(species_name, "s per km^2")) +
   theme_classic() +
-  scale_y_continuous(limits = c(0, NA)) +
+  scale_y_continuous(limits = c(0, max_birds)) +
   theme(
     axis.title.x = element_text(size = 16),
     # axis.title.y = element_text(size = 16),
@@ -1043,11 +1002,11 @@ fyear_pred_plot
 #        height = 120,
 #        units = "mm",
 #        dpi = 300)
-# 
-# save the plot as an RDS
-saveRDS(object = fyear_pred_plot,
-        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                      plot_species, "_fyear.rds"))
+
+# # save the plot as an RDS
+# saveRDS(object = fyear_pred_plot,
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                       plot_species, "_fyear.rds"))
 
 # Plot all parameters -------------------------------------------------------------------------
 
@@ -1055,13 +1014,21 @@ saveRDS(object = fyear_pred_plot,
 full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot, fyear_pred_plot,
                                nrow = 1, ncol = 2)
 
+# Create a title
+plot_title <- textGrob(species_name, 
+                       gp = gpar(fontsize = 20, fontface = "bold"))
+
+
 # Add the legend
-full_fire_elv_pred_plot_legend <- grid.arrange(full_fire_elv_pred_plot, legend,
-                                      nrow = 2, heights = c(0.9, 0.1))
+full_fire_elv_pred_plot_legend <- grid.arrange(plot_title, 
+                                               full_fire_elv_pred_plot, 
+                                               legend,
+                                               nrow = 3, 
+                                               heights = c(0.1, 0.8, 0.1))
 
 # Save the plot as a png
 ggsave(plot = full_fire_elv_pred_plot_legend,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\full_pred._",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
                          plot_species, ".png"),
        width = 300,
        height = 150,
@@ -1072,50 +1039,50 @@ ggsave(plot = full_fire_elv_pred_plot_legend,
 
 # 4.3) Plot groups of species together #######################################
 
-# Sagebrush species plots ---------------------------------------------------------------------------------------------
-
-# Read in the sagebrush obligate parameter plots
-sath_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                               "SATH", "_params.rds"))
-brsp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                               "BRSP", "_params.rds"))
-sabs_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                               "SABS", "_params.rds"))
-
-
-# Plot the sagebrush parameter estimate plots together
-sage_species_params <- grid.arrange(sath_param_plot, brsp_param_plot, sabs_param_plot,
-                                   nrow = 1, ncol = 3)
-
-# Save the plot as a png
-ggsave(plot = sage_species_params,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
-                         "sage_species", "_params.png"),
-       width = 500,
-       height = 150,
-       units = "mm",
-       dpi = 300)
-
-# Grassland species plots ---------------------------------------------------------------------------------------------
-
-# Read in the grassland assoicated species plots
-vesp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                  "VESP", "_params.rds"))
-weme_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                  "WEME", "_params.rds"))
-hola_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-                                  "HOLA", "_params.rds"))
-
-# Plot the grassland parameter estimate plots together
-grass_species_params <- grid.arrange(vesp_param_plot, weme_param_plot, hola_param_plot,
-                                     nrow = 1, ncol = 3)
-
-# Save the plot as a png
-ggsave(plot = grass_species_params,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
-                         "grass_species", "_params.png"),
-       width = 500,
-       height = 150,
-       units = "mm",
-       dpi = 300)
+# # Sagebrush species plots ---------------------------------------------------------------------------------------------
+# 
+# # Read in the sagebrush obligate parameter plots
+# sath_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                "SATH", "_params.rds"))
+# brsp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                "BRSP", "_params.rds"))
+# sabs_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                "SABS", "_params.rds"))
+# 
+# 
+# # Plot the sagebrush parameter estimate plots together
+# sage_species_params <- grid.arrange(sath_param_plot, brsp_param_plot, sabs_param_plot,
+#                                    nrow = 1, ncol = 3)
+# 
+# # Save the plot as a png
+# ggsave(plot = sage_species_params,
+#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
+#                          "sage_species", "_params.png"),
+#        width = 500,
+#        height = 150,
+#        units = "mm",
+#        dpi = 300)
+# 
+# # Grassland species plots ---------------------------------------------------------------------------------------------
+# 
+# # Read in the grassland assoicated species plots
+# vesp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                   "VESP", "_params.rds"))
+# weme_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                   "WEME", "_params.rds"))
+# hola_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                                   "HOLA", "_params.rds"))
+# 
+# # Plot the grassland parameter estimate plots together
+# grass_species_params <- grid.arrange(vesp_param_plot, weme_param_plot, hola_param_plot,
+#                                      nrow = 1, ncol = 3)
+# 
+# # Save the plot as a png
+# ggsave(plot = grass_species_params,
+#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
+#                          "grass_species", "_params.png"),
+#        width = 500,
+#        height = 150,
+#        units = "mm",
+#        dpi = 300)
 

@@ -243,10 +243,10 @@ sabs_model_code <- nimbleCode({
     beta0_treatment[l] ~ dnorm(0, sd = 3)
   } # End loop over treatments
   
-  # Occupancy probability by grid type (Burned x Elevation) for zero inflation
-  for(l in 1:ntrts){
-    psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
-  } # end loop over treatments
+  # # Occupancy probability by grid type (Burned x Elevation) for zero inflation
+  # for(l in 1:ntrts){
+  #   psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
+  # } # end loop over treatments
 
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -257,8 +257,8 @@ sabs_model_code <- nimbleCode({
     # Iterate over all of the visits to each survey grid 
     for(k in 1:nvst){ 
       
-      # Whether or not individuals are present at each visit to each site (Zero-Inflation)
-      present[j, k] ~ dbern(psi_trt[trts[j]])      
+      # # Whether or not individuals are present at each visit to each site (Zero-Inflation)
+      # present[j, k] ~ dbern(psi_trt[trts[j]])      
       
       ### Imperfect availability portion of the model ###
       
@@ -291,8 +291,9 @@ sabs_model_code <- nimbleCode({
       n_avail[j, k] ~ dbin(p_a[j, k], N_indv[j, k]) 
       
       # Poisson abundance portion of mixture
-      N_indv[j, k] ~ dpois(lambda[j, k] * (present[j, k] + 0.0001) * area[j, k])   # ZIP true abundance at site s in year y
-        
+      N_indv[j, k] ~ dpois(lambda[j, k] *  area[j, k])   # ZIP true abundance at site s in year y
+      # (present[j, k] + 0.0001) *  
+      
       # Availability (avail) Logit-linear model for availability
       logit(phi[j, k]) <- gamma0 +                        # Intercept on availability
                           gamma_date * day[j, k] +        # Effect of scaled ordinal date
@@ -427,8 +428,8 @@ sabs_inits <- list(
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
   # Presence 
-  psi_trt = runif(ntrts, 0.4, 0.6),
-  present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst),
+  # psi_trt = runif(ntrts, 0.4, 0.6),
+  # present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst),
   # Simulated counts
   n_dct_new = count_mat,
   N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
@@ -444,7 +445,7 @@ sabs_params <- c(
                  "fit_pa",          # Fit statistic for first availability data
                  "fit_pa_new",      # Fit statisitc for simulated avaiability data
                  "beta0_treatment", # Mean abundance by grid type
-                 "psi_trt",         # Occupanci probability by grid type    
+                 # "psi_trt",         # Occupanci probability by grid type    
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
@@ -496,13 +497,13 @@ sabs_mcmcConf$addSampler(target = c(
   "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
   ), type = 'RW_block')
 
-# Block all occupancy (psi) nodes together
-sabs_mcmcConf$removeSamplers(
-  "psi_trt[1]", "psi[2]_trt", "psi_trt[3]", "psi_trt[4]"
-)
-sabs_mcmcConf$addSampler(target = c(
-  "psi_trt[1]", "psi[2]_trt", "psi_trt[3]", "psi_trt[4]"
-), type = 'RW_block')
+# # Block all occupancy (psi) nodes together
+# sabs_mcmcConf$removeSamplers(
+#   "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
+# )
+# sabs_mcmcConf$addSampler(target = c(
+#   "psi_trt[1]", "psi_trt[2]", "psi_trt[3]", "psi_trt[4]"
+# ), type = 'RW_block')
 
 # View the blocks
 sabs_mcmcConf$printSamplers() # print samplers being used 
@@ -560,7 +561,7 @@ MCMCtrace(object = sabs_mcmc_out$samples,
           open_pdf = TRUE,
           ind = TRUE,
           n.eff = TRUE,
-          wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
+          wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
           filename = "SABS_fire_model_traceplot",
           type = 'both')
 
@@ -601,7 +602,7 @@ beta0_burn_high <- sabs_mcmc_out$summary$all.chains[5,]
 
 # Treatment ocupancy intercepts
 psi_ref_low <- sabs_mcmc_out$summary$all.chains[,] 
-psi_ref_high <- sabs_mcmc_out$summary$all.chains[],]
+psi_ref_high <- sabs_mcmc_out$summary$all.chains[,]
 psi_burn_low <- sabs_mcmc_out$summary$all.chains[,]
 psi_burn_high <- sabs_mcmc_out$summary$all.chains[,]
 
