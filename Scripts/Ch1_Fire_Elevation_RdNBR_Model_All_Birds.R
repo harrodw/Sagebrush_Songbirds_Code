@@ -25,8 +25,8 @@ rm(list = ls())
 
 # List of Species 
 all_species <- c(
-  "BRSP",
   "SATH",
+  "BRSP",
   "SABS",
   "VESP",
   "WEME",
@@ -34,11 +34,11 @@ all_species <- c(
 )
 
 # Loop over all species
-# for(s in 1:length(all_species)){ # (Comment this out) ----
+for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-# model_species <- all_species[s]
-model_species <- all_species[3]
+model_species <- all_species[s]
+# model_species <- all_species[2]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -249,7 +249,7 @@ grids <- sobs_counts$Grid.ID.num[1:ngrids]                 # Grid where each sur
 elevation <- sobs_counts$High.Elevation[1:ngrids]          # Whether each grid is high (>= 1900m) or low (< 1900m) elevation
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 fyear <- fyear_mat                                         # How long since the most recent fire in each grid
-burn_sev <- sobs_counts$rdnbr.scl[1:ngrids]                # Burn severity from the most recent fire
+rdnbr <- sobs_counts$rdnbr.scl[1:ngrids]                   # Burn severity from the most recent fire
 trts <- sobs_counts$Treatment[1:ngrids]                    # Grid type (Elevation x burned)
 
 #########################################################################################################
@@ -292,6 +292,9 @@ sobs_model_code <- nimbleCode({
   for(e in 1:nelv){ # nelv = 2 (high and low elevation)
     beta_fyear[e] ~ dnorm(0, sd = 1.5)
   } # End loop over burned elevations
+  
+  # Effect of burn severity
+  beta_rdnbr ~ dnorm(0, sd = 1.5)
   
   # # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
@@ -357,6 +360,7 @@ sobs_model_code <- nimbleCode({
       # Abundance (lambda) Log-linear model 
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
+                           beta_rdnbr * rdnbr[j] * burned[j] +                  # Effect of burn severity 
                            eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
       # -------------------------------------------------------------------------------------------------------------------
@@ -441,6 +445,7 @@ sobs_dat <- list(
   # Abundance level
   n_dct = n_dct,               # Number of detected individuals per site
   fyear = fyear,               # How long since the most recent fire in each grid
+  rdnbr = rdnbr,               # rdnbr burn severity
   burned = burned              # Whether or not each grid burned
 )
 # View Nimble data 
@@ -483,6 +488,7 @@ sobs_inits <- list(
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1), # Intercept by grid type
   beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
+  beta_rdnbr = rnorm(1, 0, 0.1),          # Effect of burn severity
   sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
   eps_year = rep(0, nyears),              # Random noise on abundance by year
   # Simulated counts
@@ -502,6 +508,7 @@ sobs_params <- c(
   "fit_pa_new",      # Fit statisitc for simulated avaiability data
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
+  "beta_rdnbr",      # Effect of burn sevarity 
   "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
@@ -555,6 +562,8 @@ sobs_mcmcConf$removeSamplers(
   "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
+  # Effect of burn severity
+  "beta_rdnbr",
   # Random noise by year
   "eps_year[2]", "eps_year[3]"
   )
@@ -563,6 +572,8 @@ sobs_mcmcConf$addSampler(target = c(
   "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
   # Effect of time since fire by elevation
   "beta_fyear[1]", "beta_fyear[2]",
+  # Effect of burn severity
+  "beta_rdnbr",
   # Random noise by year
   "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
@@ -602,7 +613,7 @@ difftime(Sys.time(), start)               # End time for the sampler
 
 # Save model output to local drive
 saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                     model_species, "_fire_elevation_model.rds"))
+                                     model_species, "_fire_elevation_rdnbr_model.rds"))
 
 ################################################################################
 # 3) Model output and diagnostics ##############################################
@@ -612,7 +623,7 @@ saveRDS(fire_mcmc_out, file = paste0("C://Users//willh//Box//Will_Harrod_MS_Proj
 
 # Load the output back in
 fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//", 
-                                       model_species, "_fire_elevation_model.rds"))
+                                       model_species, "_fire_elevation_rdnbr_model.rds"))
   
  # Traceplots and density graphs 
 MCMCtrace(object = fire_mcmc_out$samples,
@@ -622,7 +633,7 @@ MCMCtrace(object = fire_mcmc_out$samples,
           ind = TRUE,
           n.eff = TRUE,
           wd = "C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files",
-          filename = paste0(model_species, "_fire_elevation_model_traceplot"),
+          filename = paste0(model_species, "_fire_elevation_rdnbr_model_traceplot"),
           type = 'both')
 
 # View MCMC summary
@@ -636,7 +647,7 @@ MCMCplot(object = fire_mcmc_out$samples,
          guide_lines = TRUE,
          params = sobs_params)
 
-# } # End modeling loop (Comment this out) ----
+} # End modeling loop (Comment this out) ----
 
 #####################################################################################
 # 4) Posterior Inference ############################################################

@@ -863,7 +863,7 @@ sage_sp_prefire_params
 ggsave(plot = sage_sp_prefire_params,
        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\pre_fire_",
                          "sage_species", "_params.png"),
-       width = 500,
+       width = 333,
        height = 150,
        units = "mm",
        dpi = 300)
@@ -893,54 +893,3 @@ ggsave(plot = grass_sp_prefire_params,
        height = 150,
        units = "mm",
        dpi = 300)
-
-
-# Plot of reference grids by SOBs abundance and annual cover -----------------------------------------------------------------
-
-# Add in the full dataset
-full_dat <-  tibble(read.csv("Data\\Outputs\\sobs_data.csv")) %>% 
-  dplyr::select(-X) #Remove the column that excel generated
-#and view the data
-glimpse(full_dat)
-
-# Add the current covariates
-covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
-  dplyr::select(-X) %>%
-  tibble()
-
-# List of species we care about
-important_species <- c("BRSP", "GTTO", "VESP", "WEME")
-
-# Group the data to pull out counts
-sobs_dat1 <- full_dat %>% 
-  filter(Species %in% important_species) %>% 
-  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  group_by(Grid.ID, Visit.ID, Species) %>% 
-  reframe(Grid.ID, Visit.ID, Species, Count = n()) %>% 
-  distinct() %>% 
-  left_join(covs, by = "Grid.ID")
-# View
-glimpse(sobs_dat1)
-
-# Make a table of all possible species visit combinations so we get the zero counts
-visit_count <- full_dat %>% 
-  mutate(Visit.ID = paste(Year, Visit, sep = "-")) %>% 
-  filter(Species %in% important_species) %>% 
-  expand(nesting(Grid.ID, Visit.ID), Species) %>% 
-  group_by(Grid.ID, Species, Visit.ID) %>% 
-  reframe(Grid.ID, Species, Visit.ID) %>% 
-  distinct()
-
-# Make sure all of the grids are included
-sobs_dat <- visit_count %>% 
-  left_join(sobs_dat1, by = c("Grid.ID", "Visit.ID", "Species")) %>% 
-  mutate(Count = replace_na(Count, 0))
-
-# Arrange by counts
-sobs_dat %>% 
-  ggplot() +
-  geom_smooth(aes(x = Annual.Cover.125m, y = Count),
-              method = "glm",
-              method.args = list(family = "quasipoisson")) +
-  geom_point(aes(x = Annual.Cover.125m, y = Count)) +
-  facet_wrap(~Species)

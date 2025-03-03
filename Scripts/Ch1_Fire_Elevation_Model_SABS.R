@@ -1,6 +1,6 @@
 #----------------------------------------------------------------
 # Will Harrod
-# Hierarchical distance sampling for sagebrush songbird point count data
+# Hierarchical distance sampling for sagebrush sparrow point count data
 # Simplified script for sagebrush sparrow to account for few detections
 # September 2024
 #
@@ -383,10 +383,10 @@ sabs_dat <- list(
   time = time,             # Scaled mean time after sunrise
   day = day,               # Scaled date
   # Simulated counts
-  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
-  n_dct_new = count_mat,                  # Simulated detected birds 
-  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
-  N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
+  n_avail = count_mat,     # Number of available birds 
+  n_dct_new = count_mat,   # Simulated detected birds 
+  n_avail_new = count_mat, # Simulated available birds 
+  N_indv = count_mat + 1   # "True" abundance (helps to start each grid with an individual present)
 )
 # View Nimble data 
 str(sabs_dat)
@@ -428,8 +428,6 @@ sabs_inits <- list(
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
   # Presence 
-  # psi_trt = runif(ntrts, 0.4, 0.6),
-  # present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst),
   # Simulated counts
   n_dct_new = count_mat,
   N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
@@ -654,70 +652,6 @@ glimpse(beta_dat_pred)
 
 # 4.3) Plot each predicted value ###########################################
 
-# Parameter estimates -----------------------------------------------------------------------------------------------
-
-# Create the plot
-params_plot <- beta_dat %>% 
-  # Rename Parameters
-  mutate(Parameter = case_when(Parameter == "beta0.ref.low" ~ "Reference Below 1800m",
-                               Parameter == "beta0.ref.high" ~ "Reference Above 1800m",
-                               Parameter == "beta0.burn.low" ~ "Burned Below 1800m",
-                               Parameter == "beta0.burn.high" ~ "Burned Above 1800m",
-                               Parameter == "beta.fyear.low" ~ "Years Since Fire  Below 1800m",
-                               Parameter == "beta.fyear.high" ~ "Years Since Fire Above 1800m",
-                               Parameter == "beta.burnsev" ~ "RdNBR Burn Sevarity",
-                               Parameter == "beta.south" ~ "Proportion South-Facing Slopes"),
-         # Add a New column for whether or not the CRI crosses Zero
-         Significant = factor(case_when(CRI.lb * CRI.ub <= 0 ~ "No",
-                                        CRI.lb * CRI.ub > 0 ~ "Yes"), 
-                              levels = c("No", "Yes"))) %>% 
-  # Switch to a factor 
-  mutate(Parameter = factor(Parameter, levels = c("Reference Below 1800m", "Reference Above 1800m",
-                                                  "Burned Below 1800m","Burned Above 1800m",
-                                                  "Years Since Fire  Below 1800m", "Years Since Fire Above 1800m",
-                                                  "RdNBR Burn Sevarity", "Proportion South-Facing Slopes"))) %>% 
-  # Open the plot
-  ggplot(aes(y = Parameter)) +
-  # Add points at the mean values for each parameters
-  geom_point(aes(x = Mean, color = Significant), shape = 15, size = 4) +
-  # Add whiskers for 95% Bayesian Credible intervals
-  geom_linerange(aes(xmin = CRI.lb, xmax = CRI.ub, color = Significant), linewidth = 1.5) +
-  # Add a vertical Line at zero
-  geom_vline(xintercept = 0, linetype = "dashed", linewidth = 1) +
-  # Zoom Out
-  # coord_cartesian(xlim = c(-1.5, 4.5)) +
-  # Change the Labels
-  labs(x = "Parameter Estimate", y = "", title = species_name) + 
-  # Simple theme
-  theme_classic() +
-  # Custom colors
-  scale_color_manual(values = c("No" = "lightsteelblue4", 
-                                "Yes" = "navyblue")) +
-  # Edit theme
-  theme(legend.position = "none",
-        plot.title = element_text(size = 20, hjust = 0.5),
-        axis.text.y = element_text(size = 16),
-        axis.title.y = element_blank(),
-        axis.title.x = element_text(size = 16),
-        axis.text.x = element_text(size = 16)) 
-
-
-# View the plot
-params_plot
-
-# Save the plot as a png
-ggsave(plot = params_plot,
-       paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_params.png"),
-       width = 200,
-       height = 120,
-       units = "mm",
-       dpi = 300)
-
-# save the plot as an RDS
-saveRDS(object = params_plot, 
-        file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_params.rds"))
-
-
 # Burn verses Reference at different Elevations  --------------------------------------------------------------------
 
 # Create the plot
@@ -725,8 +659,8 @@ treatment_pred_plot <- beta_dat %>%
   # Only relevant levels
   filter(Parameter %in% c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high")) %>% 
   # Reorder 'Parameter' factor levels to match the desired color order
-   mutate(Parameter = factor(Parameter, 
-                            levels = c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high"))) %>% 
+  mutate(Parameter = factor(Parameter, 
+                            levels = c("beta0.ref.low", "beta0.burn.low", "beta0.ref.high", "beta0.burn.high"))) %>% 
   ggplot() +
   geom_boxplot(aes(x = Parameter, y = exp(Mean), color = Parameter), 
                width = 0.45, size = 0.8) +
@@ -755,9 +689,11 @@ treatment_pred_plot <- beta_dat %>%
     axis.text.x = element_blank(),
     legend.text = element_text(size = 16),
     plot.title = element_text(size = 20, hjust = 0.5),
-    legend.position = "none",
-    legend.title = element_text(size = 16)
-  )
+    legend.position = "bottom",
+    legend.title = element_text(size = 16),
+    legend.key.size = unit(1, "cm")) +
+  # 2x2 legend
+  guides(fill = guide_legend(nrow = 2), color = guide_legend(nrow = 2))
 
 # Display the plot
 treatment_pred_plot
