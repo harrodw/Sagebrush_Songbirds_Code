@@ -27,7 +27,7 @@ rm(list = ls())
 all_species <- c(
   "SATH",
   "BRSP",
-  "SABS",
+  # "SABS",
   "VESP",
   "WEME",
   "HOLA"
@@ -38,7 +38,7 @@ for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
 model_species <- all_species[s]
-# model_species <- all_species[2]
+# model_species <- all_species[3]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -100,41 +100,51 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
   # Remove columns that are no longer needed
   dplyr::select(-Grid.Type) %>% 
   # Make a binary column for whether or not a grid is high elevation
-  mutate(High.Elevation = case_when(Elevation.125m < 1800 ~ 1,
-                                    Elevation.125m >= 1800 ~ 2,
-                                    TRUE ~ NA)) %>% 
+  mutate(High.Elevation = case_when(Elevation < 1800 ~ 1,
+                                    Elevation >= 1800 ~ 2,
+                                    TRUE ~ NA),
+         # Binaary column for sagebrush type / R&R (1 = Wyoming or Basin, 2 = Mountain)
+         Sage.Type = case_when(Sage.Type %in% c(1, 3) ~ 1,
+                               Sage.Type == 2 ~ 2,
+                               TRUE ~ Sage.Type)) %>% 
   # Make a treatment column (elevation x burned)
-  mutate(Treatment = case_when(Burned == 0 & High.Elevation == 1 ~ 1,
+  mutate(Elv.Treatment = case_when(Burned == 0 & High.Elevation == 1 ~ 1,
                                Burned == 0 & High.Elevation == 2 ~ 2,
                                Burned == 1 & High.Elevation == 1 ~ 3,
                                Burned == 1 & High.Elevation == 2 ~ 4,
-                               TRUE ~ NA))
+                               TRUE ~ NA),
+         # Same thing but instead based on sagebrush type
+         Sage.Treatment = case_when(Sage.Type == 1 & Burned == 0 ~ 1,
+                                    Sage.Type == 2 & Burned == 0 ~ 2,
+                                    Sage.Type == 1 & Burned == 1 ~ 3,
+                                    Sage.Type == 2 & Burned == 1 ~ 4,
+                                    TRUE ~ NA))
   
 
 #...and view
-# glimpse(sobs_counts_temp2)
+glimpse(sobs_counts_temp2)
 
 # Isolate the burned Grids as their own object so I can accurately scale them
 fire_stats <- sobs_counts_temp2 %>% 
   filter(Burned == 1) %>% 
-  distinct(Grid.ID, Years.Since.Fire, ln.Years.Since.Fire, rdnbr.125m) 
+  distinct(Grid.ID, Years.Since.Fire, ln.Years.Since.Fire, rdnbr) 
 # View
 # glimpse(fire_stats)
 
 # Find the mean and standard deviation of the "real" burns
 mean_fyear <- mean(fire_stats$Years.Since.Fire)
 sd_fyear <- sd(fire_stats$Years.Since.Fire)
-mean_rdnbr <- mean(fire_stats$rdnbr.125m)
-sd_rdnbr <- sd(fire_stats$rdnbr.125m)
+mean_rdnbr <- mean(fire_stats$rdnbr)
+sd_rdnbr <- sd(fire_stats$rdnbr)
 
 # Scale each covariate
 sobs_counts <- sobs_counts_temp2 %>% 
   mutate(Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1],
          Years.Since.Fire.scl = (Years.Since.Fire - mean_fyear) / sd_fyear,
-         rdnbr.scl = (rdnbr.125m - mean_rdnbr) / sd_rdnbr)
+         rdnbr.scl = (rdnbr - mean_rdnbr) / sd_rdnbr)
 # View
-# glimpse(sobs_counts)
+glimpse(sobs_counts)
 
 # 1.3) Prepare the observation level data ################################################################
 
@@ -169,15 +179,20 @@ glimpse(sobs_counts)
 # View observations
 glimpse(sobs_observations)
 
-# Plot speciess counts against a covariate
-sobs_counts %>% 
-  filter(Burned == 1) %>% 
-ggplot(aes(x = Years.Since.Fire, y = Count, color = factor(Treatment))) +
-geom_jitter() +
-  geom_smooth( 
-              method = "glm", 
-              method.args = list(family = "quasipoisson"),
-              se = TRUE) 
+# Plot species counts against a covariate
+# sobs_counts %>% 
+#   filter(Burned == 1) %>% 
+# ggplot(aes(x = Years.Since.Fire, y = Count, color = factor(Sage.Treatment))) +
+# geom_jitter() +
+#   geom_smooth( 
+#               method = "glm", 
+#               method.args = list(family = "quasipoisson"),
+#               se = TRUE) 
+
+# Plots by treatment group
+# sobs_counts %>% 
+#   ggplot() +
+#   geom_boxplot(aes(x = factor(Sage.Treatment), y = Count))
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -247,10 +262,11 @@ n_dct <- count_mat                                         # Matrix of the numbe
 years <- year_mat                                          # Matrix of year numbers
 grids <- sobs_counts$Grid.ID.num[1:ngrids]                 # Grid where each survey took place
 elevation <- sobs_counts$High.Elevation[1:ngrids]          # Whether each grid is high (>= 1900m) or low (< 1900m) elevation
+sage_type <- sobs_counts$Sage.Type[1:ngrids]               # Wyoming big sage (1) vs mountain big sage (2)
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 fyear <- fyear_mat                                         # How long since the most recent fire in each grid
 rdnbr <- sobs_counts$rdnbr.scl[1:ngrids]                   # Burn severity from the most recent fire
-trts <- sobs_counts$Treatment[1:ngrids]                    # Grid type (Elevation x burned)
+trts <- sobs_counts$Sage.Treatment[1:ngrids]               # Grid type (Elevation x burned)
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -374,7 +390,7 @@ sobs_model_code <- nimbleCode({
       
       # Chi square statisitc for the detection portion of the model
       e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
-      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
+      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detentions from the same binomial
       Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
       Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
       
@@ -688,7 +704,7 @@ fire_stats <- sobs_counts_temp %>%
                                  Year == "Y3" ~ 2024 - Fire.Year)) %>% 
   # Isolate the burned Grids as their own object so I can accurately scale them
   filter(Burned == 1) %>% 
-  distinct(Grid.ID, Years.Since.Fire, rdnbr.125m) 
+  distinct(Grid.ID, Years.Since.Fire, rdnbr) 
 
 # View
 glimpse(fire_stats)
@@ -696,16 +712,16 @@ glimpse(fire_stats)
 # Find the mean and standard deviation of the "real" burns
 mean_fyear <- mean(fire_stats$Years.Since.Fire)
 sd_fyear <- sd(fire_stats$Years.Since.Fire)
-mean_rdnbr <- mean(fire_stats$rdnbr.125m)
-sd_rdnbr <- sd(fire_stats$rdnbr.125m)
+mean_rdnbr <- mean(fire_stats$rdnbr)
+sd_rdnbr <- sd(fire_stats$rdnbr)
 
 # 4.2) Graph each species response to fire ###############################################################
 
 # List of Species to plot 
 all_plot_species <- c(
   "SATH",
-  "BRSP",
-  "VESP",
+  # "BRSP",
+  # "VESP",
   "WEME",
   "HOLA"
 )
@@ -715,7 +731,7 @@ for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
 plot_species <- all_plot_species[s]
-# plot_species <- all_plot_species[1]
+# plot_species <- all_plot_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -731,7 +747,7 @@ species_name
 
 # Load the output back in
 fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
-                                       plot_species, "_fire_elevation_model.rds"))
+                                       plot_species, "_fire_elevation_rdnbr_model.rds"))
 
 # View MCMC summary
 fire_mcmc_out$summary$all.chains
@@ -746,6 +762,8 @@ beta0_burn_high <- fire_mcmc_out$summary$all.chains[21,]
 # Fire Year
 beta_fyear_low <- fire_mcmc_out$summary$all.chains[22,]
 beta_fyear_high <- fire_mcmc_out$summary$all.chains[23,]
+# Burn severity
+beta_rdnbr <- fire_mcmc_out$summary$all.chains[24,]
 
 # View Betas
 bind_rows(beta0_ref_low,
@@ -753,18 +771,20 @@ bind_rows(beta0_ref_low,
           beta0_burn_low,
           beta0_burn_high,
           beta_fyear_low,
-          beta_fyear_high)
+          beta_fyear_high,
+          beta_rdnbr)
 
-# Combine everything into a dataframe
+# Combine everything into a data frame
 beta_dat <- data.frame(bind_rows(beta0_ref_low,
                                  beta0_ref_high,
                                  beta0_burn_low,
                                  beta0_burn_high,
                                  beta_fyear_low,
-                                 beta_fyear_high
+                                 beta_fyear_high,
+                                 beta_rdnbr
                                  )) %>% 
   mutate(Parameter = c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high",
-                       "beta.fyear.low", "beta.fyear.high"
+                       "beta.fyear.low", "beta.fyear.high", "beta.rdnbr"
                        )) %>% 
   relocate(Parameter, .before = Mean) %>% 
   rename(CRI.lb = X95.CI_low,
@@ -796,30 +816,42 @@ beta_dat_pred <- beta_dat_long %>%
   mutate(Pred = seq(from = -2, to = 2, length.out = n))
 
 # View the new data 
-# glimpse(beta_dat_pred)
+glimpse(beta_dat_pred)
 
-# Maximum of based on low ref
+# Maximum  based on low ref
 max_low_ref <- exp(beta0_ref_low[5])
-# Maximum of based on high ref
+# Maximum based on high ref
 max_high_ref <- exp(beta0_ref_high[5])
-# Maximum of based on low burns
+# Maximum based on low burns
 max_low_burn <- exp(beta0_burn_low[5])
-# Maximum of based on high burns
+# Maximum based on high burns
 max_high_burn <- exp(beta0_burn_high[5])
-# Maximum of based on low time since fire
+# Maximum based on low time since fire
 min_low_fyear <- exp(beta0_burn_low[5] + beta_fyear_low[5]*-2)
 max_low_fyear <- exp(beta0_burn_low[5]+ beta_fyear_low[5]*2)
-# Maximum of based on high time since fire
+# Maximum based on high time since fire
 min_high_fyear <- exp(beta0_burn_high[5] + beta_fyear_high[5]*-2)
 max_high_fyear <- exp(beta0_burn_high[5]+ beta_fyear_high[5]*2)
+# Maximum based on burn severity at low elevation
+min_low_rdnbr <- exp(beta0_burn_low[5] + beta_rdnbr[5]*-2)
+max_low_rdnbr <- exp(beta0_burn_low[5]+ beta_rdnbr[5]*2)
+# Maximum based on burn severity at high elevation
+min_high_rdnbr <- exp(beta0_burn_high[5] + beta_rdnbr[5]*-2)
+max_high_rdnbr <- exp(beta0_burn_high[5]+ beta_rdnbr[5]*2)
 
-# Maximum number of possible birds for that species
+# Maximum number of possible birds for that species based on the model
 max_birds <- max(c(max_low_ref, max_high_ref,
                    max_low_burn, max_high_burn,
                    min_low_fyear, max_low_fyear,
-                   min_high_fyear, max_high_fyear 
-                 ))
+                   min_high_fyear, max_high_fyear,
+                   min_low_rdnbr, max_low_rdnbr,
+                   min_high_rdnbr, max_high_rdnbr
+                   ))
+# Or manually (Comment this out)
+# max_birds <- 120
 
+# See how many birds are possible
+max_birds
 
 # Burn verses Reference at different Elevations Plot-----------------------------------------------------------
 
@@ -848,22 +880,23 @@ treatment_pred_plot <- beta_dat %>%
                                 ),
                      name = "") +
   labs(x = "Grid Type", 
-       y = paste0(species_name, "s per km^2")) +
+       y = paste0(species_name, "s per km", "\u00B2"),
+       title = "(A)") +
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    plot.title = element_text(size = 22, hjust = 0.4),
+    plot.title = element_text(size = 20),
     axis.title.y = element_text(size = 16),
     axis.text.y = element_text(size = 16),
     axis.title.x = element_text(size = 16),
-    axis.text.x = element_blank(),
+    axis.text.x = element_text(size = 16, color = "#00000000"),
     legend.text = element_text(size = 16),
     legend.position = "none", 
     legend.title = element_text(size = 16)
   )
 
 # Display the plot
-# treatment_pred_plot
+treatment_pred_plot
 
 # # Save the plot as a png
 # ggsave(plot = treatment_pred_plot,
@@ -902,23 +935,23 @@ fyear_pred_plot <- beta_dat_pred %>%
   filter(Pred.Naive >= min_fyear$Years.Since.Fire[1] & 
          Pred.Naive <= max_fyear$Years.Since.Fire[1]) %>%
   ggplot() +
-  # Low elevation reference
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
-                color = "Low Elevation Reference"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.low.CRI.lb), 
-                  ymax = exp(beta0.ref.low.CRI.ub), 
-                  fill = "Low Elevation Reference"), alpha = 0.2) +
-  # High elevation reference
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.high.Mean), 
-                color = "High Elevation Reference"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.high.CRI.lb), 
-                  ymax = exp(beta0.ref.high.CRI.ub), 
-                  fill = "High Elevation Reference"), alpha = 0.2) +
+  # # Low elevation reference
+  # geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
+  #               color = "Low Elevation Reference"), linewidth = 1) +
+  # geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.low.CRI.lb), 
+  #                 ymax = exp(beta0.ref.low.CRI.ub), 
+  #                 fill = "Low Elevation Reference"), alpha = 0.2) +
+  # # High elevation reference
+  # geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.high.Mean), 
+  #               color = "High Elevation Reference"), linewidth = 1) +
+  # geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.high.CRI.lb), 
+  #                 ymax = exp(beta0.ref.high.CRI.ub), 
+  #                 fill = "High Elevation Reference"), alpha = 0.2) +
   # Low elevation time since fire
-  geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.low.Mean + beta.fyear.low.Mean * Pred), 
+  geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.low.Mean + beta.fyear.low.Mean * Pred),
                 color = "Low Elevation Burn"), linewidth = 1) +
-  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.burn.low.CRI.lb + beta.fyear.low.CRI.lb * Pred), 
-                  ymax = exp(beta0.burn.low.CRI.ub + beta.fyear.low.CRI.ub * Pred), 
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.burn.low.CRI.lb + beta.fyear.low.CRI.lb * Pred),
+                  ymax = exp(beta0.burn.low.CRI.ub + beta.fyear.low.CRI.ub * Pred),
                   fill = "Low Elevation Burn"), alpha = 0.2) +
   # High elevation time since fire
   geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.high.Mean + beta.fyear.high.Mean * Pred), 
@@ -938,12 +971,14 @@ fyear_pred_plot <- beta_dat_pred %>%
                                "High Elevation Burn" = "orange2"),
                     name = "") +
   labs(x = "Years Since Fire", 
-       y = paste0(species_name, "s per km^2")) +
+       y = paste0(species_name, "s per km^2"),
+       title = "(B)") +
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
     axis.title.x = element_text(size = 16),
     # axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 20),
     axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
@@ -952,7 +987,7 @@ fyear_pred_plot <- beta_dat_pred %>%
   )
 
 # Display the plot as a png
-# fyear_pred_plot
+fyear_pred_plot
 
 # # Save the plot
 # ggsave(plot = fyear_pred_plot,
@@ -967,6 +1002,84 @@ fyear_pred_plot <- beta_dat_pred %>%
 # saveRDS(object = fyear_pred_plot,
 #         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
 #                       plot_species, "_fyear.rds"))
+
+
+# burn severity plot -------------------------------------------------------
+
+# Plot predicted responce to time since fire
+rdnbr_pred_plot <- beta_dat_pred %>% 
+  mutate(Pred.Naive = Pred * sd_rdnbr + mean_rdnbr) %>% 
+  # Only show up to where I have data so I am not making forcasts
+  filter(Pred.Naive >= 0 & 
+         Pred.Naive <= max(fire_stats$rdnbr)) %>%
+  ggplot() +
+  # # Low elevation reference
+  # geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
+  #               color = "Low Elevation Reference"), linewidth = 1) +
+  # geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.low.CRI.lb), 
+  #                 ymax = exp(beta0.ref.low.CRI.ub), 
+  #                 fill = "Low Elevation Reference"), alpha = 0.2) +
+  # # High elevation reference
+  # geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.high.Mean), 
+  #               color = "High Elevation Reference"), linewidth = 1) +
+  # geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.ref.high.CRI.lb), 
+  #                 ymax = exp(beta0.ref.high.CRI.ub), 
+  #                 fill = "High Elevation Reference"), alpha = 0.2) +
+  # Low elevation time since fire
+  geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.low.Mean + beta.rdnbr.Mean * Pred), 
+                color = "Low Elevation Burn"), linewidth = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.burn.low.CRI.lb + beta.rdnbr.CRI.lb * Pred), 
+                  ymax = exp(beta0.burn.low.CRI.ub + beta.rdnbr.CRI.ub * Pred), 
+                  fill = "Low Elevation Burn"), alpha = 0.2) +
+  # High elevation time since fire
+  geom_line(aes(x = Pred.Naive, y = exp(beta0.burn.high.Mean + beta.rdnbr.Mean * Pred), 
+                color = "High Elevation Burn"), linewidth = 1) +
+  geom_ribbon(aes(x = Pred.Naive, ymin = exp(beta0.burn.high.CRI.lb + beta.rdnbr.CRI.lb * Pred), 
+                  ymax = exp(beta0.burn.high.CRI.ub + beta.rdnbr.CRI.ub * Pred), 
+                  fill = "High Elevation Burn"), alpha = 0.2) +
+  # Customize scales and labels
+  scale_color_manual(values = c("Low Elevation Reference" = "mediumseagreen",
+                                "High Elevation Reference" = "darkslategray4",
+                                "Low Elevation Burn" = "red3",
+                                "High Elevation Burn" = "orange2"),
+                     name = "") +
+  scale_fill_manual(values = c("Low Elevation Reference" = "mediumseagreen",
+                               "High Elevation Reference" = "darkslategray4",
+                               "Low Elevation Burn" = "red3",
+                               "High Elevation Burn" = "orange2"),
+                    name = "") +
+  labs(x = "RdNBR Burn Severity", 
+       y = paste0(species_name, "s per km^2"),
+       title = "(C)") +
+  theme_classic() +
+  scale_y_continuous(limits = c(0, max_birds)) +
+  theme(
+    axis.title.x = element_text(size = 16),
+    # axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 20),
+    axis.title.y = element_blank(),
+    axis.text = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "none",
+    legend.title = element_text(size = 16)
+  )
+
+# Display the plot as a png
+rdnbr_pred_plot
+
+# # Save the plot
+# ggsave(plot = rdnbr_pred_plot,
+#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                          plot_species, "_rdnbr.png"),
+#        width = 200,
+#        height = 120,
+#        units = "mm",
+#        dpi = 300)
+
+# # save the plot as an RDS
+# saveRDS(object = rdnbr_pred_plot,
+#         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+#                       plot_species, "_rdnbr.rds"))
 
 # Plot all parameters -------------------------------------------------------------------------
 
@@ -1005,8 +1118,10 @@ legend_plot <- beta_dat %>%
 legend <- ggpubr::get_legend(legend_plot)
 
 # Combine all three plots 
-full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot, fyear_pred_plot,
-                               nrow = 1, ncol = 2)
+full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot, 
+                                        fyear_pred_plot,
+                                        rdnbr_pred_plot,
+                               nrow = 1, ncol = 3)
 
 # Create a title
 plot_title <- textGrob(species_name, 
@@ -1022,61 +1137,12 @@ full_fire_elv_pred_plot_legend <- grid.arrange(plot_title,
 
 # Save the plot as a png
 ggsave(plot = full_fire_elv_pred_plot_legend,
-       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
+       filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_rdnbr_pred_",
                          plot_species, ".png"),
-       width = 250,
+       width = 300,
        height = 175,
        units = "mm",
        dpi = 300)
 
 } # End plotting loop over all species (Comment this out) ----
-
-# 4.3) Plot groups of species together #######################################
-
-# # Sagebrush species plots ---------------------------------------------------------------------------------------------
-# 
-# # Read in the sagebrush obligate parameter plots
-# sath_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                                "SATH", "_params.rds"))
-# brsp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                                "BRSP", "_params.rds"))
-# sabs_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                                "SABS", "_params.rds"))
-# 
-# 
-# # Plot the sagebrush parameter estimate plots together
-# sage_species_params <- grid.arrange(sath_param_plot, brsp_param_plot, sabs_param_plot,
-#                                    nrow = 1, ncol = 3)
-# 
-# # Save the plot as a png
-# ggsave(plot = sage_species_params,
-#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
-#                          "sage_species", "_params.png"),
-#        width = 500,
-#        height = 150,
-#        units = "mm",
-#        dpi = 300)
-# 
-# # Grassland species plots ---------------------------------------------------------------------------------------------
-# 
-# # Read in the grassland assoicated species plots
-# vesp_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                                   "VESP", "_params.rds"))
-# weme_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                                   "WEME", "_params.rds"))
-# hola_param_plot <- readRDS(paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_",
-#                                   "HOLA", "_params.rds"))
-# 
-# # Plot the grassland parameter estimate plots together
-# grass_species_params <- grid.arrange(vesp_param_plot, weme_param_plot, hola_param_plot,
-#                                      nrow = 1, ncol = 3)
-# 
-# # Save the plot as a png
-# ggsave(plot = grass_species_params,
-#        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_",
-#                          "grass_species", "_params.png"),
-#        width = 500,
-#        height = 150,
-#        units = "mm",
-#        dpi = 300)
 

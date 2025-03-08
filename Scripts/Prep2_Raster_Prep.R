@@ -195,6 +195,31 @@ south_rast <- classify(aspect_hill, south_mat, include.lowest = TRUE)
 south_rast
 plot(south_rast)
 
+# 2.5) Sagebrush classes ################################################################################
+
+# add the raster
+sage_type <- rast(paste0(ras_path, "sage_classes.tif"))
+
+# View the values
+table(values(sage_type))
+
+# Matrix for reclassifying sagebrush type into 3 categories
+sage_mat <- matrix(c(-129, 0, NA, # NA's   
+                      0, 1, 1,    # Wyoming sage
+                      1, 2, 2,    # Mountain sage
+                      2, 4, 3,    # Other sagebrush or greesewood
+                      4, 5, 4,    # PJ woodland
+                      5, 76, NA), #  Accidentally missed in the initial reclassification
+                    ncol = 3, 
+                    byrow = TRUE) 
+
+# Reclassify
+sage_recl <- classify(sage_type, sage_mat, include.lowest = FALSE)
+
+# View the reclassified raster
+sage_recl
+terra::plot(sage_recl)
+
 # 3.0) Export rasters #####################################################################################
 
 # Path to export rasters
@@ -212,3 +237,4 @@ writeRaster(elevation_prj, paste0(ras_path, "elevation.tif"), overwrite = TRUE)
 writeRaster(tri, paste0(ras_path, "tri.tif"), overwrite = TRUE)
 writeRaster(aspect_recl, paste0(ras_path, "aspect.tif"), overwrite = TRUE)
 writeRaster(south_rast, paste0(ras_path, "south_facing.tif"), overwrite = TRUE)
+writeRaster(sage_recl, paste0(ras_path, "sage_RnR.tif"), overwrite = TRUE)

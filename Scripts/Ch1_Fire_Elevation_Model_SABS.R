@@ -137,6 +137,11 @@ glimpse(sabs_counts)
 # View observations
 glimpse(sabs_observations)
 
+sabs_counts %>% 
+  select(Grid.ID, Visit.ID, Count) %>% 
+  arrange(-Count) %>% 
+  print(n = Inf)
+
 # 1.4) prepare objects for NIMBLE ################################################################
 
 # Define a truncation distance (km)
@@ -598,11 +603,6 @@ beta0_ref_high <- sabs_mcmc_out$summary$all.chains[3,]
 beta0_burn_low <- sabs_mcmc_out$summary$all.chains[4,]
 beta0_burn_high <- sabs_mcmc_out$summary$all.chains[5,]
 
-# Treatment ocupancy intercepts
-psi_ref_low <- sabs_mcmc_out$summary$all.chains[,] 
-psi_ref_high <- sabs_mcmc_out$summary$all.chains[,]
-psi_burn_low <- sabs_mcmc_out$summary$all.chains[,]
-psi_burn_high <- sabs_mcmc_out$summary$all.chains[,]
 
 # View Betas
 bind_rows(beta0_ref_low,
@@ -673,13 +673,14 @@ treatment_pred_plot <- beta_dat %>%
                                 "beta0.burn.high" = "orange2"),
                      labels = c(
                                 "Low Elevation Reference",
-                                "High Elevation Reference",
                                 "Low Elevation Burn",
+                                "High Elevation Reference",
                                 "High Elevation Burn"
                                 ),
                      name = "") +
   labs(x = "Grid Type", 
-       y = paste0(species_name, "s per km^2")) +
+       y = paste0(species_name, "s per km", "\u00B2"),
+       title = "Sagebrush Sparrow") +
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(
@@ -687,8 +688,8 @@ treatment_pred_plot <- beta_dat %>%
     axis.text.y = element_text(size = 16),
     axis.title.x = element_text(size = 16),
     axis.text.x = element_blank(),
-    legend.text = element_text(size = 16),
-    plot.title = element_text(size = 20, hjust = 0.5),
+    legend.text = element_text(size = 15),
+    plot.title = element_text(size = 20, hjust = 0.5, face = "bold"),
     legend.position = "bottom",
     legend.title = element_text(size = 16),
     legend.key.size = unit(1, "cm")) +
@@ -701,8 +702,8 @@ treatment_pred_plot
 # Save the plot as a png
 ggsave(plot = treatment_pred_plot,
        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.png"),
-       width = 200,
-       height = 120,
+       width = 160,
+       height = 175,
        units = "mm",
        dpi = 300)
 

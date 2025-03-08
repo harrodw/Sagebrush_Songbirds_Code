@@ -36,11 +36,11 @@ all_species <- c(
 )
 
 # Loop over all species
-for(s in 1:length(all_species)){ # (Comment this out) ----
+# for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-model_species <- all_species[s]
-# model_species <- all_species[2]
+# model_species <- all_species[s]
+model_species <- all_species[2]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -166,7 +166,7 @@ glimpse(sobs_observations)
 # Select variables for the model
 sobs_cor <- sobs_counts %>%
   filter(Burned == 1) %>%
-  select(Shrub.Cover.scl, PFG.Cover.scl, AFG.Cover.scl, BG.Cover.scl, TRI.scl) %>%
+  select(Shrub.Cover.scl, PFG.Cover.scl, AFG.Cover.scl, BG.Cover.scl, TRI.scl, Elevation.125m) %>%
   distinct() %>%
   cor()
 
@@ -737,7 +737,7 @@ for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
 plot_species <- all_plot_species[s]
-# plot_species <- all_plot_species[3]
+# plot_species <- all_plot_species[4]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -885,10 +885,16 @@ max_pfg <- exp(beta0[5] + beta_pfg[5]*2)
 min_tri <- exp(beta0[5] + beta_tri[4]*-2)
 max_tri <- exp(beta0[5] + beta_tri[5]*2)
 
-# Maximum number of possible birds for that species
+# Maximum number of possible birds for that species based on the model
 max_birds <- max(c(min_shrub, max_shrub,
                    min_pfg, max_pfg,
                    min_tri, max_tri))
+
+# Or manually (Comment this out)
+# max_birds <- 80
+
+# Show the maximum possible birds
+max_birds
 
 # Shrub cover predictive plot --------------------------------------------------------------------------
 shrub_pred_plot <- preds %>% 
@@ -903,13 +909,15 @@ shrub_pred_plot <- preds %>%
               fill = "navyblue", alpha = 0.2) +
   # Labels
   labs(x = "Shrub cover", 
-       y = paste0(species_name, "s per km^2")) +
+       y = paste0(species_name, "s per km^2"),
+       title = "(A)") +
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
     axis.title.x = element_text(size = 16),
     axis.title.y = element_text(size = 16),
     # axis.title.y = element_blank(),
+    plot.title = element_text(size = 20),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
     legend.position = "none",
@@ -934,12 +942,14 @@ pfg_pred_plot <- preds %>%
               fill = "navyblue", alpha = 0.2) +
   # Labels
   labs(x = "Perennial cover", 
-       y = paste0(species_name, "s per km^2")) +
+       y = paste0(species_name, "s per km^2"),
+       title = "(B)") +
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
     axis.title.x = element_text(size = 16),
     # axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 20),
     axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
@@ -967,12 +977,14 @@ tri_pred_plot <- preds %>%
               fill = "navyblue", alpha = 0.2) +
   # Labels
   labs(x = "Topographic Ruggedness", 
-       y = paste0(species_name, "s per km^2")) +
+       y = paste0(species_name, "s per km^2"),
+       title = "(C)") +
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
     axis.title.x = element_text(size = 16),
     # axis.title.y = element_text(size = 16),
+    plot.title = element_text(size = 20),
     axis.title.y = element_blank(),
     axis.text = element_text(size = 16),
     legend.text = element_text(size = 16),
@@ -1015,7 +1027,10 @@ plot_title <- textGrob(species_name,
 
 
 # Combine the three predictive plots
-comb_hab_pred_plots <- grid.arrange(shrub_pred_plot, pfg_pred_plot, tri_pred_plot,
+comb_hab_pred_plots <- grid.arrange(
+                                    shrub_pred_plot,
+                                    pfg_pred_plot,
+                                    tri_pred_plot,
                                 nrow = 1, ncol = 3)
 
 # Add the legend
