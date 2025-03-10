@@ -301,14 +301,23 @@ burn_covs <- covs %>%
                                     Elevation.125m < 1800 ~ 0),
          # Years since fire
          Years.Since.Fire = 2023 - Fire.Year) %>% 
+  # Binary old or recent fire (above or below the mean)
+  mutate(Fire.Age = case_when(Years.Since.Fire >= 15 ~ "Old",
+                              Years.Since.Fire < 15 ~ "Recent")) %>% 
   # Don't need all the columns
-  select(Grid.ID, Shrub.Cover.125m, Perennial.Cover.125m, 
-         Years.Since.Fire, rdnbr.125m, High.Elevation) %>% 
+  select(Grid.ID, Shrub.Cover.125m, Perennial.Cover.125m, Fire.Age,
+         Years.Since.Fire, rdnbr.125m, High.Elevation, Elevation.125m) %>% 
   rename(Shrub.Cover = Shrub.Cover.125m,
          PFG.Cover = Perennial.Cover.125m,
          rdnbr = rdnbr.125m)
 # View
 glimpse(burn_covs)
+
+burn_covs %>% 
+  select(Grid.ID, rdnbr, Years.Since.Fire, High.Elevation, Elevation.125m) %>% 
+  arrange(High.Elevation, Years.Since.Fire) %>% 
+  print(n = Inf)
+
 
 ##############################################################################################################
 # 2.3) Vegetation cover by grid type #########################################################################
@@ -364,16 +373,15 @@ shrub_trt_plot <- covs %>%
     legend.position = "none", 
     legend.title = element_blank()
   ) +
-  ylim(0, 50) +
   # Add the R squared
   annotate(geom = "text",
-           x = 3.5, 
-           y = 45, 
-           label = paste("R-Squared ", shrub_burn_model_r_sq),
+           x = 1.2,
+           y = 45,
+           label = paste0("R", "\u00B2", " = ", shrub_burn_model_r_sq), 
            color = "black",
-           size = 5) +
+           size = 6) +
   # Add percent symbols
-  scale_y_continuous(labels = function(x) paste0(x, "%"))
+  scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
 # View the plot
 shrub_trt_plot
@@ -386,6 +394,7 @@ pfg_burn_model <- covs %>%
                                            Grid.Type == "R" & Elevation.125m >= 1800 ~ 2,
                                            Grid.Type == "B" & Elevation.125m < 1800 ~ 3,
                                            Grid.Type == "B" & Elevation.125m >= 1800 ~ 4))) %>% 
+  filter(Burn.Elevation %in% c(2, 4)) %>% 
   lm(formula = Perennial.Cover.125m ~ Burn.Elevation)
 
 # View model summary
@@ -428,16 +437,15 @@ pfg_trt_plot <- covs %>%
     legend.position = "none", 
     legend.title = element_blank()
   ) +
-  ylim(0, 50) +
   # Add the R squared
   annotate(geom = "text",
-           x = 3.5, 
-           y = 45, 
-           label = paste("R-Squared ", pfg_burn_model_r_sq),
+           x = 1.2,
+           y = 45,
+           label = paste0("R", "\u00B2", " = ", shrub_burn_model_r_sq), 
            color = "black",
-           size = 5) +
+           size = 6) +
   # Add percent symbols
-  scale_y_continuous(labels = function(x) paste0(x, "%"))
+  scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
 # View the plot
 pfg_trt_plot
@@ -455,6 +463,7 @@ trt_leg_plot <-  covs %>%
   ggplot() +
   geom_boxplot(aes(x = Burn.Elevation, y = Perennial.Cover.125m, fill = Burn.Elevation, color = Burn.Elevation)) +
   theme_classic() +
+  ylim(0, 50) +
   labs(x = "", y = "Perennial Cover", title = "Perennial Cover") +
   # Manually adjust colors
   scale_color_manual(values = c("Reference Below 1800m" = "mediumseagreen",
@@ -489,10 +498,11 @@ both_trt_plots_legend <- grid.arrange(both_trt_plots, trt_legend,
 # Save the plot
 ggsave(plot = both_trt_plots_legend,
        file = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\treatment_veg_plot.png",
-       width = 250,
+       width = 275,
        height = 150,
        units = "mm",
        dpi = 300)
+
 #############################################################################################################
 # 2.4) Vegetation cover by time since fire ##################################################################
 #############################################################################################################
@@ -518,11 +528,11 @@ fyear_shrub_model_high <- burn_covs %>%
   lm(formula = Shrub.Cover ~ Years.Since.Fire)
 
 # View time since fire model output
-sum_rndbr_shrub_high <- summary(fyear_shrub_model_high)
-sum_rndbr_shrub_high
+sum_fyear_shrub_high <- summary(fyear_shrub_model_high)
+  sum_fyear_shrub_high
 
 # Pull out the r squared
-r_sq_fyear_shrub_high <- round(sum_rndbr_shrub_high$r.squared, 3)
+r_sq_fyear_shrub_high <- round(sum_fyear_shrub_high$r.squared, 3)
 r_sq_fyear_shrub_high
 
 # Plot shrub cover against time since fire
@@ -553,128 +563,17 @@ fyear_shrub_plot <- burn_covs %>%
     legend.title = element_blank(),
     legend.key.size = unit(1, "cm")
   ) +
-  ylim(0, 50) +
   # Add the R squared
-  annotate(geom="text", x = 6.8, y = 49, label = paste("low-elv R^2 =", r_sq_fyear_shrub_low),
-           color = "black", size = 4.3) +
-  annotate(geom = "text", x = 7, y = 46, label = paste("high-elv R^2 =", r_sq_fyear_shrub_high),
-           color="black", size = 4.3) +
+  annotate(geom="text", x = 7, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_fyear_shrub_low),
+           color = "black", size = 6) +
+  annotate(geom = "text", x = 7, y = 46, label = paste0("R", "\u00B2", " = ", r_sq_fyear_shrub_high),
+           color="black", size = 6) +
   # Add percent symbols
-  scale_y_continuous(labels = function(x) paste0(x, "%"))
+  scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
 # View the plot
 fyear_shrub_plot
 
-# # Burn Severity R-squared ###############################################################################
-# 
-# # Model shrub cover by burn Severity at low elevations
-# rdnbr_shrub_model_low <- burn_covs %>%
-#   filter(High.Elevation == 0) %>%
-#   lm(formula = Shrub.Cover ~ rdnbr)
-# 
-# # View burn Severity model output
-# sum_rndbr_shrub_low <- summary(rdnbr_shrub_model_low)
-# sum_rndbr_shrub_low
-# 
-# # Pull out the r squared
-# r_sq_rdnbr_shrub_low <- round(sum_rndbr_shrub_low$r.squared, 3)
-# r_sq_rdnbr_shrub_low
-# 
-# # Model shrub cover by burn Severity at high elevations
-# rdnbr_shrub_model_high <- burn_covs %>%
-#   filter(High.Elevation == 1) %>% 
-#   lm(formula = Shrub.Cover ~ rdnbr)
-# 
-# # View burn Severity model output
-# sum_rndbr_shrub_high <- summary(rdnbr_shrub_model_high)
-# sum_rndbr_shrub_high
-# 
-# # Pull out the r squared
-# r_sq_rdnbr_shrub_high <- round(sum_rndbr_shrub_high$r.squared, 3)
-# r_sq_rdnbr_shrub_high
-# 
-# # Plot shrub cover against burn Severity
-# rdnbr_shrub_plot <- burn_covs %>% 
-#   mutate(Elevation = factor(case_when(High.Elevation == 1 ~ "Above 1800m",
-#                                       High.Elevation == 0 ~ "Below 1800m"))) %>% 
-#   ggplot(aes(x = rdnbr., y = Shrub.Cover, col = Elevation, fill = Elevation)) +
-#   geom_smooth(method = "lm") +
-#   geom_jitter() +
-#   theme_classic() +
-#   # Customize scales and labels
-#   scale_color_manual(values = c("Above 1800m" = "orange2",
-#                                 "Below 1800m" =  "red3")) +
-#   scale_fill_manual(values = c("Above 1800m" = "orange2",
-#                                "Below 1800m" =  "red3")) +
-#   labs(x = "RdNBR Burn Severity",
-#        y = "Shrub Cover",
-#        title = "(C)") +
-#   # Customize text
-#   theme(
-#     plot.title = element_text(size = 20),
-#     axis.title.y = element_text(size = 14),
-#     axis.text.y = element_text(size = 16),
-#     axis.title.x = element_text(size = 14),
-#     axis.text.x = element_text(size = 16),
-#     legend.text = element_text(size = 16),
-#     legend.position = "none", 
-#     legend.title = element_blank()
-#   ) +
-#   ylim(0, 50) +
-#   # Add the R squared
-#   annotate(geom="text", x = 730, y = 49, label = paste("low-elv R^2 =", r_sq_rdnbr_shrub_low),
-#            color = "black", size = 4.3) +
-#   annotate(geom = "text", x = 740, y = 43, label = paste("high-elv R^2 =", r_sq_rdnbr_shrub_high),
-#            color="black", size = 4.3) +
-#   # Add percent symbols
-#   scale_y_continuous(labels = function(x) paste0(x, "%"))
-# 
-# # View the plot
-# rdnbr_shrub_plot
-
-# Combine the plots --------------------------------------------------------------------------
-
-# # Plot for a template legend
-# legend_plot <- burn_covs %>% 
-#   mutate(Elevation = factor(case_when(High.Elevation == 1 ~ "Above 1800m",
-#                                       High.Elevation == 0 ~ "Below 1800m"))) %>% 
-#   ggplot(aes(x = rdnbr, y = Shrub.Cover, col = Elevation, fill = Elevation)) +
-#   geom_smooth(method = "lm") +
-#   geom_jitter() +
-#   theme_classic() +
-#   # Customize scales and labels
-#   scale_color_manual(values = c("Above 1800m" = "orange2",
-#                                 "Below 1800m" =  "red3")) +
-#   scale_fill_manual(values = c("Above 1800m" = "orange2",
-#                                "Below 1800m" =  "red3")) +
-#   theme(
-#     plot.title = element_text(size = 20),
-#     axis.title.y = element_text(size = 14),
-#     axis.text.y = element_text(size = 16),
-#     axis.title.x = element_text(size = 14),
-#     axis.text.x = element_text(size = 16),
-#     legend.text = element_text(size = 16),
-#     legend.position = "bottom", 
-#     legend.title = element_blank())
-# 
-# # Extract the legend
-# legend <- ggpubr::get_legend(legend_plot)
-
-# # Combine the plots
-# both_shrub_plots <- grid.arrange(fyear_shrub_plot, rdnbr_shrub_plot,
-#                                  nrow = 1, ncol = 2)
-# 
-# # Add the legend
-# both_shrub_plots_legend <- grid.arrange(both_shrub_plots, legend,
-#                                         nrow = 2, heights = c(0.9, 0.1))
-# 
-# # Save the plot
-# ggsave(plot = both_shrub_plots_legend,
-#        file = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\shrub_cvr_r_sq_plot.png",
-#        width = 300,
-#        height = 120,
-#        units = "mm",
-#        dpi = 300)
 
 # Time since fire perennial cover R-squared ##########################################################################
 
@@ -731,89 +630,21 @@ fyear_pfg_plot <- burn_covs %>%
     legend.position = "none", 
     legend.title = element_blank()
   ) +
-  ylim(0, 50) +
   # Add the R squared
-  annotate(geom = "text", x = 19.9, y = 49, label = paste("low-elv R^2 =", r_sq_fyear_pfg_low),
-           color = "black", size = 4.3) +
-  annotate(geom = "text", x = 20, y = 46, label = paste("high-elv R^2 =", r_sq_fyear_pfg_high),
-           color = "black", size = 4.3) +
+  annotate(geom="text", x = 7, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_fyear_pfg_low),
+           color = "black", size = 6) +
+  annotate(geom = "text", x = 7, y = 46, label = paste0("R", "\u00B2", " = ", r_sq_fyear_pfg_high),
+           color="black", size = 6) +
   # Add percent symbols
-  scale_y_continuous(labels = function(x) paste0(x, "%"))
+  scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
 # View the plot
 fyear_pfg_plot
 
-# # Burn Severity R-squared ###############################################################################
-# 
-# # Model pfg cover by burn Severity at low elevations
-# rdnbr_pfg_model_low <- burn_covs %>%
-#   filter(High.Elevation == 0) %>%
-#   lm(formula = PFG.Cover ~ rdnbr)
-# 
-# # View burn Severity model output
-# sum_rndbr_pfg_low <- summary(rdnbr_pfg_model_low)
-# sum_rndbr_pfg_low
-# 
-# # Pull out the r squared
-# r_sq_rdnbr_pfg_low <- round(sum_rndbr_pfg_low$r.squared, 3)
-# r_sq_rdnbr_pfg_low
-# 
-# # Model pfg cover by burn Severity at high elevations
-# rdnbr_pfg_model_high <- burn_covs %>%
-#   filter(High.Elevation == 1) %>% 
-#   lm(formula = PFG.Cover ~ rdnbr)
-# 
-# # View burn Severity model output
-# sum_rndbr_pfg_high <- summary(rdnbr_pfg_model_high)
-# sum_rndbr_pfg_high
-# 
-# # Pull out the r squared
-# r_sq_rdnbr_pfg_high <- round(sum_rndbr_pfg_high$r.squared, 3)
-# r_sq_rdnbr_pfg_high
-# 
-# # Plot pfg cover against burn Severity
-# rdnbr_pfg_plot <- burn_covs %>% 
-#   mutate(Elevation = factor(case_when(High.Elevation == 1 ~ "Above 1800m",
-#                                       High.Elevation == 0 ~ "Below 1800m"))) %>% 
-#   ggplot(aes(x = rdnbr, y = PFG.Cover, col = Elevation, fill = Elevation)) +
-#   geom_smooth(method = "lm") +
-#   geom_jitter() +
-#   theme_classic() +
-#   # Customize scales and labels
-#   scale_color_manual(values = c("Above 1800m" = "orange2",
-#                                 "Below 1800m" =  "red3")) +
-#   scale_fill_manual(values = c("Above 1800m" = "orange2",
-#                                "Below 1800m" =  "red3")) +
-#   labs(x = "RdNBR Burn Severity",
-#        y = "Perennial Cover",
-#        title = "(D)") +
-#   # Customize text
-#   theme(
-#     plot.title = element_text(size = 20),
-#     axis.title.y = element_text(size = 14),
-#     axis.text.y = element_text(size = 16),
-#     axis.title.x = element_text(size = 14),
-#     axis.text.x = element_text(size = 16),
-#     legend.text = element_text(size = 16),
-#     legend.position = "none", 
-#     legend.title = element_blank()
-#   ) +
-#   ylim(0, 50) +
-#   # Add the R squared
-#   annotate(geom="text", x = 2050, y = 49, label = paste("low-elv R^2 =", r_sq_rdnbr_pfg_low),
-#            color = "black", size = 4.3) +
-#   annotate(geom = "text", x = 2070, y = 45, label = paste("high-elv R^2 =", r_sq_rdnbr_pfg_high),
-#            color="black", size = 4.3) +
-#   # Add percent symbols
-#   scale_y_continuous(labels = function(x) paste0(x, "%"))
-# 
-# # View the plot
-# rdnbr_pfg_plot
-
-# Combine the plots --------------------------------------------------------------------------
+# Combine both time since fire plots ############################################################
 
 # Plot for a template legend
-legend_plot <- burn_dat_model %>% 
+legend_plot <- burn_covs %>% 
   mutate(Elevation = factor(case_when(High.Elevation == 1 ~ "Above 1800m",
                                       High.Elevation == 0 ~ "Below 1800m"))) %>% 
   ggplot(aes(x = rdnbr, y = PFG.Cover, col = Elevation, fill = Elevation)) +
@@ -833,24 +664,19 @@ legend_plot <- burn_dat_model %>%
     axis.text.x = element_text(size = 16),
     legend.text = element_text(size = 16),
     legend.position = "bottom", 
-    legend.title = element_blank())
+    legend.title = element_blank(),
+    legend.key.size = unit(1, "cm"))
 
 # Extract the legend
 legend <- ggpubr::get_legend(legend_plot)
 
-
-# Combine both time since fire plots ############################################################
-
-# Arrange plots in a 2x2 grid
+# Arrange plots in a grid
 combined_cont_veg_plots <- plot_grid(
   fyear_shrub_plot, fyear_pfg_plot,
-  # rdnbr_shrub_plot, rdnbr_pfg_plot,
   nrow = 1, ncol = 2, align = "hv"
 )
 combined_cont_veg_plots
 
-# Display the final plot
-cont_veg_plots_labs
 
 # # Add the legend
 two_cont_plots_legend <- grid.arrange(combined_cont_veg_plots, legend,
@@ -859,7 +685,143 @@ two_cont_plots_legend <- grid.arrange(combined_cont_veg_plots, legend,
 # # Save the plot
 ggsave(plot = two_cont_plots_legend,
        file = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\veg_r_sq_plots_fyear.png",
-       width = 250,
+       width = 275,
+       height = 150,
+       units = "mm",
+       dpi = 300)
+
+# Model shrub cover by burn severity #############################################################################
+
+# Model shrub cover by burn Severity 
+rdnbr_shrub_model<- burn_covs %>%
+  lm(formula = Shrub.Cover ~ rdnbr)
+
+# View burn Severity model output
+sum_rndbr_shrub <- summary(rdnbr_shrub_model)
+sum_rndbr_shrub
+
+# Pull out the r squared
+r_sq_rdnbr_shrub <- round(sum_rndbr_shrub$r.squared, 3)
+r_sq_rdnbr_shrub
+
+# Plot shrub cover against burn Severity
+rdnbr_shrub_plot <- burn_covs %>%
+  mutate(Elevation = factor(case_when(High.Elevation == 1 ~ "Above 1800m",
+                                      High.Elevation == 0 ~ "Below 1800m"))) %>% 
+  ggplot(aes(x = rdnbr, y = Shrub.Cover)) +
+  geom_smooth(col = "orangered2", fill = "orangered2", method = "lm") +
+  geom_jitter(col = "orangered2") +
+  theme_classic() +
+  labs(x = "RdNBR Burn Severity",
+       y = "Shrub Cover",
+       title = "(A) Shrub Cover") +
+  # Customize text
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.y = element_text(size = 14),
+    axis.text.y = element_text(size = 16),
+    axis.title.x = element_text(size = 14),
+    axis.text.x = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "none",
+    legend.title = element_blank()
+  ) +
+  # Add the R squared
+  annotate(geom="text", x = 730, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_rdnbr_shrub),
+           color = "black", size = 6) +
+  # Add percent symbols
+  scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
+
+# View the plot
+rdnbr_shrub_plot
+
+# Model Perennial cover by burn severity ############################################################################
+
+# Model pfg cover by burn Severity 
+rdnbr_pfg_model<- burn_covs %>%
+  lm(formula = PFG.Cover ~ rdnbr)
+
+# View burn Severity model output
+sum_rndbr_pfg <- summary(rdnbr_pfg_model)
+sum_rndbr_pfg
+
+# Pull out the r squared
+r_sq_rdnbr_pfg <- round(sum_rndbr_pfg$r.squared, 3)
+r_sq_rdnbr_pfg
+
+# Plot pfg cover against burn Severity
+rdnbr_pfg_plot <- burn_covs %>%
+  ggplot(aes(x = rdnbr, y = PFG.Cover, col = Fire.Age, fill = Fire.Age)) +
+  geom_smooth(col = "orangered2", fill = "orangered2",method = "lm") +
+  geom_jitter(col = "orangered2") +
+  theme_classic() +
+  labs(x = "RdNBR Burn Severity",
+       y = "Perennial Cover",
+       title = "(B) Perennial Cover") +
+  # Customize text
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.y = element_text(size = 14),
+    axis.text.y = element_text(size = 16),
+    axis.title.x = element_text(size = 14),
+    axis.text.x = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "none",
+    legend.title = element_blank()
+  ) +
+  # Add the R squared
+  annotate(geom="text", x = 730, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_rdnbr_pfg),
+           color = "black", size = 6) +
+  # Add percent symbols
+  scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
+
+# View the plot
+rdnbr_pfg_plot
+
+
+# Combine the Burn severity plots ---------------------------------------------------------------------------------------
+
+# Make a new plot to steal a legend from 
+rdnbr_legend_plot <- burn_covs %>%
+  ggplot(aes(x = rdnbr, y = PFG.Cover)) + 
+  geom_smooth(aes(color = "Trend and 95% CI"),
+              fill = "orangered2", method = "lm") +
+  theme_classic() +
+  labs(x = "RdNBR Burn Severity",
+       y = "Perennial Cover",
+       title = "(B) Perennial Cover") +
+  theme(
+    plot.title = element_text(size = 20),
+    axis.title.y = element_text(size = 14),
+    axis.text.y = element_text(size = 16),
+    axis.title.x = element_text(size = 14),
+    axis.text.x = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    legend.key.size = unit(1, "cm")
+  ) +
+  scale_color_manual(values = c("Trend and 95% CI" = "orangered2"), 
+                     name = "")
+
+# Extract the legend
+rdnbr_legend <- ggpubr::get_legend(rdnbr_legend_plot)
+
+# Arrange plots in a grid
+combined_rdnbr_plots <- plot_grid(
+  rdnbr_shrub_plot, rdnbr_pfg_plot,
+  nrow = 1, ncol = 2, align = "hv"
+)
+combined_rdnbr_plots
+
+# # Add the legend
+two_rdnbr_plots_legend <- grid.arrange(combined_rdnbr_plots, rdnbr_legend,
+                                      nrow = 2, heights = c(0.9, 0.1))
+
+# # Save the plot
+ggsave(plot = two_rdnbr_plots_legend,
+       file = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\veg_r_sq_plots_rdnbr.png",
+       width = 275,
        height = 150,
        units = "mm",
        dpi = 300)

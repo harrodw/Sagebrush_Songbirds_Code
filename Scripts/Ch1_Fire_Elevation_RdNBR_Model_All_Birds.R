@@ -27,7 +27,6 @@ rm(list = ls())
 all_species <- c(
   "SATH",
   "BRSP",
-  # "SABS",
   "VESP",
   "WEME",
   "HOLA"
@@ -38,7 +37,7 @@ for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
 model_species <- all_species[s]
-# model_species <- all_species[3]
+# model_species <- all_species[2]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -180,19 +179,20 @@ glimpse(sobs_counts)
 glimpse(sobs_observations)
 
 # Plot species counts against a covariate
-# sobs_counts %>% 
-#   filter(Burned == 1) %>% 
-# ggplot(aes(x = Years.Since.Fire, y = Count, color = factor(Sage.Treatment))) +
+# sobs_counts %>%
+#   filter(Burned == 1) %>%
+# ggplot(aes(x = Years.Since.Fire, y = Count, color = factor(Elv.Treatment))) +
 # geom_jitter() +
-#   geom_smooth( 
-#               method = "glm", 
+#   geom_smooth(
+#               method = "glm",
 #               method.args = list(family = "quasipoisson"),
-#               se = TRUE) 
+#               se = TRUE)
 
 # Plots by treatment group
-# sobs_counts %>% 
+# sobs_counts %>%
 #   ggplot() +
-#   geom_boxplot(aes(x = factor(Sage.Treatment), y = Count))
+#   geom_boxplot(aes(x = factor(Elv.Treatment), y = Count))
+
 
 # 1.4) prepare objects for NIMBLE ################################################################
 
@@ -239,7 +239,7 @@ nbins <- length(unique(sobs_observations$Dist.Bin))        # Number of distance 
 nints <- length(unique(sobs_observations$Time.Interval))   # Number of time intervals
 nvst <- length(unique(sobs_counts$Visit.ID))               # Number of visits in each year
 nyears <- length(unique(sobs_counts$Year.num))             # Number of years we surveyed
-ntrts <- length(unique(sobs_counts$Treatment))             # Number of treatments (Elevation x Burn)
+ntrts <- length(unique(sobs_counts$Elv.Treatment))         # Number of treatments (Elevation x Burn)
 nelv <- length(unique(sobs_counts$High.Elevation))         # Number of elevations (High or Low)
 
 # Observation Level data 
@@ -262,11 +262,10 @@ n_dct <- count_mat                                         # Matrix of the numbe
 years <- year_mat                                          # Matrix of year numbers
 grids <- sobs_counts$Grid.ID.num[1:ngrids]                 # Grid where each survey took place
 elevation <- sobs_counts$High.Elevation[1:ngrids]          # Whether each grid is high (>= 1900m) or low (< 1900m) elevation
-sage_type <- sobs_counts$Sage.Type[1:ngrids]               # Wyoming big sage (1) vs mountain big sage (2)
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 fyear <- fyear_mat                                         # How long since the most recent fire in each grid
 rdnbr <- sobs_counts$rdnbr.scl[1:ngrids]                   # Burn severity from the most recent fire
-trts <- sobs_counts$Sage.Treatment[1:ngrids]               # Grid type (Elevation x burned)
+trts <- sobs_counts$Elv.Treatment[1:ngrids]               # Grid type (Elevation x burned)
 
 #########################################################################################################
 # 2) Build and run the model ############################################################################
@@ -720,18 +719,18 @@ sd_rdnbr <- sd(fire_stats$rdnbr)
 # List of Species to plot 
 all_plot_species <- c(
   "SATH",
-  # "BRSP",
-  # "VESP",
+  "BRSP",
+  "VESP",
   "WEME",
   "HOLA"
 )
 
 # Loop over all species 
-for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-plot_species <- all_plot_species[s]
-# plot_species <- all_plot_species[2]
+# plot_species <- all_plot_species[s]
+plot_species <- all_plot_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -848,7 +847,7 @@ max_birds <- max(c(max_low_ref, max_high_ref,
                    min_high_rdnbr, max_high_rdnbr
                    ))
 # Or manually (Comment this out)
-# max_birds <- 120
+max_birds <- 120
 
 # See how many birds are possible
 max_birds
@@ -932,8 +931,8 @@ max_fyear <- fire_stats %>%
 fyear_pred_plot <- beta_dat_pred %>% 
   mutate(Pred.Naive = Pred * sd_fyear + mean_fyear) %>% 
   # Only show up to where I have data so I am not making forcasts
-  filter(Pred.Naive >= min_fyear$Years.Since.Fire[1] & 
-         Pred.Naive <= max_fyear$Years.Since.Fire[1]) %>%
+  filter(Pred.Naive >= min_fyear$Years.Since.Fire & 
+         Pred.Naive <= max_fyear$Years.Since.Fire) %>%
   ggplot() +
   # # Low elevation reference
   # geom_line(aes(x = Pred.Naive, y = exp(beta0.ref.low.Mean), 
