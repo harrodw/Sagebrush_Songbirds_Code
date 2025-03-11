@@ -297,24 +297,24 @@ burn_covs <- covs %>%
   # Bunred vs unburned
   filter(Grid.Type == "B") %>% 
   # Binary high vs low elevation
-  mutate(High.Elevation = case_when(Elevation.125m >= 1800 ~ 1,
-                                    Elevation.125m < 1800 ~ 0),
+  mutate(High.Elevation = case_when(Elevation >= 1800 ~ 1,
+                                    Elevation < 1800 ~ 0),
          # Years since fire
          Years.Since.Fire = 2023 - Fire.Year) %>% 
   # Binary old or recent fire (above or below the mean)
   mutate(Fire.Age = case_when(Years.Since.Fire >= 15 ~ "Old",
                               Years.Since.Fire < 15 ~ "Recent")) %>% 
   # Don't need all the columns
-  select(Grid.ID, Shrub.Cover.125m, Perennial.Cover.125m, Fire.Age,
-         Years.Since.Fire, rdnbr.125m, High.Elevation, Elevation.125m) %>% 
-  rename(Shrub.Cover = Shrub.Cover.125m,
-         PFG.Cover = Perennial.Cover.125m,
-         rdnbr = rdnbr.125m)
+  select(Grid.ID, Shrub.Cover, Perennial.Cover, Fire.Age,
+         Years.Since.Fire, rdnbr, High.Elevation, Elevation) %>% 
+  rename(Shrub.Cover = Shrub.Cover,
+         PFG.Cover = Perennial.Cover,
+         rdnbr = rdnbr)
 # View
 glimpse(burn_covs)
 
 burn_covs %>% 
-  select(Grid.ID, rdnbr, Years.Since.Fire, High.Elevation, Elevation.125m) %>% 
+  select(Grid.ID, rdnbr, Years.Since.Fire, High.Elevation, Elevation) %>% 
   arrange(High.Elevation, Years.Since.Fire) %>% 
   print(n = Inf)
 
@@ -327,11 +327,14 @@ burn_covs %>%
 
 # Run a model for shrub cover
 shrub_burn_model <- covs %>% 
-  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation.125m < 1800 ~ 1,
-                                           Grid.Type == "R" & Elevation.125m >= 1800 ~ 2,
-                                           Grid.Type == "B" & Elevation.125m < 1800 ~ 3,
-                                           Grid.Type == "B" & Elevation.125m >= 1800 ~ 4))) %>% 
-  lm(formula = Shrub.Cover.125m ~ Burn.Elevation)
+  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation < 1800 ~ 1,
+                                           Grid.Type == "R" & Elevation >= 1800 ~ 2,
+                                           Grid.Type == "B" & Elevation < 1800 ~ 3,
+                                           Grid.Type == "B" & Elevation >= 1800 ~ 4))) %>% 
+  # filter(Burn.Elevation %in% c(2, 4)) %>% 
+  mutate(High.Elevation = case_when(Elevation < 1800 ~ 1,
+                                    Elevation >= 1800 ~ 2)) %>%
+  lm(formula = Shrub.Cover ~ Burn.Elevation)
 
 # View model summary
 shrub_burn_model_sum <- summary(shrub_burn_model)
@@ -343,14 +346,14 @@ shrub_burn_model_r_sq
 
 # Plot shrub cover against burn type
 shrub_trt_plot <- covs %>%
-  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation.125m < 1800 ~ "Reference Below 1800m",
-                                           Grid.Type == "R" & Elevation.125m >= 1800 ~ "Reference Above 1800m",
-                                           Grid.Type == "B" & Elevation.125m < 1800 ~ "Burned Below 1800m",
-                                           Grid.Type == "B" & Elevation.125m >= 1800 ~ "Burned Above 1800m"),
+  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation < 1800 ~ "Reference Below 1800m",
+                                           Grid.Type == "R" & Elevation >= 1800 ~ "Reference Above 1800m",
+                                           Grid.Type == "B" & Elevation < 1800 ~ "Burned Below 1800m",
+                                           Grid.Type == "B" & Elevation >= 1800 ~ "Burned Above 1800m"),
                                  levels = c("Reference Below 1800m", "Burned Below 1800m", 
                                             "Reference Above 1800m", "Burned Above 1800m"))) %>% 
   ggplot() +
-  geom_boxplot(aes(x = Burn.Elevation, y = Shrub.Cover.125m, fill = Burn.Elevation, color = Burn.Elevation)) +
+  geom_boxplot(aes(x = Burn.Elevation, y = Shrub.Cover, fill = Burn.Elevation, color = Burn.Elevation)) +
   theme_classic() +
   labs(x = "Grid Type", y = "Shrub Cover", title = "(A) Shrub Cover") +
   # Manually adjust colors
@@ -390,12 +393,14 @@ shrub_trt_plot
 
 # Run a model for pfg cover
 pfg_burn_model <- covs %>% 
-  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation.125m < 1800 ~ 1,
-                                           Grid.Type == "R" & Elevation.125m >= 1800 ~ 2,
-                                           Grid.Type == "B" & Elevation.125m < 1800 ~ 3,
-                                           Grid.Type == "B" & Elevation.125m >= 1800 ~ 4))) %>% 
-  filter(Burn.Elevation %in% c(2, 4)) %>% 
-  lm(formula = Perennial.Cover.125m ~ Burn.Elevation)
+  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation < 1800 ~ 1,
+                                           Grid.Type == "R" & Elevation >= 1800 ~ 2,
+                                           Grid.Type == "B" & Elevation < 1800 ~ 3,
+                                           Grid.Type == "B" & Elevation >= 1800 ~ 4))) %>% 
+  mutate(High.Elevation = case_when(Elevation < 1800 ~ 1,
+                                    Elevation >= 1800 ~ 2)) %>% 
+  filter(Burn.Elevation %in% c(2, 4)) %>%
+  lm(formula = Perennial.Cover ~ Burn.Elevation)
 
 # View model summary
 pfg_burn_model_sum <- summary(pfg_burn_model)
@@ -407,14 +412,14 @@ pfg_burn_model_r_sq
 
 # Plot pfg cover against burn type
 pfg_trt_plot <- covs %>%
-  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation.125m < 1800 ~ "Reference Below 1800m",
-                                           Grid.Type == "R" & Elevation.125m >= 1800 ~ "Reference Above 1800m",
-                                           Grid.Type == "B" & Elevation.125m < 1800 ~ "Burned Below 1800m",
-                                           Grid.Type == "B" & Elevation.125m >= 1800 ~ "Burned Above 1800m"),
+  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation < 1800 ~ "Reference Below 1800m",
+                                           Grid.Type == "R" & Elevation >= 1800 ~ "Reference Above 1800m",
+                                           Grid.Type == "B" & Elevation < 1800 ~ "Burned Below 1800m",
+                                           Grid.Type == "B" & Elevation >= 1800 ~ "Burned Above 1800m"),
                                  levels = c("Reference Below 1800m", "Burned Below 1800m", 
                                             "Reference Above 1800m", "Burned Above 1800m"))) %>% 
   ggplot() +
-  geom_boxplot(aes(x = Burn.Elevation, y = Perennial.Cover.125m, fill = Burn.Elevation, color = Burn.Elevation)) +
+  geom_boxplot(aes(x = Burn.Elevation, y = Perennial.Cover, fill = Burn.Elevation, color = Burn.Elevation)) +
   theme_classic() +
   labs(x = "Grid Type", y = "Perennial Cover", title = "(B) Perennnial Cover") +
   # Manually adjust colors
@@ -454,14 +459,14 @@ pfg_trt_plot
 
 # Plot for the legend
 trt_leg_plot <-  covs %>%
-  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation.125m < 1800 ~ "Reference Below 1800m",
-                                           Grid.Type == "R" & Elevation.125m >= 1800 ~ "Reference Above 1800m",
-                                           Grid.Type == "B" & Elevation.125m < 1800 ~ "Burned Below 1800m",
-                                           Grid.Type == "B" & Elevation.125m >= 1800 ~ "Burned Above 1800m"),
+  mutate(Burn.Elevation = factor(case_when(Grid.Type == "R" & Elevation < 1800 ~ "Reference Below 1800m",
+                                           Grid.Type == "R" & Elevation >= 1800 ~ "Reference Above 1800m",
+                                           Grid.Type == "B" & Elevation < 1800 ~ "Burned Below 1800m",
+                                           Grid.Type == "B" & Elevation >= 1800 ~ "Burned Above 1800m"),
                                  levels = c("Reference Below 1800m", "Burned Below 1800m", 
                                             "Reference Above 1800m", "Burned Above 1800m"))) %>% 
   ggplot() +
-  geom_boxplot(aes(x = Burn.Elevation, y = Perennial.Cover.125m, fill = Burn.Elevation, color = Burn.Elevation)) +
+  geom_boxplot(aes(x = Burn.Elevation, y = Perennial.Cover, fill = Burn.Elevation, color = Burn.Elevation)) +
   theme_classic() +
   ylim(0, 50) +
   labs(x = "", y = "Perennial Cover", title = "Perennial Cover") +

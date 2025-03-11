@@ -26,8 +26,8 @@ rm(list = ls())
 
 # List of Species 
 all_species <- c(
-  "SATH",
   "BRSP",
+  "SATH",
   "SABS",
   # "GTTO",
   "VESP",
@@ -36,11 +36,11 @@ all_species <- c(
 )
 
 # Loop over all species
-# for(s in 1:length(all_species)){ # (Comment this out) ----
+for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-# model_species <- all_species[s]
-model_species <- all_species[2]
+model_species <- all_species[s]
+# model_species <- all_species[2]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -102,8 +102,8 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
   # Remove columns that are no longer needed
   dplyr::select(-Grid.Type) %>% 
   # Make a binary column for whether or not a grid is high elevation
-  mutate(High.Elevation = case_when(Elevation.125m < 1800 ~ 1,
-                                    Elevation.125m >= 1800 ~ 2,
+  mutate(High.Elevation = case_when(Elevation < 1800 ~ 1,
+                                    Elevation >= 1800 ~ 2,
                                     TRUE ~ NA)) %>% 
   # Make a treatment column (elevation x burned)
   mutate(Treatment = case_when(Burned == 0 & High.Elevation == 1 ~ 1,
@@ -121,12 +121,12 @@ sobs_counts_temp2 <- sobs_counts_temp %>%
 sobs_counts <- sobs_counts_temp2 %>% 
   mutate(Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1],
-         Shrub.Cover.scl = scale(Shrub.Cover.125m)[,1],
-         PFG.Cover.scl = scale(Perennial.Cover.125m)[,1],
-         AFG.Cover.scl = scale(Annual.Cover.125m)[,1],
-         BG.Cover.scl = scale(Bare.Ground.Cover.125m)[,1],
-         Elevation.scl = scale(Elevation.125m)[,1],
-         TRI.scl = scale(TRI.125m)[,1])
+         Shrub.Cover.scl = scale(Shrub.Cover)[,1],
+         PFG.Cover.scl = scale(Perennial.Cover)[,1],
+         AFG.Cover.scl = scale(Annual.Cover)[,1],
+         BG.Cover.scl = scale(Bare.Ground.Cover)[,1],
+         Elevation.scl = scale(Elevation)[,1],
+         TRI.scl = scale(TRI)[,1])
 # View
 glimpse(sobs_counts)
 
@@ -166,7 +166,7 @@ glimpse(sobs_observations)
 # Select variables for the model
 sobs_cor <- sobs_counts %>%
   filter(Burned == 1) %>%
-  select(Shrub.Cover.scl, PFG.Cover.scl, AFG.Cover.scl, BG.Cover.scl, TRI.scl, Elevation.125m) %>%
+  select(Shrub.Cover.scl, PFG.Cover.scl, AFG.Cover.scl, BG.Cover.scl, TRI.scl, Elevation) %>%
   distinct() %>%
   cor()
 
@@ -323,6 +323,7 @@ sobs_model_code <- nimbleCode({
   
   # # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
+  sd_omega_grid ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each grid
 
   # Random noise among the other years
   for(y in 2:nyears){ # nyears = 3
@@ -330,22 +331,20 @@ sobs_model_code <- nimbleCode({
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
   
-  # # Occupancy probability by grid type (Burned x Elevation) for zero inflation
-  # for(l in 1:ntrts){
-  #   psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
-  # } # end loop over treatments
+  # Random noise between sites
+  for(j in 2:ngrids){ # ngrids = 60
+    # Force the first grid to be the intercept
+    omega_grid[j] ~ dnorm(0, sd = sd_omega_grid)
+  } # end random effect loop over grids
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
   # Iterate over all survey grids
-  for(j in 1:ngrids){
+  for(j in 1:ngrids){ # ngrids = 60
    
     # Iterate over all of the visits to each survey grid 
-    for(k in 1:nvst){ 
-      
-      # # Whether or not individuals are present at each visit to each site (Zero-Inflation)
-      # present[j, k] ~ dbern(psi_trt[trts[j]])
+    for(k in 1:nvst){ # nvst = 6
       
       ### Imperfect detection portion of the model ###
       
@@ -396,7 +395,8 @@ sobs_model_code <- nimbleCode({
                            beta_shrub * shrub_cvr[j] +   # Effect of shrub cover
                            beta_pfg * pfg_cvr[j] +       # Effect of perennial cover  
                            beta_tri * tri[j] +           # Effect of ruggedness
-                           eps_year[years[j, k]]         # Unexplained noise on abundance by year
+                           eps_year[years[j, k]] +       # Unexplained noise on abundance by year
+                           omega_grid[j]                 # Unexplained noise on abundance by grid
 
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
@@ -454,9 +454,7 @@ sobs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   nyears = nyears,             # Number of years we surveyed (3)
-  # ntrts = ntrts,               # Number of grid types (elevation x burned)
   # Non-stochastic constants
-  # trts = trts,                 # Type of grid 
   years = years,               # Year when each survey took place
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid,        # Grid of each observation 
@@ -511,28 +509,27 @@ str(sobs_dims)
 # Initial Values
 sobs_inits <- list(
   # Detectablility
-  alpha0_obsv = runif(nobsv, -2, -0.1),   # Effect of each observer on detecability
+  alpha0_obsv = runif(nobsv, -2, -0.1),       # Effect of each observer on detecability
   # Availability 
-  gamma0 = rnorm(1, 0, 0.1),              # Intercept on availability
-  gamma_date = rnorm(1, 0, 0.1),          # Effect of date on availability
-  gamma_time = rnorm(1, 0, 0.1),          # Effect of time of day on availability
-  gamma_date2 = rnorm(1, 0, 0.1),         # Effect of date on availability (quadratic)
-  gamma_time2 = rnorm(1, 0, 0.1),         # Effect of time of day on availability (quadratic)
+  gamma0 = rnorm(1, 0, 0.1),                  # Intercept on availability
+  gamma_date = rnorm(1, 0, 0.1),              # Effect of date on availability
+  gamma_time = rnorm(1, 0, 0.1),              # Effect of time of day on availability
+  gamma_date2 = rnorm(1, 0, 0.1),             # Effect of date on availability (quadratic)
+  gamma_time2 = rnorm(1, 0, 0.1),             # Effect of time of day on availability (quadratic)
   # Abundance 
-  beta0 = rnorm(1, 0, 0.1),               # Intercept
-  beta_shrub = rnorm(1, 0, 0.1),          # Effect of shrub cover
-  beta_pfg = rnorm(1, 0, 0.1),            # Effect of perennial cover
-  beta_tri = rnorm(1, 0, 0.1),            # Effect of ruggedness
-  sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
-  eps_year = rep(0, nyears),              # Random noise on abundance by year
-  # Presence 
-  # psi_trt = runif(ntrts, 0.4, 0.6),       # Probability of each grid being occupied for zero inflation
-  # present = matrix(rbinom(ngrids*nvst, 1, 0.8), ngrids, nvst), # Binary presence absence for zero-inflation
+  beta0 = rnorm(1, 0, 0.1),                   # Intercept
+  beta_shrub = rnorm(1, 0, 0.1),              # Effect of shrub cover
+  beta_pfg = rnorm(1, 0, 0.1),                # Effect of perennial cover
+  beta_tri = rnorm(1, 0, 0.1),                # Effect of ruggedness
+  sd_eps_year = runif(1, 0, 1),               # Magnitude of random noise by year (only positive)
+  sd_omega_grid = runif(1, 0, 1),             # Magnitude of random noise by year (only positive)
+  eps_year = c(0, rnorm(nyears-1, 0, 0.1)),   # Random noise on abundance by year
+  omega_grid = c(0, rnorm(ngrids-1, 0, 0.1)), # Random noise on abundance by grid
   # Simulated counts
-  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
-  n_dct_new = count_mat,                  # Simulated detected birds 
-  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
-  N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
+  n_avail = count_mat + 1,                    # Number of available birds (helps to start each grid with an individual present)
+  n_dct_new = count_mat,                      # Simulated detected birds 
+  n_avail_new = count_mat + 1,                # Simulated available birds (helps to start each grid with an individual present)
+  N_indv = count_mat + 1                      # "True" abundance (helps to start each grid with an individual present)
 )
 # View the initial values
 str(sobs_inits)
@@ -547,8 +544,8 @@ sobs_params <- c(
   "beta_shrub",      # Effect of shrub cover
   "beta_pfg",        # Effect of perennial cover
   "beta_tri",        # Effect of ruggedness
-  # "psi_trt",         # Occupanci probability by grid type    
   "sd_eps_year",     # Random noise on abundance by year
+  "sd_omega_grid",   # Random noise on abundance by grids
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
@@ -600,13 +597,35 @@ sobs_mcmcConf$removeSamplers(
   # Fixed effects
   "beta0", "beta_shrub", "beta_pfg", "beta_tri",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]"
+  "eps_year[2]", "eps_year[3]",
+  #Random noise by grid
+  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
+  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
+  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
+  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
+  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
+  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
+  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
+  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
+  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
+  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Fixed effects
   "beta0", "beta_shrub", "beta_pfg", "beta_tri",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]"
+  "eps_year[2]", "eps_year[3]",
+  #Random noise by grid
+  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
+  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
+  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
+  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
+  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
+  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
+  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
+  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
+  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
+  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
   ), type = 'RW_block')
 
 # # Block all occupancy (psi) nodes together
@@ -725,12 +744,12 @@ covs <- tibble(read.csv("Data/Outputs/grid_covs.csv")) %>%
 glimpse(covs)
 
 # Calculate covariate means and sd's
-shrub_mean <- mean(covs$Shrub.Cover.125m)
-shrub_sd <- sd(covs$Shrub.Cover.125m)
-pfg_mean <- mean(covs$Perennial.Cover.125m)
-pfg_sd <- sd(covs$Perennial.Cover.125m)
-tri_mean <- mean(covs$TRI.125m)
-tri_sd <- sd(covs$TRI.125m)
+shrub_mean <- mean(covs$Shrub.Cover)
+shrub_sd <- sd(covs$Shrub.Cover)
+pfg_mean <- mean(covs$Perennial.Cover)
+pfg_sd <- sd(covs$Perennial.Cover)
+tri_mean <- mean(covs$TRI)
+tri_sd <- sd(covs$TRI)
 
 # Loop over all species 
 # for(s in 1:length(all_plot_species)) { # (Comment this out) ----

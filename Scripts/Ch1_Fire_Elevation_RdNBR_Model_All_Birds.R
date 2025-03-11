@@ -325,7 +325,7 @@ sobs_model_code <- nimbleCode({
   for(j in 2:ngrids){ # ngrids = 60
     # Force the first grid to be the intercept
     omega_grid[j] ~ dnorm(0, sd = sd_omega_grid)
-  } # end loop over years
+  } # end random effect loop over grids
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -771,7 +771,7 @@ all_plot_species <- c(
 
 # Name the species to model again
 # plot_species <- all_plot_species[s]
-plot_species <- all_plot_species[2]
+plot_species <- all_plot_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -786,10 +786,14 @@ species_name <- plot_species_df$Species.Name
 species_name
 
 # Load the output back in
-fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
+fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
                                        plot_species, "_fire_elevation_rdnbr_model.rds"))
 
-# View MCMC summary
+
+# View model summary
+MCMCsummary(object = fire_mcmc_out$samples, 
+            round = 2)
+# View MCMC summary object
 fire_mcmc_out$summary$all.chains
 
 # Extract model fit
@@ -860,6 +864,9 @@ beta_dat_pred <- beta_dat_long %>%
 # View the new data 
 glimpse(beta_dat_pred)
 
+# Minimum  scaled burn severaity
+min_rdnbr_scl <- (min(fire_stats$rdnbr) - mean_rdnbr) / sd_rdnbr
+
 # Maximum  based on low ref
 max_low_ref <- exp(beta0_ref_low[5])
 # Maximum based on high ref
@@ -872,13 +879,13 @@ max_high_burn <- exp(beta0_burn_high[5])
 min_low_fyear <- exp(beta0_burn_low[5] + beta_fyear_low[5]*-2)
 max_low_fyear <- exp(beta0_burn_low[5]+ beta_fyear_low[5]*2)
 # Maximum based on high time since fire
-min_high_fyear <- exp(beta0_burn_high[5] + beta_fyear_high[5]*-2)
+min_high_fyear <- exp(beta0_burn_high[5] + beta_fyear_high[5]*min_rdnbr_scl)
 max_high_fyear <- exp(beta0_burn_high[5]+ beta_fyear_high[5]*2)
 # Maximum based on burn severity at low elevation
-min_low_rdnbr <- exp(beta0_burn_low[5] + beta_rdnbr[5]*-2)
+min_low_rdnbr <- exp(beta0_burn_low[5] + beta_rdnbr[5])
 max_low_rdnbr <- exp(beta0_burn_low[5]+ beta_rdnbr[5]*2)
 # Maximum based on burn severity at high elevation
-min_high_rdnbr <- exp(beta0_burn_high[5] + beta_rdnbr[5]*-2)
+min_high_rdnbr <- exp(beta0_burn_high[5] + beta_rdnbr[5]*min_rdnbr_scl)
 max_high_rdnbr <- exp(beta0_burn_high[5]+ beta_rdnbr[5]*2)
 
 # Maximum number of possible birds for that species based on the model
@@ -890,7 +897,7 @@ max_birds <- max(c(max_low_ref, max_high_ref,
                    min_high_rdnbr, max_high_rdnbr
                    ))
 # Or manually (Comment this out)
-max_birds <- 120
+# max_birds <- 120
 
 # See how many birds are possible
 max_birds
@@ -1052,7 +1059,7 @@ fyear_pred_plot
 rdnbr_pred_plot <- beta_dat_pred %>% 
   mutate(Pred.Naive = Pred * sd_rdnbr + mean_rdnbr) %>% 
   # Only show up to where I have data so I am not making forcasts
-  filter(Pred.Naive >= 0 & 
+  filter(Pred.Naive >= min(fire_stats$rdnbr) & 
          Pred.Naive <= max(fire_stats$rdnbr)) %>%
   ggplot() +
   # # Low elevation reference
@@ -1133,10 +1140,8 @@ legend_plot <- beta_dat %>%
   mutate(Parameter = factor(Parameter, 
                             levels = c("beta0.ref.low", "beta0.burn.low", "beta0.ref.high", "beta0.burn.high"))) %>% 
   ggplot() +
-  geom_boxplot(aes(x = Parameter, y = exp(Mean), color = Parameter), 
-               width = 0.45, size = 0.8) +
-  geom_errorbar(aes(x = Parameter, ymin = exp(CRI.lb), ymax = exp(CRI.ub), color = Parameter), 
-                width = 0.2, linewidth = 1.4) +
+  geom_errorbar(aes(x = Parameter, ymin = exp(CRI.lb), ymax = exp(CRI.ub), color = Parameter),
+                width = 5, linewidth = 8, alpha = 0.8) +
   # Customize scales and labels
   scale_color_manual(values = c("beta0.ref.low" = "mediumseagreen",
                                 "beta0.ref.high" = "darkslategray4",
