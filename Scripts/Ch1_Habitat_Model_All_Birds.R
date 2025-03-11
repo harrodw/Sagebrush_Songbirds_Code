@@ -733,11 +733,11 @@ tri_mean <- mean(covs$TRI.125m)
 tri_sd <- sd(covs$TRI.125m)
 
 # Loop over all species 
-for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-plot_species <- all_plot_species[s]
-# plot_species <- all_plot_species[4]
+# plot_species <- all_plot_species[s]
+plot_species <- all_plot_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -768,6 +768,13 @@ hab_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pro
 
 # View MCMC summary
 hab_mcmc_out$summary$all.chains
+
+
+# Extract model fit
+fit <- MCMCchains(hab_mcmc_out$samples, params = "fit_pd")
+fit_new <- MCMCchains(hab_mcmc_out$samples, params = "fit_pd_new")
+
+mean(fit / fit_new)
 
 # Extract effect sizes
 beta_shrub <- hab_mcmc_out$summary$all.chains[20,]

@@ -37,7 +37,7 @@ for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
 model_species <- all_species[s]
-# model_species <- all_species[2]
+# model_species <- all_species[5]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -406,6 +406,11 @@ sobs_model_code <- nimbleCode({
   } # end observation distance and time of detection loop
   
   # --------------------------------------------------------------------------------------------
+
+  # Calculate the change in avian abundance following fire 
+  fire_eff_low <- beta0_treatment[3] - beta0_treatment[1] # Mean change in population following a fire at low elevation
+  fire_eff_hgh <- beta0_treatment[4] - beta0_treatment[2] # Mean change in population following a fire at high elevation
+  
   # Combine fit statistics
   
   # Add up fit stats for availability across sites and years
@@ -518,19 +523,21 @@ str(sobs_inits)
 # Params to save
 sobs_params <- c(
   "fit_pd",          # Fit statistic for observed data
-  "fit_pd_new",      # Fit statisitc for simulated detection  data
+  "fit_pd_new",      # Fit statistic for simulated detection  data
   "fit_pa",          # Fit statistic for first availability data
-  "fit_pa_new",      # Fit statisitc for simulated avaiability data
+  "fit_pa_new",      # Fit statistic for simulated availability data
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
-  "beta_rdnbr",      # Effect of burn sevarity 
+  "beta_rdnbr",      # Effect of burn severity 
   "sd_eps_year",     # Random noise on abundance by year
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
   "gamma_time",      # Effect of time of day on singing rate
   "gamma_time2",     # Quadratic e of time of day on singing rate
-  "alpha0_obsv"      # Intercept for each observer on detection rate
+  "alpha0_obsv",     # Intercept for each observer on detection rate
+  "fire_eff_low",    # Mean change in population following a low elevation fire
+  "fire_eff_hgh"     # Mean change in population following a high elevation fire
 )
 
 # 2.3) Configure and Run the model ###########################################################
@@ -675,6 +682,7 @@ rm(list = ls())
 
 # Add packages again
 library(tidyverse)
+library(MCMCvis)
 library(gridExtra)
 library(ggpubr)
 library(grid)
@@ -751,7 +759,9 @@ fire_mcmc_out<- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pro
 # View MCMC summary
 fire_mcmc_out$summary$all.chains
 
-# Extract effect sizes
+# Extract model fit
+fit <- MCMCchains(fire_mcmc_out$samples, params = "fit_pd")
+fit_new <- MCMCchains(fire_mcmc_out$samples, params = "fit_pd_new")
 
 # Treatment intercepts
 beta0_ref_low <- fire_mcmc_out$summary$all.chains[18,]
