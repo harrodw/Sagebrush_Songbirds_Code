@@ -37,7 +37,7 @@ for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
 model_species <- all_species[s]
-# model_species <- all_species[5]
+# model_species <- all_species[2]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -213,6 +213,7 @@ obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for who con
 exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observer experience
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
 
+
 # Fill in the matrix
 for(j in 1:nrow(count_mat)){
   # Filter for a specific grid
@@ -260,7 +261,6 @@ day <- date_mat                                            # Matrix of scaled da
 area <- area_mat                                           # Proportion of points surveyed       
 n_dct <- count_mat                                         # Matrix of the number of detected individuals per grid per survey 
 years <- year_mat                                          # Matrix of year numbers
-grids <- sobs_counts$Grid.ID.num[1:ngrids]                 # Grid where each survey took place
 elevation <- sobs_counts$High.Elevation[1:ngrids]          # Whether each grid is high (>= 1900m) or low (< 1900m) elevation
 burned <- sobs_counts$Burned[1:ngrids]                     # Whether or not each grid burned
 fyear <- fyear_mat                                         # How long since the most recent fire in each grid
@@ -299,9 +299,9 @@ sobs_model_code <- nimbleCode({
   
   # Intercept by treatment
   for(l in 1:ntrts){ # ntrts = 4
-    # Allow the intercept too varry for each treatment group
+    # Allow the intercept too vary for each treatment group
     beta0_treatment[l] ~ dnorm(0, sd = 3)
-  } # End loop over treatements
+  } # End loop over treatments
   
   # Effect of years since fire on burned grids varying with elevation
   for(e in 1:nelv){ # nelv = 2 (high and low elevation)
@@ -311,23 +311,30 @@ sobs_model_code <- nimbleCode({
   # Effect of burn severity
   beta_rdnbr ~ dnorm(0, sd = 1.5)
   
-  # # Abundance random effect hyper-parameters
-  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
+  # Abundance random effect hyper-parameters
+  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5)   # Random effect on abundance hyperparameter for each year
+  sd_omega_grid ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each grid
 
-  # Random noise among the other years
+  # Random noise between years
   for(y in 2:nyears){ # nyears = 3
     # Force the first year (2022) to be the intercept
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
+  } # end loop over years
+  
+  # Random noise between sites
+  for(j in 2:ngrids){ # ngrids = 60
+    # Force the first grid to be the intercept
+    omega_grid[j] ~ dnorm(0, sd = sd_omega_grid)
   } # end loop over years
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
 
   # Iterate over all survey grids
-  for(j in 1:ngrids){
+  for(j in 1:ngrids){ # ngrids = 60
     
     # Iterate over all of the visits to each survey grid 
-    for(k in 1:nvst){ 
+    for(k in 1:nvst){ # nvst = 6
       
       ### Imperfect availability portion of the model ###
       
@@ -376,7 +383,8 @@ sobs_model_code <- nimbleCode({
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
                            beta_rdnbr * rdnbr[j] * burned[j] +                  # Effect of burn severity 
-                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
+                           eps_year[years[j, k]] +                              # Unexplained noise on abundance by year
+                           omega_grid[j]                                        # Unexplained noise on abundance by grid
 
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
@@ -498,24 +506,26 @@ str(sobs_dims)
 # Initial Values
 sobs_inits <- list(
   # Detectablility
-  alpha0_obsv = runif(nobsv, -2, -0.1),   # Effect of each observer on detecability
+  alpha0_obsv = runif(nobsv, -2, -0.1),       # Effect of each observer on detecability
   # Availability 
-  gamma0 = rnorm(1, 0, 0.1),              # Intercept on availability
-  gamma_date = rnorm(1, 0, 0.1),          # Effect of date on availability
-  gamma_time = rnorm(1, 0, 0.1),          # Effect of time of day on availability
-  gamma_date2 = rnorm(1, 0, 0.1),         # Effect of date on availability (quadratic)
-  gamma_time2 = rnorm(1, 0, 0.1),         # Effect of time of day on availability (quadratic)
+  gamma0 = rnorm(1, 0, 0.1),                  # Intercept on availability
+  gamma_date = rnorm(1, 0, 0.1),              # Effect of date on availability
+  gamma_time = rnorm(1, 0, 0.1),              # Effect of time of day on availability
+  gamma_date2 = rnorm(1, 0, 0.1),             # Effect of date on availability (quadratic)
+  gamma_time2 = rnorm(1, 0, 0.1),             # Effect of time of day on availability (quadratic)
   # Abundance 
-  beta0_treatment = rnorm(ntrts, 0, 0.1), # Intercept by grid type
-  beta_fyear = rnorm(nelv, 0, 0.1),       # Effect of time since fire by elevation
-  beta_rdnbr = rnorm(1, 0, 0.1),          # Effect of burn severity
-  sd_eps_year = runif(1, 0, 1),           # Magnitude of random noise (only positive)
-  eps_year = rep(0, nyears),              # Random noise on abundance by year
+  beta0_treatment = rnorm(ntrts, 0, 0.1),     # Intercept by grid type
+  beta_fyear = rnorm(nelv, 0, 0.1),           # Effect of time since fire by elevation
+  beta_rdnbr = rnorm(1, 0, 0.1),              # Effect of burn severity
+  sd_eps_year = runif(1, 0, 1),               # Magnitude of random noise by year (only positive)
+  sd_omega_grid = runif(1, 0, 1),             # Magnitude of random noise by year (only positive)
+  eps_year = c(0, rnorm(nyears-1, 0, 0.1)),   # Random noise on abundance by year
+  omega_grid = c(0, rnorm(ngrids-1, 0, 0.1)), # Random noise on abundance by grid
   # Simulated counts
-  n_avail = count_mat + 1,                # Number of available birds (helps to start each grid with an individual present)
-  n_dct_new = count_mat,                  # Simulated detected birds 
-  n_avail_new = count_mat + 1,            # Simulated available birds (helps to start each grid with an individual present)
-  N_indv = count_mat + 1                  # "True" abundance (helps to start each grid with an individual present)
+  n_avail = count_mat + 1,                    # Number of available birds (helps to start each grid with an individual present)
+  n_dct_new = count_mat,                      # Simulated detected birds 
+  n_avail_new = count_mat + 1,                # Simulated available birds (helps to start each grid with an individual present)
+  N_indv = count_mat + 1                      # "True" abundance (helps to start each grid with an individual present)
 )
 # View the initial values
 str(sobs_inits)
@@ -530,11 +540,12 @@ sobs_params <- c(
   "beta_fyear",      # Effect of each year after a fire
   "beta_rdnbr",      # Effect of burn severity 
   "sd_eps_year",     # Random noise on abundance by year
+  "sd_omega_grid",   # Random noise on abundance by grids
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
   "gamma_time",      # Effect of time of day on singing rate
-  "gamma_time2",     # Quadratic e of time of day on singing rate
+  "gamma_time2",     # Quadratic effect of time of day on singing rate
   "alpha0_obsv",     # Intercept for each observer on detection rate
   "fire_eff_low",    # Mean change in population following a low elevation fire
   "fire_eff_hgh"     # Mean change in population following a high elevation fire
@@ -587,7 +598,18 @@ sobs_mcmcConf$removeSamplers(
   # Effect of burn severity
   "beta_rdnbr",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]"
+  "eps_year[2]", "eps_year[3]",
+  #Random noise by grid
+  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
+  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
+  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
+  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
+  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
+  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
+  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
+  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
+  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
+  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -597,7 +619,18 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of burn severity
   "beta_rdnbr",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]"
+  "eps_year[2]", "eps_year[3]",
+  #Random noise by grid
+  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
+  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
+  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
+  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
+  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
+  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
+  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
+  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
+  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
+  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
   ), type = 'RW_block')
 
 # View the blocks
