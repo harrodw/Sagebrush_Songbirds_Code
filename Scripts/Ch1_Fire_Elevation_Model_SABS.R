@@ -79,8 +79,8 @@ sabs_counts_temp2 <- sabs_counts_temp %>%
   # Remove columns that are no longer needed
   dplyr::select(-Grid.Type) %>% 
   # Make a binary column for whether or not a grid is high elevation
-  mutate(High.Elevation = case_when(Elevation.125m < 1800 ~ 1,
-                                    Elevation.125m >= 1800 ~ 2,
+  mutate(High.Elevation = case_when(Elevation < 1800 ~ 1,
+                                    Elevation >= 1800 ~ 2,
                                     TRUE ~ NA)) %>% 
   # Make a treatment column (elevation x burned)
   mutate(Treatment = case_when(Burned == 0 & High.Elevation == 1 ~ 1,
@@ -99,7 +99,7 @@ glimpse(sabs_counts_temp2)
 # Scale the other covariates
 sabs_counts <- sabs_counts_temp2 %>% 
   mutate(ln.Years.Since.Fire = log(Years.Since.Fire)) %>% 
-  mutate(Elevation.scl = scale(Elevation.125m)[,1],
+  mutate(Elevation.scl = scale(Elevation)[,1],
          Mean.Birds.scl = scale(Mean.Birds)[,1],
          Mean.MAS.scl = scale(Mean.MAS)[,1],
          Ord.Date.scl = scale(Ord.Date)[,1])
@@ -248,6 +248,17 @@ sabs_model_code <- nimbleCode({
     beta0_treatment[l] ~ dnorm(0, sd = 3)
   } # End loop over treatments
   
+  # Abundance random effect hyper-parameters
+  sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5)   # Random effect on abundance hyperparameter for each year
+  
+  # Random noise between years
+  for(y in 2:nyears){ # nyears = 3
+    # Force the first year (2022) to be the intercept
+    eps_year[y] ~ dnorm(0, sd = sd_eps_year)
+  } # end loop over years
+  
+
+  
   # # Occupancy probability by grid type (Burned x Elevation) for zero inflation
   # for(l in 1:ntrts){
   #   psi_trt[l] ~ dbeta(shape1 = 1.3, shape2 = 1.3)
@@ -310,22 +321,23 @@ sabs_model_code <- nimbleCode({
       log(sigma[j, k]) <- alpha0                          # Single intercept on detectability
 
       # Abundance (lambda) Log-linear model 
-      log(lambda[j, k]) <- beta0_treatment[trts[j]]       # Intercept for each grid type
+      log(lambda[j, k]) <- beta0_treatment[trts[j]] +     # Intercept for each grid type
+                           eps_year[years[j, k]]          # Unexplained noise on abundance by year
       
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
       
-      # Chi square statisitc for the availability portion of the model
-      e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
-      n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
-      Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
-      Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
-      
-      # Chi square statisitc for the detection portion of the model
-      e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
-      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
-      Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
-      Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
+      # # Chi square statisitc for the availability portion of the model
+      # e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
+      # n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
+      # Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
+      # Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
+      # 
+      # # Chi square statisitc for the detection portion of the model
+      # e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
+      # n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
+      # Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
+      # Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
       
     } # end loop through visits
   } # end loop through survey grids
@@ -342,13 +354,13 @@ sabs_model_code <- nimbleCode({
   # --------------------------------------------------------------------------------------------
   # Combine fit statistics
   
-  # Add up fit stats for availability across sites and years
-  fit_pa <- sum(Chi_pa[,])
-  fit_pa_new <- sum(Chi_pa_new[,])
-  
-  # Add up fit stats for detectability across sites and years
-  fit_pd <- sum(Chi_pd[,])
-  fit_pd_new <- sum(Chi_pd_new[,])
+  # # Add up fit stats for availability across sites and years
+  # fit_pa <- sum(Chi_pa[,])
+  # fit_pa_new <- sum(Chi_pa_new[,])
+  # 
+  # # Add up fit stats for detectability across sites and years
+  # fit_pd <- sum(Chi_pd[,])
+  # fit_pd_new <- sum(Chi_pd_new[,])
   
 }) # end model statement
 
@@ -360,7 +372,6 @@ sabs_const <- list (
   area = area,                 # Number of points surveyed per grid per visit
   delta = delta,               # Bin width
   trunc_dist = trunc_dist,     # Truncation distance
-  
   # For loop sizes
   ngrids = ngrids,             # Number of survey grids
   nind = nind,                 # Number of individuals detected 
@@ -368,8 +379,9 @@ sabs_const <- list (
   nbins = nbins,               # Number of distance bins
   nints = nints,               # Number of time intervals
   ntrts = ntrts,               # Number of treatments
-  
+  nyears = nyears,             # Number of years we surveyed (3)
   # Non-stochastic constants
+  years = years,               # Year when each survey took place
   trts = trts,                 # Grid type
   obs_visit  = obs_visit,      # Visit when each observation took place
   obs_grid  = obs_grid         # Grid of each observation 
@@ -408,13 +420,13 @@ sabs_dims <- list(
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   p_a = c(ngrids, nvst),             # Availability probability
-  lambda = c(ngrids, nvst),          # Poisson random variable
-  e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
-  e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
-  Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
-  Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
-  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
-  Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
+  lambda = c(ngrids, nvst)           # Poisson random variable
+  # e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
+  # e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
+  # Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
+  # Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
+  # Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
+  # Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
 )
 
 # View dimensions
@@ -432,9 +444,11 @@ sabs_inits <- list(
   gamma_time2 = rnorm(1, 0, 0.1),
   # Abundance 
   beta0_treatment = rnorm(ntrts, 0, 0.1),
+  sd_eps_year = runif(1, 0, 1),               # Magnitude of random noise by year (only positive)
+  eps_year = c(0, rnorm(nyears-1, 0, 0.1)),   # Random noise on abundance by year
   # Presence 
   # Simulated counts
-  n_dct_new = count_mat,
+  # n_dct_new = count_mat,
   N_indv = count_mat + 1 # Counts helps to start each grid with an individual present       
 )  
 
@@ -443,12 +457,12 @@ str(sabs_inits)
 
 # Params to save
 sabs_params <- c(
-                 "fit_pd",          # Fit statistic for observed data
-                 "fit_pd_new",      # Fit statisitc for simulated detection  data
-                 "fit_pa",          # Fit statistic for first availability data
-                 "fit_pa_new",      # Fit statisitc for simulated avaiability data
+                 # "fit_pd",          # Fit statistic for observed data
+                 # "fit_pd_new",      # Fit statisitc for simulated detection  data
+                 # "fit_pa",          # Fit statistic for first availability data
+                 # "fit_pa_new",      # Fit statisitc for simulated avaiability data
                  "beta0_treatment", # Mean abundance by grid type
-                 # "psi_trt",         # Occupanci probability by grid type    
+                 "sd_eps_year",     # Random noise on abundance by year
                  "gamma0",
                  "gamma_date",
                  "gamma_date2",
@@ -492,12 +506,16 @@ sabs_mcmcConf$addSampler(target = c(
 # Block all abundance (beta) nodes together
 sabs_mcmcConf$removeSamplers(
   # Intercept by Treatment
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
+  # Random noise by year
+  "eps_year[2]", "eps_year[3]"
   )
 
 sabs_mcmcConf$addSampler(target = c(
   # Intercept by Treatment
-  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]"
+  "beta0_treatment[1]", "beta0_treatment[2]", "beta0_treatment[3]", "beta0_treatment[4]",
+  # Random noise by year
+  "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # # Block all occupancy (psi) nodes together
@@ -585,6 +603,15 @@ MCMCplot(object = sabs_mcmc_out$samples,
 
 # 4.1) Prepare and view model output ################################################
 
+# Add packages
+library(tidyverse)
+library(gridExtra)
+library(extrafont)
+
+#Load fonts
+font_import()
+loadfonts(device = "win")
+
 # Species code and name
 plot_species <- "SABS"
 species_name <- "Sagebrush Sparrow"
@@ -602,7 +629,6 @@ beta0_ref_low <- sabs_mcmc_out$summary$all.chains[2,]
 beta0_ref_high <- sabs_mcmc_out$summary$all.chains[3,]
 beta0_burn_low <- sabs_mcmc_out$summary$all.chains[4,]
 beta0_burn_high <- sabs_mcmc_out$summary$all.chains[5,]
-
 
 # View Betas
 bind_rows(beta0_ref_low,
@@ -684,23 +710,56 @@ treatment_pred_plot <- beta_dat %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, NA)) +
   theme(
-    axis.title.y = element_text(size = 16),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
     axis.text.x = element_blank(),
     legend.text = element_text(size = 15),
-    plot.title = element_text(size = 20, hjust = 0.5, face = "bold"),
-    legend.position = "bottom",
-    legend.title = element_text(size = 16),
+    plot.title = element_text(size = 22, hjust = 0.5, face = "bold", family = "Times New Roman"),
+    legend.position = "none",
+    legend.title = element_text(size = 18, family = "Times New Roman"),
+    legend.key.size = unit(1, "cm")) 
+
+# Create a plot to use the legend 
+legend_plot <- beta_dat %>%
+  # Only relevant levels
+  filter(Parameter %in% c("beta0.ref.low", "beta0.ref.high", "beta0.burn.low", "beta0.burn.high")) %>% 
+  # Reorder 'Parameter' factor levels to match the desired color order
+  mutate(Parameter = factor(Parameter, 
+                            levels = c("beta0.ref.low", "beta0.burn.low", "beta0.ref.high", "beta0.burn.high"))) %>% 
+  ggplot() +
+  geom_errorbar(aes(x = Parameter, ymin = exp(CRI.lb), ymax = exp(CRI.ub), color = Parameter),
+                width = 5, linewidth = 8, alpha = 0.8) +
+  # Customize scales and labels
+  scale_color_manual(values = c("beta0.ref.low" = "mediumseagreen",
+                                "beta0.ref.high" = "darkslategray4",
+                                "beta0.burn.low" = "red3",
+                                "beta0.burn.high" = "orange2"),
+                     labels = c(
+                       "Low Elevation Reference",
+                       "Low Elevation Burn",
+                       "High Elevation Reference",
+                       "High Elevation Burn"), name = "") +
+  theme_classic() +
+  theme(
+    legend.position = "bottom", 
+    legend.title = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.key.size = unit(1, "cm")) +
   # 2x2 legend
   guides(fill = guide_legend(nrow = 2), color = guide_legend(nrow = 2))
 
-# Display the plot
-treatment_pred_plot
+# extract the legend
+legend <- ggpubr::get_legend(legend_plot)
+
+# Add the legend
+full_fire_elv_pred_plot_legend <- grid.arrange(treatment_pred_plot, 
+                                               legend,
+                                               nrow = 2, 
+                                               heights = c(0.6, 0.1))
 
 # Save the plot as a png
-ggsave(plot = treatment_pred_plot,
+ggsave(plot = full_fire_elv_pred_plot_legend,
        filename = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.png"),
        width = 160,
        height = 175,
@@ -708,6 +767,6 @@ ggsave(plot = treatment_pred_plot,
        dpi = 300)
 
 # save the plot as an RDS
-saveRDS(object = treatment_pred_plot, 
+saveRDS(object = full_fire_elv_pred_plot_legend, 
         file = paste0("C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\fire_elv_pred_SABS_treatment.rds"))
 

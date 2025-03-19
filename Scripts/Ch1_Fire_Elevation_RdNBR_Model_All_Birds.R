@@ -33,11 +33,11 @@ all_species <- c(
 )
 
 # Loop over all species
-for(s in 1:length(all_species)){ # (Comment this out) ----
+# for(s in 1:length(all_species)){ # (Comment this out) ----
 
 # Pick a species to model
-model_species <- all_species[s]
-# model_species <- all_species[2]
+# model_species <- all_species[s]
+model_species <- all_species[1]
 
 # Add in count data from local drive
 # Two grids (ID-C11 and ID-C22) were missing their Y1V1 survey these were imputed using the second visit
@@ -193,7 +193,6 @@ glimpse(sobs_observations)
 #   ggplot() +
 #   geom_boxplot(aes(x = factor(Elv.Treatment), y = Count))
 
-
 # 1.4) prepare objects for NIMBLE ################################################################
 
 # Define a truncation distance (km)
@@ -212,7 +211,6 @@ area_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for the pro
 obsv_mat <- matrix(NA, nrow = nrows, ncol = ncols)  # Storage matrix for who conducted each survey
 exp_mat <- matrix(NA, nrow = nrows, ncol = ncols)   # Storage matrix for observer experience
 fyear_mat <- matrix(NA, nrow = nrows, ncol = ncols) # Storage matrix for years since fire during each survey
-
 
 # Fill in the matrix
 for(j in 1:nrow(count_mat)){
@@ -313,19 +311,12 @@ sobs_model_code <- nimbleCode({
   
   # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5)   # Random effect on abundance hyperparameter for each year
-  sd_omega_grid ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each grid
 
   # Random noise between years
   for(y in 2:nyears){ # nyears = 3
     # Force the first year (2022) to be the intercept
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
-  
-  # Random noise between sites
-  for(j in 2:ngrids){ # ngrids = 60
-    # Force the first grid to be the intercept
-    omega_grid[j] ~ dnorm(0, sd = sd_omega_grid)
-  } # end random effect loop over grids
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -383,24 +374,23 @@ sobs_model_code <- nimbleCode({
       log(lambda[j, k]) <- beta0_treatment[trts[j]] +                           # Intercept for each grid type
                            beta_fyear[elevation[j]] * fyear[j, k] * burned[j] + # Effect of time since fire on each treatment
                            beta_rdnbr * rdnbr[j] * burned[j] +                  # Effect of burn severity 
-                           eps_year[years[j, k]] +                              # Unexplained noise on abundance by year
-                           omega_grid[j]                                        # Unexplained noise on abundance by grid
+                           eps_year[years[j, k]]                                # Unexplained noise on abundance by year
 
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
       
       # Chi square statisitc for the availability portion of the model
-      e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
-      n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
-      Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
-      Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
-      
-      # Chi square statisitc for the detection portion of the model
-      e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
-      n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detentions from the same binomial
-      Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
-      Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
-      
+      # e_pa[j, k] <- p_a[j, k] * N_indv[j, k]                                      # Expected value for availability binomial portion of the model
+      # n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
+      # Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
+      # Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
+      # 
+      # # Chi square statisitc for the detection portion of the model
+      # e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
+      # n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detentions from the same binomial
+      # Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
+      # Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
+       
     } # end loop through visits
   } # end loop through survey grids
   
@@ -422,12 +412,12 @@ sobs_model_code <- nimbleCode({
   # Combine fit statistics
   
   # Add up fit stats for availability across sites and years
-  fit_pa <- sum(Chi_pa[,])
-  fit_pa_new <- sum(Chi_pa_new[,])
+  # fit_pa <- sum(Chi_pa[,])
+  # fit_pa_new <- sum(Chi_pa_new[,])
   
-  # Add up fit stats for detectability across sites and years
-  fit_pd <- sum(Chi_pd[,])
-  fit_pd_new <- sum(Chi_pd_new[,])
+  # # Add up fit stats for detectability across sites and years
+  # fit_pd <- sum(Chi_pd[,])
+  # fit_pd_new <- sum(Chi_pd_new[,])
   
 }) # end model statement
 
@@ -491,13 +481,13 @@ sobs_dims <- list(
   pi_pa =  c(ngrids, nvst, nints),   # Availability cell prob in each time interval
   pi_pa_c = c(ngrids, nvst, nints),  # Proportion of total availability probability in each cell
   p_a = c(ngrids, nvst),             # Availability probability
-  lambda = c(ngrids, nvst),          # Poisson random variable
-  e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
-  e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
-  Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
-  Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
-  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
-  Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
+  lambda = c(ngrids, nvst)           # Poisson random variable
+  # e_pa = c(ngrids , nvst),           # Expected value for availebility portion of the model
+  # e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
+  # Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
+  # Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
+  # Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
+  # Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
 )
 
 # View dimensions
@@ -518,13 +508,11 @@ sobs_inits <- list(
   beta_fyear = rnorm(nelv, 0, 0.1),           # Effect of time since fire by elevation
   beta_rdnbr = rnorm(1, 0, 0.1),              # Effect of burn severity
   sd_eps_year = runif(1, 0, 1),               # Magnitude of random noise by year (only positive)
-  sd_omega_grid = runif(1, 0, 1),             # Magnitude of random noise by year (only positive)
   eps_year = c(0, rnorm(nyears-1, 0, 0.1)),   # Random noise on abundance by year
-  omega_grid = c(0, rnorm(ngrids-1, 0, 0.1)), # Random noise on abundance by grid
   # Simulated counts
   n_avail = count_mat + 1,                    # Number of available birds (helps to start each grid with an individual present)
-  n_dct_new = count_mat,                      # Simulated detected birds 
-  n_avail_new = count_mat + 1,                # Simulated available birds (helps to start each grid with an individual present)
+  # n_dct_new = count_mat,                      # Simulated detected birds
+  # n_avail_new = count_mat + 1,                # Simulated available birds (helps to start each grid with an individual present)
   N_indv = count_mat + 1                      # "True" abundance (helps to start each grid with an individual present)
 )
 # View the initial values
@@ -532,15 +520,14 @@ str(sobs_inits)
 
 # Params to save
 sobs_params <- c(
-  "fit_pd",          # Fit statistic for observed data
-  "fit_pd_new",      # Fit statistic for simulated detection  data
-  "fit_pa",          # Fit statistic for first availability data
-  "fit_pa_new",      # Fit statistic for simulated availability data
+  # "fit_pd",          # Fit statistic for observed data
+  # "fit_pd_new",      # Fit statistic for simulated detection  data
+  # "fit_pa",          # Fit statistic for first availability data
+  # "fit_pa_new",      # Fit statistic for simulated availability data
   "beta0_treatment", # Unique intercept by treatment
   "beta_fyear",      # Effect of each year after a fire
   "beta_rdnbr",      # Effect of burn severity 
   "sd_eps_year",     # Random noise on abundance by year
-  "sd_omega_grid",   # Random noise on abundance by grids
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
@@ -598,18 +585,7 @@ sobs_mcmcConf$removeSamplers(
   # Effect of burn severity
   "beta_rdnbr",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]",
-  #Random noise by grid
-  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
-  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
-  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
-  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
-  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
-  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
-  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
-  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
-  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
-  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
+  "eps_year[2]", "eps_year[3]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Intercept by grid type
@@ -619,18 +595,7 @@ sobs_mcmcConf$addSampler(target = c(
   # Effect of burn severity
   "beta_rdnbr",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]",
-  #Random noise by grid
-  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
-  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
-  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
-  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
-  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
-  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
-  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
-  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
-  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
-  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
+  "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # View the blocks
@@ -698,7 +663,7 @@ MCMCsummary(object = fire_mcmc_out$samples,
 
 # View MCMC plot
 MCMCplot(object = fire_mcmc_out$samples,
-         excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new"),
+         # excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new"),
          guide_lines = TRUE,
          params = sobs_params)
 
@@ -719,6 +684,11 @@ library(MCMCvis)
 library(gridExtra)
 library(ggpubr)
 library(grid)
+library(extrafont)
+
+#Load fonts
+font_import()
+loadfonts(device = "win")
 
 # Add the counts back in (Just using them for the dates so it doesn't matter which species, I like Brewer's Sparrow)
 sobs_counts_temp <- read.csv(paste0("Data/Outputs/BRSP_Grid_Counts.csv")) %>%
@@ -767,11 +737,11 @@ all_plot_species <- c(
 )
 
 # Loop over all species 
-# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_plot_species[s]
-plot_species <- all_plot_species[1]
+plot_species <- all_plot_species[s]
+# plot_species <- all_plot_species[2]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -791,14 +761,14 @@ fire_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Pr
 
 
 # View model summary
-MCMCsummary(object = fire_mcmc_out$samples, 
-            round = 2)
+# MCMCsummary(object = fire_mcmc_out$samples, 
+#             round = 2)
 # View MCMC summary object
 fire_mcmc_out$summary$all.chains
 
 # Extract model fit
-fit <- MCMCchains(fire_mcmc_out$samples, params = "fit_pd")
-fit_new <- MCMCchains(fire_mcmc_out$samples, params = "fit_pd_new")
+# fit <- MCMCchains(fire_mcmc_out$samples, params = "fit_pd")
+# fit_new <- MCMCchains(fire_mcmc_out$samples, params = "fit_pd_new")
 
 # Treatment intercepts
 beta0_ref_low <- fire_mcmc_out$summary$all.chains[18,]
@@ -862,10 +832,11 @@ beta_dat_pred <- beta_dat_long %>%
   mutate(Pred = seq(from = -2, to = 2, length.out = n))
 
 # View the new data 
-glimpse(beta_dat_pred)
+# glimpse(beta_dat_pred)
 
-# Minimum  scaled burn severaity
+# Minimum  scaled burn severaity and maximum scales time since fire
 min_rdnbr_scl <- (min(fire_stats$rdnbr) - mean_rdnbr) / sd_rdnbr
+max_fyear_scl <- (max(fire_stats$Years.Since.Fire) - mean_fyear) / sd_fyear
 
 # Maximum  based on low ref
 max_low_ref <- exp(beta0_ref_low[5])
@@ -877,12 +848,12 @@ max_low_burn <- exp(beta0_burn_low[5])
 max_high_burn <- exp(beta0_burn_high[5])
 # Maximum based on low time since fire
 min_low_fyear <- exp(beta0_burn_low[5] + beta_fyear_low[5]*-2)
-max_low_fyear <- exp(beta0_burn_low[5]+ beta_fyear_low[5]*2)
+max_low_fyear <- exp(beta0_burn_low[5]+ beta_fyear_low[5]*max_fyear_scl)
 # Maximum based on high time since fire
-min_high_fyear <- exp(beta0_burn_high[5] + beta_fyear_high[5]*min_rdnbr_scl)
-max_high_fyear <- exp(beta0_burn_high[5]+ beta_fyear_high[5]*2)
+min_high_fyear <- exp(beta0_burn_high[5] + beta_fyear_high[5]*-2)
+max_high_fyear <- exp(beta0_burn_high[5]+ beta_fyear_high[5]*max_fyear_scl)
 # Maximum based on burn severity at low elevation
-min_low_rdnbr <- exp(beta0_burn_low[5] + beta_rdnbr[5])
+min_low_rdnbr <- exp(beta0_burn_low[5] + beta_rdnbr[5]*min_rdnbr_scl)
 max_low_rdnbr <- exp(beta0_burn_low[5]+ beta_rdnbr[5]*2)
 # Maximum based on burn severity at high elevation
 min_high_rdnbr <- exp(beta0_burn_high[5] + beta_rdnbr[5]*min_rdnbr_scl)
@@ -934,14 +905,14 @@ treatment_pred_plot <- beta_dat %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    plot.title = element_text(size = 20),
-    axis.title.y = element_text(size = 16),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 16),
-    axis.text.x = element_text(size = 16, color = "#00000000"),
-    legend.text = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text.x = element_text(size = 18, color = "#00000000"),
+    legend.text = element_text(size = 18),
     legend.position = "none", 
-    legend.title = element_text(size = 16)
+    legend.title = element_blank()
   )
 
 # Display the plot
@@ -1025,14 +996,13 @@ fyear_pred_plot <- beta_dat_pred %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    axis.title.x = element_text(size = 16),
-    # axis.title.y = element_text(size = 16),
-    plot.title = element_text(size = 20),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
     axis.title.y = element_blank(),
-    axis.text = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
-    legend.title = element_text(size = 16)
+    legend.title = element_blank()
   )
 
 # Display the plot as a png
@@ -1103,14 +1073,14 @@ rdnbr_pred_plot <- beta_dat_pred %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    axis.title.x = element_text(size = 16),
-    # axis.title.y = element_text(size = 16),
-    plot.title = element_text(size = 20),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    # axis.title.y = element_text(size = 18),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
     axis.title.y = element_blank(),
-    axis.text = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.text = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
-    legend.title = element_text(size = 16)
+    legend.title = element_blank()
   )
 
 # Display the plot as a png
@@ -1155,8 +1125,8 @@ legend_plot <- beta_dat %>%
   theme_classic() +
   theme(
     legend.position = "bottom", 
-    legend.title = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    legend.title = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.key.size = unit(1, "cm")) +
   # 2x2 legend
   guides(fill = guide_legend(nrow = 2), color = guide_legend(nrow = 2))
@@ -1171,8 +1141,10 @@ full_fire_elv_pred_plot <- grid.arrange(treatment_pred_plot,
                                nrow = 1, ncol = 3)
 
 # Create a title
-plot_title <- textGrob(species_name, 
-                       gp = gpar(fontsize = 20, fontface = "bold"))
+plot_title <- text_grob(label = species_name, 
+                        size = 22,
+                        face = "bold", 
+                        family = "Times New Roman")
 
 
 # Add the legend
@@ -1193,3 +1165,194 @@ ggsave(plot = full_fire_elv_pred_plot_legend,
 
 } # End plotting loop over all species (Comment this out) ----
 
+#####################################################################################
+# 5) Table of observation covariates ################################################
+#####################################################################################
+
+# Clear environments
+rm(list = ls())
+
+# Add packages
+library(tidyverse)
+library(extrafont)
+library(flextable)
+
+# List of Species to plot 
+all_plot_species <- c(
+  "SATH",
+  "BRSP",
+  "VESP",
+  "WEME",
+  "HOLA"
+)
+
+# Set up a blank tables to store the species covariates
+dct_tbl_all <- tibble()
+avail_tbl_all <- tibble()
+
+# Inverse logit function
+inv_logit <- function(x){
+  y <- exp(x) / (1 + exp(x))
+  return(y)
+}
+
+# Loop over all species
+for(s in 1:length(all_plot_species)){
+  
+# Define a single species
+table_species <- all_plot_species[s]
+# table_species <- all_plot_species[1]
+  
+# Read in the model output for a single species
+fire_mcmc_out <-  readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//",
+                                                table_species, "_fire_elevation_rdnbr_model.rds"))
+
+# View the whole data frame
+# fire_mcmc_out$summary$all.chains
+
+# Extract the observer ID posteriors
+obsv_mean <- fire_mcmc_out$summary$all.chains[1:17, 1]
+obsv_cri_lb <- fire_mcmc_out$summary$all.chains[1:17, 4]
+obsv_cri_ub <- fire_mcmc_out$summary$all.chains[1:17, 5]
+
+# Find the min and max scale parameters by observer
+min_obsv <- exp(min(obsv_cri_lb))*1000
+median_obsv <- exp(median(obsv_mean))*1000
+max_obsv <- exp(max(obsv_cri_ub))*1000
+
+# Combine into a tibble on the natural scale (meters)
+dct_tbl_species <- tibble(Mean = exp(obsv_mean) * 1000,
+                          CRI.lb = exp(obsv_cri_lb) * 1000,
+                          CRI.ub = exp(obsv_cri_ub) * 1000) %>% 
+  filter(CRI.lb == min_obsv | Mean == median_obsv | CRI.ub == max_obsv) %>% 
+  arrange(Mean) %>% 
+  mutate(Parameter = c("Observer Minimum ", "Observer Median", "Observer Maximum"),
+         Species = rep(table_species, 3)) %>%
+  relocate(c("Parameter", "Species"), .before = Mean) 
+# View
+dct_tbl_species
+
+# Pull out the availability information
+avail_mean <- fire_mcmc_out$summary$all.chains[32:35, 1] 
+avail_cri_lb <- fire_mcmc_out$summary$all.chains[32:35, 4] 
+avail_cri_ub <- fire_mcmc_out$summary$all.chains[32:35, 5] 
+
+# Combine avaialbility parameters on the natural scale (prob)
+avail_tbl_species <- tibble(Mean = avail_mean,
+                            CRI.lb = avail_cri_lb,
+                            CRI.ub = avail_cri_ub) %>% 
+  mutate(Parameter = c("Date", "Date^2", "Time", "Time^2"),
+         Species = rep(table_species, length(avail_mean))) %>% 
+  relocate(c("Parameter", "Species"), .before = Mean)
+# View
+# avail_tbl_species
+
+# Combine with the full species data
+dct_tbl_all <- bind_rows(dct_tbl_all, dct_tbl_species)
+avail_tbl_all <- bind_rows(avail_tbl_all, avail_tbl_species)
+
+# Say that one iteration in done
+message(paste0("Extraccted positerior credible interval estimates for "), table_species)
+
+} # end table loop over species
+
+# Read in the sagebrush sparrow model
+sabs_mcmc_out <- readRDS(file = paste0("C://Users//willh//Box//Will_Harrod_MS_Project//Model_Files//SABS_fire_elevation_model.rds"))
+
+# View the summary
+sabs_mcmc_out$summary$all.chains
+
+# Extract the dection function sscale parameter for sagebrush sparrow
+sabs_sigma <- sabs_mcmc_out$summary$all.chains[1, c(1, 4, 5)]
+
+# Rename columns 
+sabs_dct_tbl <- tibble(Parameter = "Single Parameter",
+                       Species = "SABS",
+                       Mean = exp(sabs_sigma[1])*1000,
+                       CRI.lb = exp(sabs_sigma[2])*1000,
+                       CRI.ub = exp(sabs_sigma[3])*1000)
+
+# Combine with the other detection functions 
+dct_tbl_all_sabs <- bind_rows(dct_tbl_all, sabs_dct_tbl)
+
+# Extract the availability parameters
+sabs_gammas <- sabs_mcmc_out$summary$all.chains[7:10, c(1, 4, 5)]
+
+# Rename columns 
+sabs_avail_tbl <- tibble(Parameter = c("Date", "Date^2", "Time", "Time^2"),
+                       Species = rep("SABS", nrow(sabs_gammas)),
+                       Mean = sabs_gammas[,1],
+                       CRI.lb = sabs_gammas[,2],
+                       CRI.ub = sabs_gammas[,3])
+
+# Combine with the other avaiablility tables
+avail_tbl_all_sabs <- bind_rows(avail_tbl_all, sabs_avail_tbl)
+
+# View the tables
+dct_tbl_all_sabs
+avail_tbl_all_sabs
+
+#########################################################################################################
+# Build flex tables from covariates #####################################################################
+#########################################################################################################\
+
+# Detection covariate flextable --------------------------------------------------------------
+dct_flex_tbl <- dct_tbl_all_sabs %>% 
+  # Round posteriors
+  mutate(Mean = round(Mean, digits = 2),
+         CRI.lb = round(CRI.lb, digits = 2),
+         CRI.ub = round(CRI.ub, digits = 2)) %>% 
+  # Start the flextable
+  flextable() %>% 
+  # Merge cells by species
+  hline(i = seq(from = 3, to = nrow(dct_tbl_all_sabs), by = 3)) %>% 
+  # Bold the header
+  bold(part = "header") %>% 
+  # Change the font size
+  fontsize(size = 13, part = "header") %>% 
+  fontsize(size = 12, part = "body") %>% 
+  # Change the font to times new roman
+  flextable::font(fontname = "Time New Roman", part = c("all")) 
+  # Add caption
+  # set_caption("Table 1: half-normal detection function scale parameter posterior mean and credible ")
+  
+# View the detection covariate flextable
+dct_flex_tbl 
+
+# Export the detection covariate flextable
+save_as_image(x = dct_flex_tbl, 
+              path = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\dection_fct_tbl.png")
+
+# Availability covariate flextable --------------------------------------------------------------------------------------
+avail_flex_tbl <- avail_tbl_all_sabs %>% 
+  # Round posteriors
+  mutate(Mean = round(Mean, digits = 2),
+         CRI.lb = round(CRI.lb, digits = 2),
+         CRI.ub = round(CRI.ub, digits = 2)) %>%
+  # Add a column for significance
+  mutate(Significant = case_when(CRI.lb <= 0 & CRI.ub >= 0 ~ "N",
+                                 TRUE ~ "Y")) %>% 
+  #  Only plot significant variables
+  filter(Significant == "Y") %>% 
+  select(-Significant) %>% 
+  # Start the flextable
+  flextable() %>% 
+  # Merge cells by species (mannually)
+  flextable::hline(i = c(2, 3, 7, 10, 12)) %>% 
+  # Bold the header
+  bold(part = "header") %>% 
+  # Change the font size
+  fontsize(size = 13, part = "header") %>% 
+  fontsize(size = 12, part = "body") %>% 
+  # Change colors based on significance
+  # color(i = ~ Significant == "N",
+  #       color = "gray60") %>% 
+  # Change the font to times new roman
+  flextable::font(fontname = "Time New Roman", part = c("all")) 
+
+# View the availability covariate flextable
+avail_flex_tbl 
+
+# Export the availability covariate flextable
+save_as_image(x = avail_flex_tbl, 
+              path = "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Thesis_Documents\\Graphs\\avail_tbl.png")

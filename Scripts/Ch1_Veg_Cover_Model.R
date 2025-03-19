@@ -273,10 +273,13 @@ rm(list = ls())
 library(tidyverse)
 library(ggcorrplot)
 library(gridExtra)
-library(DHARMa)
-library(glmmTMB)
-library(AICcmodavg)
+library(grid)
 library(cowplot)
+library(extrafont)
+
+#Load fonts
+font_import()
+loadfonts(device = "win")
 
 # Read the data back in
 burn_dat_clean <- read.csv("Data\\Outputs\\Fishnet_Grid_Covs.csv") %>% 
@@ -367,12 +370,12 @@ shrub_trt_plot <- covs %>%
                                "Burned Above 1800m" = "orange2")) +
   # Customize text
   theme(
-    plot.title = element_text(size = 22),
-    axis.title.y = element_text(size = 16),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
     axis.text.x = element_blank(),
-    legend.text = element_text(size = 16),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none", 
     legend.title = element_blank()
   ) +
@@ -382,6 +385,7 @@ shrub_trt_plot <- covs %>%
            y = 45,
            label = paste0("R", "\u00B2", " = ", shrub_burn_model_r_sq), 
            color = "black",
+           family = "Times New Roman",
            size = 6) +
   # Add percent symbols
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
@@ -433,12 +437,12 @@ pfg_trt_plot <- covs %>%
                                "Burned Above 1800m" = "orange2")) +
   # Customize text
   theme(
-    plot.title = element_text(size = 22),
-    axis.title.y = element_text(size = 16),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
     axis.text.x = element_blank(),
-    legend.text = element_text(size = 16),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none", 
     legend.title = element_blank()
   ) +
@@ -448,6 +452,7 @@ pfg_trt_plot <- covs %>%
            y = 45,
            label = paste0("R", "\u00B2", " = ", shrub_burn_model_r_sq), 
            color = "black",
+           family = "Times New Roman",
            size = 6) +
   # Add percent symbols
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
@@ -481,7 +486,7 @@ trt_leg_plot <-  covs %>%
                                "Burned Above 1800m" = "orange2")) +
   # Customize text
   theme(
-    legend.text = element_text(size = 16),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "bottom", 
     legend.title = element_blank(),
     legend.key.size = unit(1, "cm")
@@ -558,21 +563,20 @@ fyear_shrub_plot <- burn_covs %>%
        title = "(A) Shrub Cover") +
   # Custimize text
   theme(
-    plot.title = element_text(size = 20),
-    axis.title.y = element_text(size = 14),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text.x = element_blank(),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none", 
-    legend.title = element_blank(),
-    legend.key.size = unit(1, "cm")
+    legend.title = element_blank()
   ) +
   # Add the R squared
   annotate(geom="text", x = 7, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_fyear_shrub_low),
-           color = "black", size = 6) +
+           family = "Times New Roman", color = "black", size = 6) +
   annotate(geom = "text", x = 7, y = 46, label = paste0("R", "\u00B2", " = ", r_sq_fyear_shrub_high),
-           color="black", size = 6) +
+           family = "Times New Roman", color="black", size = 6) +
   # Add percent symbols
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
@@ -626,20 +630,20 @@ fyear_pfg_plot <- burn_covs %>%
        title = "(B) Perennial Cover") + 
   # Custimize text
   theme(
-    plot.title = element_text(size = 20),
-    axis.title.y =  element_text(size = 14),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text.x = element_blank(),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none", 
     legend.title = element_blank()
   ) +
   # Add the R squared
   annotate(geom="text", x = 7, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_fyear_pfg_low),
-           color = "black", size = 6) +
+           family = "Times New Roman", color = "black", size = 6) +
   annotate(geom = "text", x = 7, y = 46, label = paste0("R", "\u00B2", " = ", r_sq_fyear_pfg_high),
-           color="black", size = 6) +
+           family = "Times New Roman", color="black", size = 6) +
   # Add percent symbols
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
@@ -662,12 +666,12 @@ legend_plot <- burn_covs %>%
   scale_fill_manual(values = c("Above 1800m" = "orange2",
                                "Below 1800m" =  "red3")) +
   theme(
-    plot.title = element_text(size = 22),
-    axis.title.y = element_text(size = 14),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text.x = element_blank(),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "bottom", 
     legend.title = element_blank(),
     legend.key.size = unit(1, "cm"))
@@ -676,9 +680,9 @@ legend_plot <- burn_covs %>%
 legend <- ggpubr::get_legend(legend_plot)
 
 # Arrange plots in a grid
-combined_cont_veg_plots <- plot_grid(
+combined_cont_veg_plots <- grid.arrange(
   fyear_shrub_plot, fyear_pfg_plot,
-  nrow = 1, ncol = 2, align = "hv"
+  nrow = 1, ncol = 2
 )
 combined_cont_veg_plots
 
@@ -722,18 +726,18 @@ rdnbr_shrub_plot <- burn_covs %>%
        title = "(A) Shrub Cover") +
   # Customize text
   theme(
-    plot.title = element_text(size = 20),
-    axis.title.y = element_text(size = 14),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text.x = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
     legend.title = element_blank()
   ) +
   # Add the R squared
   annotate(geom="text", x = 730, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_rdnbr_shrub),
-           color = "black", size = 6) +
+           family = "Times New Roman", color = "black", size = 6) +
   # Add percent symbols
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
@@ -765,18 +769,18 @@ rdnbr_pfg_plot <- burn_covs %>%
        title = "(B) Perennial Cover") +
   # Customize text
   theme(
-    plot.title = element_text(size = 20),
-    axis.title.y = element_text(size = 14),
-    axis.text.y = element_text(size = 16),
-    axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    plot.title = element_text(size = 22, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.text.x = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
     legend.title = element_blank()
   ) +
   # Add the R squared
   annotate(geom="text", x = 730, y = 49, label = paste0("R", "\u00B2", " = ", r_sq_rdnbr_pfg),
-           color = "black", size = 6) +
+           family = "Times New Roman", color = "black", size = 6) +
   # Add percent symbols
   scale_y_continuous(labels = function(x) paste0(x, "%"), limits = c(0, 50))
 
@@ -798,10 +802,10 @@ rdnbr_legend_plot <- burn_covs %>%
   theme(
     plot.title = element_text(size = 20),
     axis.title.y = element_text(size = 14),
-    axis.text.y = element_text(size = 16),
+    axis.text.y = element_text(size = 18, family = "Times New Roman"),
     axis.title.x = element_text(size = 14),
-    axis.text.x = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.text.x = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "bottom",
     legend.title = element_blank(),
     legend.key.size = unit(1, "cm")
@@ -813,9 +817,9 @@ rdnbr_legend_plot <- burn_covs %>%
 rdnbr_legend <- ggpubr::get_legend(rdnbr_legend_plot)
 
 # Arrange plots in a grid
-combined_rdnbr_plots <- plot_grid(
+combined_rdnbr_plots <- grid.arrange(
   rdnbr_shrub_plot, rdnbr_pfg_plot,
-  nrow = 1, ncol = 2, align = "hv"
+  nrow = 1, ncol = 2
 )
 combined_rdnbr_plots
 

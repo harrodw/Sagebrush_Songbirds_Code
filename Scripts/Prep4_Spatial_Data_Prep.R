@@ -504,9 +504,9 @@ nyears_rap
 # Loop through each year to extract pre fire vegetation data
 start <- Sys.time()  
 start # Start time
-for(i in 2:(nyears_rap)){ 
+for(i in 2:(nyears_rap)){
   # run a specific year to test the loop (comment out after testing)
-  # i <- which(rap_years == 2017)
+  # i <- which(rap_years == 2018)
   
   # define the year for the current iteration
   year <- rap_years[i]
@@ -515,7 +515,7 @@ for(i in 2:(nyears_rap)){
   fires <- fire_perms %>% 
     filter(Ig.Year == year)
 
-  # End the loop if there are no fires
+  # Skip to the next iteration if there are no fires from that year
   if (nrow(fires) == 0) {
     message(paste0("No fires in the study region during year:  ", year, 
                    " (", i-1, " of ", nyears_rap-1, " years)"))
@@ -524,7 +524,7 @@ for(i in 2:(nyears_rap)){
   
   # Read in veg cover raster for the previous year
   rap_rast <- rast(paste0(rap_path, "RAP_VegCover_", year - 1, ".tif")) %>% 
-    project(target_crs) # Project to the same CRS as the fires
+    terra::project(target_crs) # Project to the same CRS as the fires
   
   # Clip that raster to the fires from that year
   rap_rast_clp <- mask(rap_rast, fires)
@@ -587,27 +587,30 @@ difftime(Sys.time(), start) # End time
 # Primary file path for rasters
 ras_path <- "C:\\Users\\willh\\Box\\Will_Harrod_MS_Project\\Data\\Spatial\\Geoprocessing_Outputs\\"
 
-# Add in the elevation and current shrub cover rasters
+# Read the pre fire covariates back in so I don't have to run the whole thing again
+pre_fire_covs <- tibble(read.csv("Data/Outputs/pre_fire_covs.csv")) %>%
+  dplyr::select(-X) %>% tibble()
+
+# Add in the elevation and precip rasters
 elevation_rast <- rast(paste0(ras_path, "elevation.tif"))
-shrub_rast <- rast(paste0(ras_path, "shrub_cvr.tif"))
-pfg_rast <- rast(paste0(ras_path, "pfg_cvr.tif"))
+precip_rast <- rast(paste0(ras_path, "precip.tif"))
 
 # Summarize elevation
 elevation_mean <- terra::extract(x = elevation_rast,
                                  y = pre_fire_buff,
                                  fun = function(x) mean(x, na.rm = TRUE))
-# Summarize current shrub cover
-shrub_mean <- terra::extract(x = shrub_rast,
+# Summarize precipitation
+precip_mean <- terra::extract(x = precip_rast,
                                  y = pre_fire_buff,
                                  fun = function(x) mean(x, na.rm = TRUE))
 
 # Add elevation and current shrub cover to the covariates
 pre_fire_covs$Elevation <- elevation_mean[,2]
-pre_fire_covs$Current.Shrub <- shrub_mean[,2]
+pre_fire_covs$Precipitation <- precip_mean[,2]
 
 # Remove the temporary covariates
 pre_fire_covs_final <- pre_fire_covs %>% 
-  dplyr::select(Grid.ID, Grid.Type, Elevation, Current.Shrub, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
+  dplyr::select(Grid.ID, Grid.Type, Elevation, Precipitation, Current.Shrub, Fire.Year, Shrub.Cover.PF, PFG.Cover.PF, 
                 AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF, Fire.Pixels, Grid.X, Grid.Y) %>% 
   # Replace NA's
   mutate(across(everything(), ~ replace_na(., 0))) %>% 
@@ -626,7 +629,7 @@ pre_fire_covs_final %>%
 #Pull out just the covariates on grids with info
 pre_fire_corr <- pre_fire_covs_final %>% 
   filter(Fire.Year > 0) %>%  
-  select(Elevation, Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
+  select(Elevation, Precipitation, Shrub.Cover.PF, PFG.Cover.PF, AFG.Cover.PF, Tree.Cover.PF, BG.Cover.PF)
 # View
 print(pre_fire_corr, n = Inf)
   

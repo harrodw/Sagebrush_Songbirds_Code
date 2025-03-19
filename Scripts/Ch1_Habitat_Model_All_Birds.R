@@ -27,12 +27,12 @@ rm(list = ls())
 # List of Species 
 all_species <- c(
   "BRSP",
-  "SATH",
-  "SABS",
+  "SATH"
+  # "SABS",
   # "GTTO",
-  "VESP",
-  "WEME",
-  "HOLA"
+  # "VESP",
+  # "WEME",
+  # "HOLA"
 )
 
 # Loop over all species
@@ -323,19 +323,12 @@ sobs_model_code <- nimbleCode({
   
   # # Abundance random effect hyper-parameters
   sd_eps_year ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each year
-  sd_omega_grid ~ dgamma(shape = 0.5, scale = 0.5) # Random effect on abundance hyperparameter for each grid
 
   # Random noise among the other years
   for(y in 2:nyears){ # nyears = 3
     # Force the first year (2022) to be the intercept
     eps_year[y] ~ dnorm(0, sd = sd_eps_year)
   } # end loop over years
-  
-  # Random noise between sites
-  for(j in 2:ngrids){ # ngrids = 60
-    # Force the first grid to be the intercept
-    omega_grid[j] ~ dnorm(0, sd = sd_omega_grid)
-  } # end random effect loop over grids
   
   # -------------------------------------------------------------------
   # Hierarchical construction of the likelihood
@@ -395,8 +388,7 @@ sobs_model_code <- nimbleCode({
                            beta_shrub * shrub_cvr[j] +   # Effect of shrub cover
                            beta_pfg * pfg_cvr[j] +       # Effect of perennial cover  
                            beta_tri * tri[j] +           # Effect of ruggedness
-                           eps_year[years[j, k]] +       # Unexplained noise on abundance by year
-                           omega_grid[j]                 # Unexplained noise on abundance by grid
+                           eps_year[years[j, k]]         # Unexplained noise on abundance by year
 
       # -------------------------------------------------------------------------------------------------------------------
       # Assess model fit: compute Bayesian p-value for using a test statisitcs
@@ -406,13 +398,13 @@ sobs_model_code <- nimbleCode({
       n_avail_new[j, k] ~ dbin(p_a[j, k], N_indv[j, k])                           # Draw new available birds from the same binomial
       Chi_pa[j, k] <- (n_avail[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5)         # Compute availability chi squared statistic for observed data
       Chi_pa_new[j, k] <- (n_avail_new[j, k] - e_pa[j, k])^2 / (e_pa[j, k] + 0.5) # Compute availability chi squared statistic for simulated data data
-      
+
       # Chi square statisitc for the detection portion of the model
       e_pd[j, k] <- p_d[j, k] * n_avail[j, k]                                     # Expected value for detection binomial portion of the model
       n_dct_new[j, k] ~ dbin(p_d[j, k], n_avail[j, k])                            # Draw new detections from the same binomial
       Chi_pd[j, k] <- (n_dct[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)           # Compute detecability chi squared statistic for observed data
       Chi_pd_new[j, k] <- (n_dct_new[j, k] - e_pd[j, k])^2 / (e_pd[j, k] + 0.5)   # Compute detecability chi squared statistic for simulated data data
-      
+
     } # end loop through visits
   } # end loop through survey grids
   
@@ -431,7 +423,7 @@ sobs_model_code <- nimbleCode({
   # Add up fit stats for availability across sites and years
   fit_pa <- sum(Chi_pa[,])
   fit_pa_new <- sum(Chi_pa_new[,])
-  
+
   # Add up fit stats for detectability across sites and years
   fit_pd <- sum(Chi_pd[,])
   fit_pd_new <- sum(Chi_pd_new[,])
@@ -499,7 +491,7 @@ sobs_dims <- list(
   e_pd = c(ngrids , nvst),           # Expected value for detection portion of the model
   Chi_pa = c(ngrids , nvst),         # Observed Chi square statistic for availability
   Chi_pa_new = c(ngrids, nvst),      # Simulated Chi square statistic for availability
-  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection 
+  Chi_pd = c(ngrids , nvst),         # Observed Chi square statistic for detection
   Chi_pd_new = c(ngrids, nvst)       # Simulated Chi square statistic for detection
 )
 
@@ -522,12 +514,10 @@ sobs_inits <- list(
   beta_pfg = rnorm(1, 0, 0.1),                # Effect of perennial cover
   beta_tri = rnorm(1, 0, 0.1),                # Effect of ruggedness
   sd_eps_year = runif(1, 0, 1),               # Magnitude of random noise by year (only positive)
-  sd_omega_grid = runif(1, 0, 1),             # Magnitude of random noise by year (only positive)
   eps_year = c(0, rnorm(nyears-1, 0, 0.1)),   # Random noise on abundance by year
-  omega_grid = c(0, rnorm(ngrids-1, 0, 0.1)), # Random noise on abundance by grid
   # Simulated counts
   n_avail = count_mat + 1,                    # Number of available birds (helps to start each grid with an individual present)
-  n_dct_new = count_mat,                      # Simulated detected birds 
+  n_dct_new = count_mat,                      # Simulated detected birds
   n_avail_new = count_mat + 1,                # Simulated available birds (helps to start each grid with an individual present)
   N_indv = count_mat + 1                      # "True" abundance (helps to start each grid with an individual present)
 )
@@ -545,7 +535,6 @@ sobs_params <- c(
   "beta_pfg",        # Effect of perennial cover
   "beta_tri",        # Effect of ruggedness
   "sd_eps_year",     # Random noise on abundance by year
-  "sd_omega_grid",   # Random noise on abundance by grids
   "gamma0",          # Intercept on availability
   "gamma_date",      # Effect of date on singing rate
   "gamma_date2",     # Quadratic effect of date on singing rate
@@ -597,35 +586,13 @@ sobs_mcmcConf$removeSamplers(
   # Fixed effects
   "beta0", "beta_shrub", "beta_pfg", "beta_tri",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]",
-  #Random noise by grid
-  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
-  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
-  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
-  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
-  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
-  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
-  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
-  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
-  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
-  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
+  "eps_year[2]", "eps_year[3]"
   )
 sobs_mcmcConf$addSampler(target = c(
   # Fixed effects
   "beta0", "beta_shrub", "beta_pfg", "beta_tri",
   # Random noise by year
-  "eps_year[2]", "eps_year[3]",
-  #Random noise by grid
-  "omega_grid[2]", "omega_grid[3]", "omega_grid[4]", "omega_grid[5]", "omega_grid[6]", 
-  "omega_grid[7]", "omega_grid[8]", "omega_grid[9]", "omega_grid[10]", "omega_grid[11]", "omega_grid[12]", 
-  "omega_grid[13]", "omega_grid[14]", "omega_grid[15]", "omega_grid[16]", "omega_grid[17]", "omega_grid[18]", 
-  "omega_grid[19]", "omega_grid[20]", "omega_grid[21]", "omega_grid[22]", "omega_grid[23]", "omega_grid[24]", 
-  "omega_grid[25]", "omega_grid[26]", "omega_grid[27]", "omega_grid[28]", "omega_grid[29]", "omega_grid[30]", 
-  "omega_grid[31]", "omega_grid[32]", "omega_grid[33]", "omega_grid[34]", "omega_grid[35]", "omega_grid[36]", 
-  "omega_grid[37]", "omega_grid[38]", "omega_grid[39]", "omega_grid[40]", "omega_grid[41]", "omega_grid[42]", 
-  "omega_grid[43]", "omega_grid[44]", "omega_grid[45]", "omega_grid[46]", "omega_grid[47]", "omega_grid[48]", 
-  "omega_grid[49]", "omega_grid[50]", "omega_grid[51]", "omega_grid[52]", "omega_grid[53]", "omega_grid[54]", 
-  "omega_grid[55]", "omega_grid[56]", "omega_grid[57]", "omega_grid[58]", "omega_grid[59]", "omega_grid[60]"
+  "eps_year[2]", "eps_year[3]"
   ), type = 'RW_block')
 
 # # Block all occupancy (psi) nodes together
@@ -703,7 +670,9 @@ MCMCsummary(object = hab_mcmc_out$samples,
 
 # View MCMC plot
 MCMCplot(object = hab_mcmc_out$samples,
-         excl = c("fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new", "beta0"),
+         excl = c(
+           "fit_pa", "fit_pa_new", "fit_pd", "fit_pd_new",
+           "beta0"),
          guide_lines = TRUE,
          params = sobs_params)
 
@@ -722,7 +691,12 @@ rm(list = ls())
 library(tidyverse)
 library(gridExtra)
 library(ggpubr)
-library(grid)
+# library(grid)
+library(extrafont)
+
+#Load fonts
+font_import()
+loadfonts(device = "win")
 
 # 4.2) Graph each species response to fire ###############################################################
 
@@ -752,11 +726,11 @@ tri_mean <- mean(covs$TRI)
 tri_sd <- sd(covs$TRI)
 
 # Loop over all species 
-# for(s in 1:length(all_plot_species)) { # (Comment this out) ----
+for(s in 1:length(all_plot_species)) { # (Comment this out) ----
 
 # Name the species to model again
-# plot_species <- all_plot_species[s]
-plot_species <- all_plot_species[2]
+plot_species <- all_plot_species[s]
+# plot_species <- all_plot_species[1]
 
 # Data frame for naming species
 plot_species_df <- data.frame(Species.Code = plot_species) %>% 
@@ -790,10 +764,10 @@ hab_mcmc_out$summary$all.chains
 
 
 # Extract model fit
-fit <- MCMCchains(hab_mcmc_out$samples, params = "fit_pd")
-fit_new <- MCMCchains(hab_mcmc_out$samples, params = "fit_pd_new")
+# fit <- MCMCchains(hab_mcmc_out$samples, params = "fit_pd")
+# fit_new <- MCMCchains(hab_mcmc_out$samples, params = "fit_pd_new")
 
-mean(fit / fit_new)
+# mean(fit / fit_new)
 
 # Extract effect sizes
 beta_shrub <- hab_mcmc_out$summary$all.chains[20,]
@@ -849,14 +823,14 @@ params_plot <- beta_dat %>%
                                 "Yes" = "navyblue")) +
   # Edit theme
   theme(legend.position = "none",
-        plot.title = element_text(size = 18),
-        axis.text.y = element_text(size = 16),
+        plot.title = element_text(size = 20, family = "Times New Roman"),
+        axis.text.y = element_text(size = 18, family = "Times New Roman"),
         axis.title.x = element_blank(),
-        axis.text.x = element_text(size = 16)) 
+        axis.text.x = element_text(size = 18, family = "Times New Roman")) 
 
 
 # View the plot
-# params_plot
+params_plot
 
 # Save the plot as a png
 ggsave(plot = params_plot,
@@ -940,14 +914,14 @@ shrub_pred_plot <- preds %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    axis.title.y = element_text(size = 18, family = "Times New Roman"),
     # axis.title.y = element_blank(),
     plot.title = element_text(size = 20),
-    axis.text = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.text = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
-    legend.title = element_text(size = 16)
+    legend.title = element_text(size = 18, family = "Times New Roman")
   ) +
   # Add percent symbols
   scale_x_continuous(labels = function(x) paste0(x, "%"))
@@ -973,14 +947,14 @@ pfg_pred_plot <- preds %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    axis.title.x = element_text(size = 16),
-    # axis.title.y = element_text(size = 16),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    # axis.title.y = element_text(size = 18, family = "Times New Roman"),
     plot.title = element_text(size = 20),
     axis.title.y = element_blank(),
-    axis.text = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.text = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
-    legend.title = element_text(size = 16)
+    legend.title = element_text(size = 18, family = "Times New Roman")
   ) +
   # Add percent symbols
   scale_x_continuous(labels = function(x) paste0(x, "%"))
@@ -1008,14 +982,14 @@ tri_pred_plot <- preds %>%
   theme_classic() +
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(
-    axis.title.x = element_text(size = 16),
-    # axis.title.y = element_text(size = 16),
+    axis.title.x = element_text(size = 18, family = "Times New Roman"),
+    # axis.title.y = element_text(size = 18, family = "Times New Roman"),
     plot.title = element_text(size = 20),
     axis.title.y = element_blank(),
-    axis.text = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.text = element_text(size = 18, family = "Times New Roman"),
+    legend.text = element_text(size = 18, family = "Times New Roman"),
     legend.position = "none",
-    legend.title = element_text(size = 16)
+    legend.title = element_text(size = 18, family = "Times New Roman")
   ) 
 # View the predicted response to ruggedness
 # tri_pred_plot 
@@ -1038,7 +1012,7 @@ legend_plot <- preds %>%
   scale_y_continuous(limits = c(0, max_birds)) +
   theme(legend.position = "bottom",
         legend.title = element_blank(),
-        legend.text = element_text(size = 16),
+        legend.text = element_text(size = 18, family = "Times New Roman"),
         legend.key.size = unit(1, "cm")) +
   scale_x_continuous(labels = function(x) paste0(x, "%")) +
   scale_color_manual(values = setNames(c("navyblue"), lngd_lbl)) +
